@@ -1,0 +1,30 @@
+plugins {
+    id 'org.springframework.boot'
+    id 'io.spring.dependency-management'
+    id 'java'
+}
+
+dependencies {
+    implementation project(':auth-common')
+    implementation project(':auth-tenant-adapter')
+    implementation project(':auth-tenant-schema')
+
+    implementation 'org.springframework.boot:spring-boot-starter-web'
+    implementation 'org.springframework.boot:spring-boot-starter-data-jdbc'
+    implementation 'org.springframework.boot:spring-boot-starter-data-redis'
+
+    // 1. Validation (Crucial for tenant onboarding APIs)
+    implementation 'org.springframework.boot:spring-boot-starter-validation'
+
+    // 2. Spring Boot Liquibase integration
+    implementation 'org.liquibase:liquibase-core'
+
+    // 3. Database Drivers for Master DB
+    runtimeOnly 'com.mysql:mysql-connector-j'
+}
+
+
+
+test {
+    useJUnitPlatform()
+}

@@ -1,0 +1,29 @@
+plugins {
+    id 'java-library'
+}
+
+dependencies {
+    implementation project(':auth-common')
+
+    // Required to create the DynamicRoutingDataSource
+    implementation 'org.springframework.boot:spring-boot-starter-data-redis'
+    implementation 'org.springframework.boot:spring-boot-starter-jdbc'
+    implementation 'org.springframework:spring-webmvc' // Needed for the TenantInterceptor
+    implementation 'com.zaxxer:HikariCP'
+
+    // Source: https://mvnrepository.com/artifact/jakarta.servlet/jakarta.servlet-api
+    compileOnly 'jakarta.servlet:jakarta.servlet-api:6.1.0'
+
+    // Include all drivers so the adapter can connect to any tenant DB type
+    runtimeOnly 'com.mysql:mysql-connector-j'
+    runtimeOnly 'org.postgresql:postgresql'
+    runtimeOnly 'com.oracle.database.jdbc:ojdbc8'
+
+//    compileOnly 'org.projectlombok:lombok'
+//    annotationProcessor 'lombok'
+}
+
+
+//test {
+//    useJUnitPlatform()
+//}

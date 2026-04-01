@@ -1,0 +1,43 @@
+#services:
+#
+#  master-service:
+#    build:
+#      context: .
+#      dockerfile: auth-master-service/Dockerfile
+#    environment:
+#      # Use service name 'auth-master-db' as host
+#      - SPRING_DATASOURCE_URL=jdbc:mysql://auth-master-db:3307/auth_master?createDatabaseIfNotExist=true&allowPublicKeyRetrieval=true&useSSL=false
+#      - SPRING_DATASOURCE_USERNAME=admin
+#      - SPRING_DATASOURCE_PASSWORD=root
+#    depends_on:
+#      - auth-master-db
+#    ports:
+#      - "8080:8080"
+#
+#  auth-master-db:
+#    image: mysql:8.0
+#    container_name: auth-master-db
+#    command: --port=3307  #
+#    environment:
+#      MYSQL_ROOT_PASSWORD: root
+#      MYSQL_DATABASE: auth_master
+#      DATABASE_HOST: docker-mysql
+#      DATABASE_PORT: 3307
+#      MYSQL_USER: admin
+#      MYSQL_PASSWORD: root
+##    healthcheck:
+##      # Use mysqladmin to ping the DB until it responds
+##      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${DB_MASTER_PASSWORD}"]
+##      interval: 5s
+##      timeout: 5s
+##      retries: 10
+#    ports:
+#      - "3307:3307"
+
+services:
+  redis:
+    image: redis:7-alpine
+    container_name: authenza-redis
+    ports:
+      - "6379:6379"
+    restart: unless-stopped

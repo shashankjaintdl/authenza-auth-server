@@ -1,0 +1,112 @@
+
+
+plugins {
+    id 'java-library'
+    id 'org.liquibase.gradle' version '2.2.0'
+}
+
+//dependencies {
+//    implementation 'org.flywaydb:flyway-core'
+//    implementation 'org.flywaydb:flyway-database-postgresql'
+//    implementation 'org.flywaydb:flyway-mysql'
+//    implementation 'org.flywaydb:flyway-database-oracle'
+//}
+
+
+dependencies {
+
+    // 1. Standard project dependencies for your code
+    implementation 'org.liquibase:liquibase-core:4.24.0'
+
+    // 2. Plugin-specific dependencies (REQUIRED for Gradle tasks)
+    liquibaseRuntime 'org.liquibase:liquibase-core:4.24.0'
+    liquibaseRuntime 'info.picocli:picocli:4.7.5'
+    // Required for YAML/JSON changelog support
+    implementation 'com.fasterxml.jackson.core:jackson-databind'
+
+    // Database Drivers for provisioning
+    liquibaseRuntime 'com.mysql:mysql-connector-j:8.0.33'
+//    runtimeOnly 'com.mysql:mysql-connector-j'
+//    runtimeOnly 'org.postgresql:postgresql'
+//    runtimeOnly 'com.oracle.database.jdbc:ojdbc8'
+}
+
+/**
+ * Custom task to generate a "Clean" SQL file by stripping out
+ * Liquibase-specific tracking and locking metadata.
+ */
+tasks.register('generateMigrationScript') {
+    group = 'liquibase'
+    description = 'Generates a clean SQL file without DATABASECHANGELOG or Locking statements.'
+
+    // Ensure updateSql runs first to generate the raw file
+    dependsOn 'updateSql'
+
+    doLast {
+        // Resolve the file path relative to this specific module
+        def sqlFilePath = "build/reports/liquibase/master_update.sql"
+        def sqlFile = project.file(sqlFilePath)
+
+        if (sqlFile.exists()) {
+            println "------------------------------------------------------------"
+            println "PROCESS: Cleaning Liquibase metadata from: ${sqlFile.path}"
+
+            def lines = sqlFile.readLines()
+
+            // Filter logic: Remove any line containing tracking or locking keywords
+            def cleanLines = lines.findAll { line ->
+                String upperLine = line.toUpperCase()
+
+                // Exclude tracking tables and lock management
+                boolean isMetadata = upperLine.contains("DATABASECHANGELOG") ||
+                        upperLine.contains("DATABASECHANGELOGLOCK") ||
+                        upperLine.contains("RELEASE DATABASE LOCK") ||
+                        upperLine.contains("LOCK GRANTED")
+
+                return !isMetadata
+            }
+
+            // Optional: Remove empty lines or multiple consecutive comments to keep it pretty
+            String finalSql = cleanLines.join("\n").replaceAll("(?m)^\\s*\n", "")
+
+            sqlFile.text = finalSql
+
+            println "SUCCESS: Generated a clean SQL file containing only your business DDL."
+            println "LOCATION: ${sqlFile.absolutePath}"
+            println "------------------------------------------------------------"
+        } else {
+            throw new GradleException("ERROR: Could not find the generated SQL file at ${sqlFile.path}. Ensure 'outputFile' is set in your master activity.")
+        }
+    }
+}
+
+liquibase {
+    activities {
+        // 1. Task for the Master Database (The Registry)
+        master {
+            changelogFile "/auth-tenant-schema/src/main/resources/db/changelog/master/db.changelog-master.xml"
+            url System.getenv("MASTER_DB_URL") ?: 'jdbc:mysql://localhost:3306/auth-master'
+            username System.getenv("MASTER_DB_USER") ?: 'root'
+            password System.getenv("MASTER_DB_PASS") ?: 'sjain@123'
+            driver "com.mysql.cj.jdbc.Driver"
+
+            outputFile 'auth-tenant-schema/build/reports/liquibase/master_update.sql'
+           logLevel 'info'
+            logFile 'auth-tenant-schema/build/reports/liquibase/liquibase.log'
+
+        }
+
+        // 2. Task for the Tenant Database (The Template/First Tenant)
+//        tenant {
+//            changelogFile "src/main/resources/db/changelog/db.changelog-tenant.xml"
+//            url System.getenv("TENANT_DB_URL") ?:  "jdbc:mysql://localhost:3306/auth_tenant_template"
+//            username System.getenv("TENANT_DB_USER") ?: 'tenant_admin'
+//            password System.getenv("TENANT_DB_PASS") ?: 'password'
+//            driver "com.mysql.cj.jdbc.Driver"
+//        }
+    }
+}
+
+test {
+    useJUnitPlatform()
+}

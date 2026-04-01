@@ -1,0 +1,23 @@
+
+
+app:
+  datasource:
+    url: jdbc:mysql://localhost:3306/auth-master?createDatabaseIfNotExist=true
+    dbType: MYSQL
+    username: root
+    password: sjain@123
+    driverClassName: com.mysql.cj.jdbc.Driver
+
+spring:
+  data:
+    redis:
+      host: localhost
+      port: 6379
+  liquibase:
+    enabled: true
+    change-log: classpath:db/changelog/master/db.changelog-master.xml
+    test-rollback-on-update: false
+      # Optional: ensure it doesn't drop the first time
+    default-schema:
+      # Use this to prevent Liquibase from running if there's a checksum mismatch
+#    on-error: HALT

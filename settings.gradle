@@ -1,0 +1,16 @@
+pluginManagement {
+    plugins {
+        id 'org.jetbrains.kotlin.jvm' version '2.2.20'
+    }
+}
+plugins {
+    id 'org.gradle.toolchains.foojay-resolver-convention' version '0.8.0'
+}
+rootProject.name = 'auth-server'
+
+include 'auth-common'
+include 'auth-tenant-schema'
+include 'auth-tenant-adapter'
+include 'auth-server-core'
+include 'auth-master-service'
+include 'shared-tenant-data'

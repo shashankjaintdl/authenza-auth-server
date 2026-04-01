@@ -1,0 +1,31 @@
+plugins {
+    id 'java-library'
+    id 'org.jetbrains.kotlin.jvm'
+}
+
+group = 'com.authnza'
+version = '0.0.1-SNAPSHOT'
+
+repositories {
+    mavenCentral()
+}
+
+//dependencies {
+//    testImplementation platform('org.junit:junit-bom:5.10.0')
+//    testImplementation 'org.junit.jupiter:junit-jupiter'
+//    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+//}
+
+dependencies {
+    implementation 'com.fasterxml.jackson.core:jackson-databind'
+    implementation 'org.springframework.boot:spring-boot-starter-validation'
+    implementation "org.jetbrains.kotlin:kotlin-stdlib-jdk8"
+}
+
+
+test {
+    useJUnitPlatform()
+}
+kotlin {
+    jvmToolchain(17)
+}

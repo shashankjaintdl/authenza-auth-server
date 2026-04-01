@@ -1,0 +1,40 @@
+server:
+  port: 8081
+
+
+logging:
+  level:
+    root: INFO # Sets the default level for all loggers to INFO
+    org.springframework.security: DEBUG # Sets the level for your application's package to DEBUG
+    org.springframework: DEBUG # Sets Spring framework logs to WARN
+
+spring:
+  data:
+    redis:
+      host: localhost
+      port: 6379
+
+app:
+  datasource:
+    master:
+      jdbc-url: jdbc:mysql://localhost:3306/auth-master?createDatabaseIfNotExist=true
+      username: root
+      password: sjain@123
+      driver-class-name: com.mysql.cj.jdbc.Driver
+  super-admin-client:
+    enabled: true
+    client-id: super-admin-client
+    client-name: "Super Admin Client"
+    client-secret: super-admin-secret
+    tenant-id: system-master
+    scopes: openid,profile,system:admin,tenant:manage
+    redirect-uris: http://localhost:8080/login/oauth2/code/super-admin,http://127.0.0.1:4200,http://localhost:4200
+    post-logout-redirect-uris: http://localhost:8080/
+    grant-types: authorization_code,refresh_token,client_credentials
+    authentication-methods: client_secret_basic
+    require-consent: false
+    require-proof-key: false
+  # Ensure standard auto-config doesn't interfere
+#  jdbc:
+#    template:
+#      enabled: false
