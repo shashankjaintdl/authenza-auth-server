@@ -10,7 +10,8 @@ dependencies {
     implementation 'org.springframework.boot:spring-boot-starter-jdbc'
     implementation 'org.springframework:spring-webmvc' // Needed for the TenantInterceptor
     implementation 'com.zaxxer:HikariCP'
-
+    implementation 'org.springframework.boot:spring-boot-starter-data-redis'
+    implementation 'com.fasterxml.jackson.core:jackson-databind'
     // Source: https://mvnrepository.com/artifact/jakarta.servlet/jakarta.servlet-api
     compileOnly 'jakarta.servlet:jakarta.servlet-api:6.1.0'
 

@@ -11,7 +11,7 @@ import java.time.Instant;
 import java.util.Objects;
 
 @Table(name = "oauth2_registered_client")
-public class TenantRegisteredClient implements Persistable<String> {
+public class TenantRegisteredClient  implements Persistable<String> {
 
     @Id
     @Column("id")

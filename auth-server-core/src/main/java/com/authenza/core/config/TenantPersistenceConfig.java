@@ -1,5 +1,6 @@
 package com.authenza.core.config;
 
+import com.authenza.adapter.routing.TenantRoutingDataSource;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Primary;
@@ -21,25 +22,25 @@ import org.springframework.beans.factory.annotation.Qualifier;
 )
 public class TenantPersistenceConfig {
 
-    @Bean
-    public TenantRoutingDataSource tenantRoutingDataSource(
-            @Qualifier("masterDataSource") DataSource masterDataSource) {
-        TenantRoutingDataSource tenantRoutingDataSource = new TenantRoutingDataSource(masterDataSource);
-
-        return tenantRoutingDataSource;
-    }
-
-    @Bean
-    @Primary
-    public DataSource dataSource(TenantRoutingDataSource routingDataSource) {
-        return routingDataSource;
-    }
-
-
-    @Bean(name = "tenantJdbcOperations")
-    @Primary
-    public NamedParameterJdbcOperations tenantJdbcOperations(DataSource dataSource) {
-        return new NamedParameterJdbcTemplate(dataSource);
-    }
+//    @Bean
+//    public TenantRoutingDataSource tenantRoutingDataSource(
+//            @Qualifier("masterDataSource") DataSource masterDataSource) {
+//        TenantRoutingDataSource tenantRoutingDataSource = new TenantRoutingDataSource(masterDataSource);
+//
+//        return tenantRoutingDataSource;
+//    }
+//
+//    @Bean
+//    @Primary
+//    public DataSource dataSource(TenantRoutingDataSource routingDataSource) {
+//        return routingDataSource;
+//    }
+//
+//
+//    @Bean(name = "tenantJdbcOperations")
+//    @Primary
+//    public NamedParameterJdbcOperations tenantJdbcOperations(DataSource dataSource) {
+//        return new NamedParameterJdbcTemplate(dataSource);
+//    }
 }
 

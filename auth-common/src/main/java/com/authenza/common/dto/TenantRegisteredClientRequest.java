@@ -6,7 +6,7 @@ import jakarta.validation.constraints.NotEmpty;
 import java.util.Objects;
 import java.util.Set;
 
-public class RegisteredClientRequest {
+public class TenantRegisteredClientRequest {
 
     @NotBlank(message = "Client ID is required")
     private String clientId;
@@ -118,7 +118,7 @@ public class RegisteredClientRequest {
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
-        RegisteredClientRequest that = (RegisteredClientRequest) o;
+        TenantRegisteredClientRequest that = (TenantRegisteredClientRequest) o;
         return Objects.equals(clientId, that.clientId) &&
                 Objects.equals(clientName, that.clientName) &&
                 Objects.equals(scopes, that.scopes) &&

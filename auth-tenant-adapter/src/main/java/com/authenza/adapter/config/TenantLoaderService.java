@@ -1,7 +1,7 @@
-package com.authenza.core.service;
+package com.authenza.adapter.config;
 
 import com.authenza.common.TenantConfig;
-import com.authenza.core.config.TenantRoutingDataSource;
+import com.authenza.adapter.routing.TenantRoutingDataSource;
 import com.zaxxer.hikari.HikariConfig;
 import com.zaxxer.hikari.HikariDataSource;
 import org.springframework.beans.factory.annotation.Qualifier;

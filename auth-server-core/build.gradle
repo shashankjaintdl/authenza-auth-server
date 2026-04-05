@@ -19,7 +19,8 @@ dependencies {
     // 3. Security & Web (Required for CORS and OIDC endpoints)
     implementation 'org.springframework.boot:spring-boot-starter-web'
     implementation 'org.springframework.boot:spring-boot-starter-security'
-    implementation 'org.springframework.boot:spring-boot-starter-data-redis'
+//    implementation 'org.springframework.boot:spring-boot-starter-data-redis'
+    implementation 'org.springframework.boot:spring-boot-starter-thymeleaf'
 
     // 4. Database Drivers (Include all supported tenant DB types)
     runtimeOnly 'com.mysql:mysql-connector-j'
