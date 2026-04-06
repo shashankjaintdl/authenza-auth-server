@@ -26,7 +26,7 @@ app:
     client-id: super-admin-client
     client-name: "Super Admin Client"
     client-secret: super-admin-secret
-    tenant-id: system-master
+    tenant-id: system-admin
     scopes: openid,profile,system:admin,tenant:manage
     redirect-uris: http://localhost:8080/login/oauth2/code/super-admin,http://127.0.0.1:4200,http://localhost:4200
     post-logout-redirect-uris: http://localhost:8080/

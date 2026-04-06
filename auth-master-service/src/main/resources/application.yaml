@@ -16,7 +16,7 @@ spring:
   liquibase:
     enabled: true
     change-log: classpath:db/changelog/master/db.changelog-master.xml
-    test-rollback-on-update: false
+    test-rollback-on-update: true
       # Optional: ensure it doesn't drop the first time
     default-schema:
       # Use this to prevent Liquibase from running if there's a checksum mismatch

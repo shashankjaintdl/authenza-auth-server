@@ -1,4 +1,4 @@
-package com.authenza.core.model;
+package com.authenza.common.model.core;
 
 import org.springframework.data.annotation.Id;
 import org.springframework.data.annotation.Persistent;

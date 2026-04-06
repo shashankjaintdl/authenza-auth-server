@@ -42,7 +42,7 @@ public class DataBaseInitializer implements CommandLineRunner {
     @Override
     public void run(String... args) {
 
-        String systemTenantId = "system-master";
+        String systemTenantId = "system-admin";
         if (repository.findByTenantId(systemTenantId).isPresent()) {
             log.info("System Initialization Skipped: '{}' already exists in Registry.", systemTenantId);
             return;
@@ -64,7 +64,7 @@ public class DataBaseInitializer implements CommandLineRunner {
             this.provisioningService.onboardNewTenant(systemTenant);
         }
         catch (Exception e) {
-            log.error("CRITICAL: Failed to initialize system-master tenant", e);
+            log.error("CRITICAL: Failed to initialize system-admin tenant", e);
             // Optional: System.exit(1); // Stop app if system tenant fails
         }
     }

@@ -4,17 +4,15 @@ plugins {
 	id 'io.spring.dependency-management' version '1.1.7'
 }
 
-group = 'com.authnza'
-version = '0.0.1-SNAPSHOT'
-
-java {
-	toolchain {
-		languageVersion = JavaLanguageVersion.of(17)
-	}
-}
+// ──────────────────────────────────────────────
+// Root project is NOT a runnable application.
+// It only manages shared config for all subprojects.
+// ──────────────────────────────────────────────
+bootJar.enabled = false
+jar.enabled = true
 
 allprojects {
-    group = 'com.platform'
+    group = 'com.authenza'
     version = '1.0.0-SNAPSHOT'
     repositories {
         mavenCentral()
@@ -25,6 +23,12 @@ subprojects {
     apply plugin: 'java'
     apply plugin: 'io.spring.dependency-management'
 
+    java {
+        toolchain {
+            languageVersion = JavaLanguageVersion.of(17)
+        }
+    }
+
     dependencyManagement {
         imports {
             mavenBom "org.springframework.boot:spring-boot-dependencies:3.5.7"
@@ -32,25 +36,10 @@ subprojects {
     }
 
     dependencies {
-//        compileOnly 'org.projectlombok:lombok'
-//        annotationProcessor 'lombok'
         testImplementation 'org.springframework.boot:spring-boot-starter-test'
     }
-}
-repositories {
-	mavenCentral()
-}
 
-//dependencies {
-////	implementation 'org.springframework.boot:spring-boot-starter-data-jdbc'
-//	implementation 'org.springframework.boot:spring-boot-starter-oauth2-authorization-server'
-//	implementation 'org.springframework.boot:spring-boot-starter-web'
-//	developmentOnly 'org.springframework.boot:spring-boot-devtools'
-////	runtimeOnly 'com.mysql:mysql-connector-j'
-//	testImplementation 'org.springframework.boot:spring-boot-starter-test'
-//	testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
-//}
-
-tasks.named('test') {
-	useJUnitPlatform()
+    test {
+        useJUnitPlatform()
+    }
 }

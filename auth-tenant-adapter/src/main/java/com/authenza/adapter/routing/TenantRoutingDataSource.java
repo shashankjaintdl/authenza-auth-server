@@ -17,7 +17,7 @@ public class TenantRoutingDataSource extends AbstractRoutingDataSource {
 
     public TenantRoutingDataSource(@Qualifier("masterDataSource") DataSource masterDataSource) {
         // Register system-master as a known tenant (it uses the master DB directly)
-        this.tenantDataSources.put("system-master", masterDataSource);
+        this.tenantDataSources.put("system-admin", masterDataSource);
 
         // 1. Mandatory: Set an initial map to satisfy Spring's validation
         this.setTargetDataSources(tenantDataSources);

@@ -56,7 +56,9 @@ public class TenantProvisioningService {
         repository.save(tenant);
 
         // 3. Run Liquibase Schema Migration against the Tenant's Database
-        runLiquibaseMigration(request, "system-master".equals(request.tenantId()));
+        // All tenants (including system-admin) use the same tenant changelog.
+        // The master schema only has the 'tenants' registry table.
+        runLiquibaseMigration(request);
 
         // 4. Notify auth-server-core via Redis to register the new DataSource
         tenantEventPublisher.publishTenantProvisioned(new TenantProvisionedEvent(
@@ -70,7 +72,7 @@ public class TenantProvisioningService {
         log.info("Successfully provisioned database for tenant: {}", request.tenantId());
     }
 
-    private void runLiquibaseMigration(TenantRequest request, boolean isMaster) {
+    private void runLiquibaseMigration(TenantRequest request) {
         // Create a temporary connection to the customer's DB
         DriverManagerDataSource ds = new DriverManagerDataSource();
         ds.setDriverClassName(request.driver());
@@ -82,14 +84,12 @@ public class TenantProvisioningService {
             Database database = DatabaseFactory.getInstance()
                     .findCorrectDatabaseImplementation(new JdbcConnection(connection));
 
-            String changeDb = "db/changelog/tenant/db.changelog-tenant.xml";;
-            if(isMaster){
-                changeDb = "db/changelog/master/db.changelog-master.xml";
-            }
+            // All tenants use the tenant changelog — no special master case
+            String changelogFile = "db/changelog/tenant/db.changelog-tenant.xml";
 
             // This pulls the XML from the 'auth-tenant-schema' module
             Liquibase liquibase = new Liquibase(
-                    changeDb,
+                    changelogFile,
                     new SpringResourceAccessor(resourceLoader),
                     database
             );
@@ -103,4 +103,3 @@ public class TenantProvisioningService {
         }
     }
 }
-

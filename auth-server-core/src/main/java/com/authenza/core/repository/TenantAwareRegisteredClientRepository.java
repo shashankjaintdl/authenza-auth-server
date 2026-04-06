@@ -2,7 +2,7 @@ package com.authenza.core.repository;
 
 
 import com.authenza.adapter.context.TenantContextHolder;
-import com.authenza.core.model.TenantRegisteredClient;
+import com.authenza.common.model.core.TenantRegisteredClient;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.Module;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -34,6 +34,8 @@ public final class TenantAwareRegisteredClientRepository implements RegisteredCl
         this.objectMapper.registerModules(new OAuth2AuthorizationServerJackson2Module());
     }
 
+
+    // will use it for like (Github developer)
     @Override
     public void save(RegisteredClient registeredClient) {
         Assert.notNull(registeredClient, "RegisteredClient must not be null!");

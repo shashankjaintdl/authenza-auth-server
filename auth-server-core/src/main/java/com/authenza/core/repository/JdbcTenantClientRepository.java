@@ -1,7 +1,6 @@
 package com.authenza.core.repository;
 
-import com.authenza.core.model.TenantRegisteredClient;
-import org.springframework.data.repository.CrudRepository;
+import com.authenza.common.model.core.TenantRegisteredClient;
 import org.springframework.data.repository.ListCrudRepository;
 import org.springframework.stereotype.Repository;
 
