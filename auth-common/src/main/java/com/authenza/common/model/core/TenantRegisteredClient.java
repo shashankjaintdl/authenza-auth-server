@@ -1,4 +1,4 @@
-package com.authenza.core.model;
+package com.authenza.common.model.core;
 
 import org.springframework.data.annotation.Id;
 import org.springframework.data.annotation.Persistent;
@@ -11,7 +11,7 @@ import java.time.Instant;
 import java.util.Objects;
 
 @Table(name = "oauth2_registered_client")
-public class TenantRegisteredClient implements Persistable<String> {
+public class TenantRegisteredClient  implements Persistable<String> {
 
     @Id
     @Column("id")

@@ -11,7 +11,7 @@ public class SuperAdminClientProperties {
     private String clientId = "super-admin-client";
     private String clientName = "Super Admin Client";
     private String clientSecret = "super-admin-secret";
-    private String tenantId = "system-master";
+    private String tenantId = "system-admin";
     private Set<String> scopes = Set.of("openid", "profile", "system:admin", "tenant:manage");
     private Set<String> redirectUris = Set.of("http://localhost:8080/login/oauth2/code/super-admin");
     private Set<String> postLogoutRedirectUris = Set.of("http://localhost:8080/");

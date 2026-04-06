@@ -1,5 +1,6 @@
-package com.authenza.core.service;
+package com.authenza.adapter.config;
 
+import com.authenza.adapter.routing.TenantRoutingDataSource;
 import com.authenza.common.TenantConfig;
 import com.authenza.common.dto.TenantProvisionedEvent;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -12,7 +13,7 @@ import org.springframework.stereotype.Component;
 /**
  * Listens for {@code tenant:provisioned} Redis Pub/Sub messages
  * and dynamically registers the new tenant's DataSource in
- * the {@link com.authenza.core.config.TenantRoutingDataSource}.
+ * the {@link TenantRoutingDataSource}.
  *
  * <p>This eliminates the need to restart auth-server-core after
  * provisioning a new tenant via auth-master-service.</p>
@@ -39,7 +40,7 @@ public class TenantProvisionedListener implements MessageListener {
             TenantProvisionedEvent event = objectMapper.readValue(json, TenantProvisionedEvent.class);
 
             // Skip the system-master tenant — it's already handled at startup
-            if ("system-master".equals(event.tenantId())) {
+            if ("system-admin".equals(event.tenantId())) {
                 log.info("Skipping system-master tenant — already registered at startup.");
                 return;
             }

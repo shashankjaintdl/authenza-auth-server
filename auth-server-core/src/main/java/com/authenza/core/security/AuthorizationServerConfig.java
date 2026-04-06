@@ -71,7 +71,7 @@ public class AuthorizationServerConfig {
                 // authorization endpoint
                 .exceptionHandling((exceptions) -> exceptions
                         .authenticationEntryPoint(
-                                new LoginUrlAuthenticationEntryPoint("/login")
+                                new TenantAwareAuthenticationEntryPoint("/{tenantId}/login")
                         )
                 );
         // @formatter:on

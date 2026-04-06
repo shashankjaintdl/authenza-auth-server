@@ -8,31 +8,22 @@ dependencies {
     // Shared modules
     implementation project(':auth-common')
     implementation project(':auth-tenant-adapter')
-//    implementation project(':shared-tenant-data')
 
-    // 1. Spring Authorization Server Engine
+    // Spring Authorization Server (includes spring-boot-starter-security and nimbus-jose-jwt transitively)
     implementation 'org.springframework.boot:spring-boot-starter-oauth2-authorization-server'
 
-    // 2. Data Access (Replacing JPA)
+    // Data Access
     implementation 'org.springframework.boot:spring-boot-starter-data-jdbc'
 
-    // 3. Security & Web (Required for CORS and OIDC endpoints)
+    // Web & Templating
     implementation 'org.springframework.boot:spring-boot-starter-web'
-    implementation 'org.springframework.boot:spring-boot-starter-security'
-    implementation 'org.springframework.boot:spring-boot-starter-data-redis'
+    implementation 'org.springframework.boot:spring-boot-starter-thymeleaf'
 
-    // 4. Database Drivers (Include all supported tenant DB types)
+    // Java 8 Date/Time serialization support for JWT claims
+    implementation 'com.fasterxml.jackson.datatype:jackson-datatype-jsr310'
+
+    // Database Drivers (all supported tenant DB types)
     runtimeOnly 'com.mysql:mysql-connector-j'
     runtimeOnly 'org.postgresql:postgresql'
     runtimeOnly 'com.oracle.database.jdbc:ojdbc8'
-
-    // 5. Utilities (Highly recommended for JWT and JSON processing)
-    implementation 'com.nimbusds:nimbus-jose-jwt' // Primary library for JWK and JWT handling
-    implementation 'com.fasterxml.jackson.datatype:jackson-datatype-jsr310' // For proper Java 8 Date/Time in tokens
-}
-
-
-
-test {
-    useJUnitPlatform()
 }

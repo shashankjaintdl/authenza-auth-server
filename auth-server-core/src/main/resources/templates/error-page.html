@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="en">
+<head>
+    <meta charset="UTF-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <title>Access Denied</title>
+    <style>
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            font-family: 'Inter', 'Segoe UI', sans-serif;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: linear-gradient(135deg, #1a0a2e, #3d1a54, #1a0a2e);
+            color: #e0e0e0;
+        }
+
+        .error-card {
+            width: 100%;
+            max-width: 460px;
+            padding: 2.5rem;
+            text-align: center;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(239, 68, 68, 0.25);
+            border-radius: 16px;
+            backdrop-filter: blur(16px);
+            box-shadow: 0 8px 32px rgba(0,0,0,0.45);
+        }
+
+        .error-icon {
+            font-size: 3rem;
+            margin-bottom: 1rem;
+        }
+
+        .error-card h1 {
+            font-size: 1.5rem;
+            font-weight: 600;
+            color: #fca5a5;
+            margin-bottom: .5rem;
+        }
+
+        .error-card p {
+            font-size: .95rem;
+            color: #b0a4c8;
+            line-height: 1.6;
+            margin-bottom: 1.5rem;
+        }
+
+        .error-code {
+            display: inline-block;
+            padding: .3rem .75rem;
+            background: rgba(239, 68, 68, 0.12);
+            border: 1px solid rgba(239, 68, 68, 0.25);
+            border-radius: 6px;
+            font-family: monospace;
+            font-size: .85rem;
+            color: #f87171;
+        }
+    </style>
+</head>
+<body>
+
+<div class="error-card">
+    <div class="error-icon">🚫</div>
+    <h1 th:text="${title ?: 'Unauthorized'}">Unauthorized</h1>
+    <p th:text="${message ?: 'The requested resource could not be accessed.'}">
+        The requested resource could not be accessed.
+    </p>
+    <span class="error-code" th:text="'Error: ' + ${errorCode ?: '401'}">Error: 401</span>
+</div>
+
+</body>
+</html>

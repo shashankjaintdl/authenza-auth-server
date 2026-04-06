@@ -1,7 +1,7 @@
-package com.authenza.core.config;
+package com.authenza.adapter.config;
 
+import com.authenza.adapter.routing.TenantRoutingDataSource;
 import com.authenza.common.RedisChannels;
-import com.authenza.core.service.TenantProvisionedListener;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.data.redis.connection.RedisConnectionFactory;

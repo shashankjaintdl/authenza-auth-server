@@ -1,11 +1,11 @@
 package com.authenza.core.service;
 
+import com.authenza.adapter.context.TenantContextHolder;
 import com.authenza.core.config.SuperAdminClientProperties;
 import com.fasterxml.jackson.databind.Module;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.context.event.EventListener;
 import org.springframework.core.annotation.Order;
@@ -21,21 +21,18 @@ import org.springframework.stereotype.Component;
 import javax.sql.DataSource;
 import java.time.Instant;
 import java.util.List;
-import java.util.Map;
 import java.util.UUID;
 
 /**
- * Registers a default super-admin OAuth2 client directly into the master database
- * on application startup. Uses the masterDataSource directly to bypass the
- * tenant routing datasource (which does not include system-master).
+ * Registers a default super-admin OAuth2 client into the super-admin's
+ * TENANT database on application startup. Uses the TenantRoutingDataSource
+ * with TenantContextHolder set to the super-admin tenant ID.
  *
- * <p>This initializer is idempotent — it checks if the client already exists
- * before inserting.</p>
+ * <p>The master database (auth_master) only contains the tenants registry.
+ * All OAuth2 client data lives in tenant-specific schemas.</p>
  *
- * <p>Uses a Security-aware ObjectMapper (with SecurityJackson2Modules and
- * OAuth2AuthorizationServerJackson2Module) to serialize client/token settings,
- * ensuring the JSON includes {@code @class} type metadata required by
- * TenantAwareRegisteredClientRepository during deserialization.</p>
+ * <p>This initializer is idempotent — it deletes and re-creates the client
+ * on every startup to ensure settings are always up-to-date.</p>
  */
 @Component
 public class SuperAdminClientInitializer {
@@ -52,22 +49,20 @@ public class SuperAdminClientInitializer {
             "redirect_uris, post_logout_redirect_uris, scopes, client_settings, token_settings) " +
             "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
 
-    private final JdbcTemplate masterJdbcTemplate;
+    private final DataSource dataSource;
     private final PasswordEncoder passwordEncoder;
     private final SuperAdminClientProperties properties;
     private final ObjectMapper objectMapper;
 
     public SuperAdminClientInitializer(
-            @Qualifier("masterDataSource") DataSource masterDataSource,
+            DataSource dataSource,
             PasswordEncoder passwordEncoder,
             SuperAdminClientProperties properties) {
-        this.masterJdbcTemplate = new JdbcTemplate(masterDataSource);
+        this.dataSource = dataSource;
         this.passwordEncoder = passwordEncoder;
         this.properties = properties;
 
-        // Configure ObjectMapper with Spring Security modules — MUST match
-        // the ObjectMapper in TenantAwareRegisteredClientRepository so that
-        // serialized JSON includes @class type metadata for polymorphic types
+        // Configure ObjectMapper with Spring Security modules
         this.objectMapper = new ObjectMapper();
         ClassLoader classLoader = SuperAdminClientInitializer.class.getClassLoader();
         List<Module> securityModules = SecurityJackson2Modules.getModules(classLoader);
@@ -84,13 +79,18 @@ public class SuperAdminClientInitializer {
         }
 
         try {
+            // Set the tenant context so the TenantRoutingDataSource routes
+            // to the super-admin's dedicated database (e.g., auth_super_admin)
+            TenantContextHolder.setTenantId(properties.getTenantId());
+
+            JdbcTemplate jdbcTemplate = new JdbcTemplate(dataSource);
+
             // Delete any existing row to ensure settings JSON is always up-to-date
-            // (handles corrupt data from previous runs and YAML config changes)
-            Integer count = masterJdbcTemplate.queryForObject(
+            Integer count = jdbcTemplate.queryForObject(
                     CHECK_SQL, Integer.class, properties.getClientId());
 
             if (count != null && count > 0) {
-                masterJdbcTemplate.update(
+                jdbcTemplate.update(
                         "DELETE FROM oauth2_registered_client WHERE client_id = ?",
                         properties.getClientId());
                 log.info("Deleted existing super admin client '{}' — will re-create with current config.",
@@ -108,17 +108,15 @@ public class SuperAdminClientInitializer {
             String postLogoutUris = String.join(",", properties.getPostLogoutRedirectUris());
             String scopes = String.join(",", properties.getScopes());
 
-            // Build proper ClientSettings and TokenSettings using Spring's builders,
-            // then serialize with the Security-aware ObjectMapper
             String clientSettingsJson = buildClientSettingsJson();
             String tokenSettingsJson = buildTokenSettingsJson();
 
-            masterJdbcTemplate.update(INSERT_SQL,
+            jdbcTemplate.update(INSERT_SQL,
                     id,
                     properties.getClientId(),
                     now,
                     encodedSecret,
-                    null, // client_secret_expires_at — no expiry
+                    null,
                     properties.getClientName(),
                     authMethods,
                     grantTypes,
@@ -129,11 +127,13 @@ public class SuperAdminClientInitializer {
                     tokenSettingsJson
             );
 
-            log.info("Super admin client '{}' registered successfully in master database.",
-                    properties.getClientId());
+            log.info("Super admin client '{}' registered successfully in tenant database '{}'.",
+                    properties.getClientId(), properties.getTenantId());
 
         } catch (Exception e) {
-            log.error("Failed to register super admin client in master database.", e);
+            log.error("Failed to register super admin client in tenant database.", e);
+        } finally {
+            TenantContextHolder.clear();
         }
     }
 

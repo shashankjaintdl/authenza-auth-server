@@ -1,4 +1,4 @@
-package com.authenza.core.config;
+package com.authenza.adapter.routing;
 
 import com.authenza.adapter.context.TenantContextHolder;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -16,7 +16,10 @@ public class TenantRoutingDataSource extends AbstractRoutingDataSource {
     private final Map<Object, Object> tenantDataSources = new ConcurrentHashMap<>();
 
     public TenantRoutingDataSource(@Qualifier("masterDataSource") DataSource masterDataSource) {
-        // 1. Mandatory: Set an initial empty map to satisfy Spring's validation
+        // Register system-master as a known tenant (it uses the master DB directly)
+        this.tenantDataSources.put("system-admin", masterDataSource);
+
+        // 1. Mandatory: Set an initial map to satisfy Spring's validation
         this.setTargetDataSources(tenantDataSources);
 
         // 2. Mandatory: Set a default (the master DB) so the app can boot
@@ -40,5 +43,12 @@ public class TenantRoutingDataSource extends AbstractRoutingDataSource {
         this.tenantDataSources.put(tenantId, dataSource);
         this.setTargetDataSources(new HashMap<>(this.tenantDataSources));
         this.afterPropertiesSet(); // Refresh the internal lookup map
+    }
+
+    /**
+     * Returns true if a DataSource has been registered for the given tenantId.
+     */
+    public boolean isKnownTenant(String tenantId) {
+        return this.tenantDataSources.containsKey(tenantId);
     }
 }
