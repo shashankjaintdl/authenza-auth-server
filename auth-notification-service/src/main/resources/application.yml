@@ -10,6 +10,8 @@ app:
       username: root
       password: sjain@123
       driver-class-name: com.mysql.cj.jdbc.Driver
+      maximum-pool-size: 2
+      minimum-idle: 1
 
 spring:
   application:

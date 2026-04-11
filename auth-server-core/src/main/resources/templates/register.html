@@ -1,15 +1,22 @@
 <!DOCTYPE html>
 <html xmlns:th="http://www.thymeleaf.org" lang="en">
+
 <head>
-    <meta charset="UTF-8"/>
-    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-    <meta name="description" content="Create your account securely"/>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="Create your account securely" />
     <title th:text="'Create Account — ' + ${tenantId}">Create Account</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com"/>
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="anonymous"/>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet"/>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="anonymous" />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
     <style>
-        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+        *,
+        *::before,
+        *::after {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
 
         body {
             font-family: 'Inter', 'Segoe UI', sans-serif;
@@ -30,13 +37,20 @@
             border: 1px solid rgba(255, 255, 255, 0.12);
             border-radius: 16px;
             backdrop-filter: blur(16px);
-            box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
             animation: cardFadeIn .5s ease-out;
         }
 
         @keyframes cardFadeIn {
-            from { opacity: 0; transform: translateY(16px); }
-            to   { opacity: 1; transform: translateY(0); }
+            from {
+                opacity: 0;
+                transform: translateY(16px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
         }
 
         .register-card h1 {
@@ -57,7 +71,7 @@
         /* ─── Messages ─── */
         .error-msg {
             background: rgba(239, 68, 68, .15);
-            border: 1px solid rgba(239,68,68,.3);
+            border: 1px solid rgba(239, 68, 68, .3);
             color: #fca5a5;
             padding: .65rem 1rem;
             border-radius: 8px;
@@ -68,11 +82,27 @@
         }
 
         @keyframes shakeFade {
-            0%, 100% { transform: translateX(0); }
-            20%      { transform: translateX(-6px); }
-            40%      { transform: translateX(6px); }
-            60%      { transform: translateX(-4px); }
-            80%      { transform: translateX(4px); }
+
+            0%,
+            100% {
+                transform: translateX(0);
+            }
+
+            20% {
+                transform: translateX(-6px);
+            }
+
+            40% {
+                transform: translateX(6px);
+            }
+
+            60% {
+                transform: translateX(-4px);
+            }
+
+            80% {
+                transform: translateX(4px);
+            }
         }
 
         .success-card {
@@ -129,9 +159,9 @@
         input[type="password"] {
             width: 100%;
             padding: .7rem 1rem;
-            border: 1px solid rgba(255,255,255,.15);
+            border: 1px solid rgba(255, 255, 255, .15);
             border-radius: 8px;
-            background: rgba(255,255,255,.06);
+            background: rgba(255, 255, 255, .06);
             color: #f1f1f1;
             font-size: .95rem;
             font-family: 'Inter', sans-serif;
@@ -215,7 +245,7 @@
             position: absolute;
             cursor: pointer;
             inset: 0;
-            background: rgba(255,255,255,.12);
+            background: rgba(255, 255, 255, .12);
             border-radius: 20px;
             transition: background .3s;
         }
@@ -232,11 +262,11 @@
             transition: transform .3s;
         }
 
-        .toggle-switch input:checked + .toggle-slider {
+        .toggle-switch input:checked+.toggle-slider {
             background: linear-gradient(135deg, #7c3aed, #6d28d9);
         }
 
-        .toggle-switch input:checked + .toggle-slider::before {
+        .toggle-switch input:checked+.toggle-slider::before {
             transform: translateX(16px);
             background: #fff;
         }
@@ -321,293 +351,290 @@
         }
     </style>
 </head>
+
 <body>
 
-<div class="register-card">
+    <div class="register-card">
 
-    <!-- ─── Success State ─── -->
-    <div th:if="${registrationSuccess}" class="success-card">
-        <div class="success-icon">✉️</div>
-        <h2>Check Your Email</h2>
-        <p>
-            We've sent a verification link to
-            <span class="email-highlight" th:text="${registeredEmail}">user@example.com</span>.
-            <br/>Please click the link to activate your account.
-        </p>
-        <a th:href="@{'/' + ${tenantId} + '/login'}" class="back-link">← Back to Sign In</a>
-    </div>
-
-    <!-- ─── Registration Form ─── -->
-    <div th:unless="${registrationSuccess}">
-        <h1>Create Account</h1>
-        <span class="tenant-badge" th:text="${tenantId}">tenant</span>
-
-        <!-- Server-side error from IAM service -->
-        <div class="error-msg" th:if="${errorMessage}" th:text="${errorMessage}">
-            An error occurred.
+        <!-- ─── Success State ─── -->
+        <div th:if="${registrationSuccess}" class="success-card">
+            <div class="success-icon">✉️</div>
+            <h2>Check Your Email</h2>
+            <p>
+                We've sent a verification link to
+                <span class="email-highlight" th:text="${registeredEmail}">user@example.com</span>.
+                <br />Please click the link to activate your account.
+            </p>
+            <a th:href="@{'/' + ${tenantId} + '/login'}" class="back-link">← Back to Sign In</a>
         </div>
 
-        <form th:action="@{'/' + ${tenantId} + '/register'}" method="post" id="registerForm" autocomplete="on">
+        <!-- ─── Registration Form ─── -->
+        <div th:unless="${registrationSuccess}">
+            <h1>Create Account</h1>
+            <span class="tenant-badge" th:text="${tenantId}">tenant</span>
 
-            <!-- First Name / Last Name -->
-            <div class="name-row">
-                <div class="form-group">
-                    <label for="givenName">First Name</label>
-                    <input type="text" id="givenName" name="givenName"
-                           th:value="${form?.givenName}"
-                           autocomplete="given-name" required/>
-                </div>
-                <div class="form-group">
-                    <label for="familyName">Last Name</label>
-                    <input type="text" id="familyName" name="familyName"
-                           th:value="${form?.familyName}"
-                           autocomplete="family-name" required/>
-                </div>
+            <!-- Server-side error from IAM service -->
+            <div class="error-msg" th:if="${errorMessage}" th:text="${errorMessage}">
+                An error occurred.
             </div>
 
-            <!-- Email -->
-            <div class="form-group">
-                <label for="email">Email</label>
-                <input type="email" id="email" name="email"
-                       th:value="${form?.email}"
-                       autocomplete="email" required/>
-                <div id="emailFeedback" class="field-feedback"></div>
-            </div>
+            <form th:action="@{'/' + ${tenantId} + '/register'}" method="post" id="registerForm" autocomplete="on">
 
-            <!-- Username with "Same as email" toggle -->
-            <div class="form-group">
-                <div class="username-header">
-                    <label for="preferredUsername" style="margin-bottom: 0;">Username</label>
-                    <div class="toggle-wrapper">
-                        <span class="toggle-label">Same as email</span>
-                        <label class="toggle-switch">
-                            <input type="checkbox" id="useEmailAsUsername" name="useEmailAsUsername"/>
-                            <span class="toggle-slider"></span>
-                        </label>
+                <!-- First Name / Last Name -->
+                <div class="name-row">
+                    <div class="form-group">
+                        <label for="givenName">First Name</label>
+                        <input type="text" id="givenName" name="givenName" th:value="${form?.givenName}"
+                            autocomplete="given-name" required />
+                    </div>
+                    <div class="form-group">
+                        <label for="familyName">Last Name</label>
+                        <input type="text" id="familyName" name="familyName" th:value="${form?.familyName}"
+                            autocomplete="family-name" required />
                     </div>
                 </div>
-                <input type="text" id="preferredUsername" name="preferredUsername"
-                       th:value="${form?.preferredUsername}"
-                       autocomplete="username" required/>
-                <div id="usernameFeedback" class="field-feedback"></div>
-            </div>
 
-            <!-- Password -->
-            <div class="form-group">
-                <label for="password">Password</label>
-                <input type="password" id="password" name="password"
-                       autocomplete="new-password" required/>
-            </div>
+                <!-- Email -->
+                <div class="form-group">
+                    <label for="email">Email</label>
+                    <input type="email" id="email" name="email" th:value="${form?.email}" autocomplete="email"
+                        required />
+                    <div id="emailFeedback" class="field-feedback"></div>
+                </div>
 
-            <!-- Confirm Password -->
-            <div class="form-group">
-                <label for="confirmPassword">Confirm Password</label>
-                <input type="password" id="confirmPassword" name="confirmPassword"
-                       autocomplete="new-password" required/>
-                <div id="passwordFeedback" class="password-feedback"></div>
-            </div>
+                <!-- Username with "Same as email" toggle -->
+                <div class="form-group">
+                    <div class="username-header">
+                        <label for="preferredUsername" style="margin-bottom: 0;">Username</label>
+                        <div class="toggle-wrapper">
+                            <span class="toggle-label">Same as email</span>
+                            <label class="toggle-switch">
+                                <input type="checkbox" id="useEmailAsUsername" name="useEmailAsUsername" />
+                                <span class="toggle-slider"></span>
+                            </label>
+                        </div>
+                    </div>
+                    <input type="text" id="preferredUsername" name="preferredUsername"
+                        th:value="${form?.preferredUsername}" autocomplete="username" required />
+                    <div id="usernameFeedback" class="field-feedback"></div>
+                </div>
 
-            <button type="submit" class="btn-submit" id="submitBtn">Create Account</button>
-        </form>
+                <!-- Password -->
+                <div class="form-group">
+                    <label for="password">Password</label>
+                    <input type="password" id="password" name="password" autocomplete="new-password" required />
+                </div>
 
-        <p class="signin-link">
-            Already have an account?
-            <a th:href="@{'/' + ${tenantId} + '/login'}">Sign in</a>
-        </p>
+                <!-- Confirm Password -->
+                <div class="form-group">
+                    <label for="confirmPassword">Confirm Password</label>
+                    <input type="password" id="confirmPassword" name="confirmPassword" autocomplete="new-password"
+                        required />
+                    <div id="passwordFeedback" class="password-feedback"></div>
+                </div>
+
+                <button type="submit" class="btn-submit" id="submitBtn">Create Account</button>
+            </form>
+
+            <p class="signin-link">
+                Already have an account?
+                <a th:href="@{'/' + ${tenantId} + '/login'}">Sign in</a>
+            </p>
+        </div>
     </div>
-</div>
 
-<script th:inline="javascript">
-(function() {
-    'use strict';
+    <script th:inline="javascript">
+        (function () {
+            'use strict';
 
-    const tenantId = /*[[${tenantId}]]*/ 'tenant';
+            const tenantId = /*[[${tenantId}]]*/ 'tenant';
 
-    // ─── DOM References ───
-    const emailInput        = document.getElementById('email');
-    const usernameInput     = document.getElementById('preferredUsername');
-    const passwordInput     = document.getElementById('password');
-    const confirmInput      = document.getElementById('confirmPassword');
-    const toggleCheckbox    = document.getElementById('useEmailAsUsername');
-    const submitBtn         = document.getElementById('submitBtn');
-    const emailFeedback     = document.getElementById('emailFeedback');
-    const usernameFeedback  = document.getElementById('usernameFeedback');
-    const passwordFeedback  = document.getElementById('passwordFeedback');
+            // ─── DOM References ───
+            const emailInput = document.getElementById('email');
+            const usernameInput = document.getElementById('preferredUsername');
+            const passwordInput = document.getElementById('password');
+            const confirmInput = document.getElementById('confirmPassword');
+            const toggleCheckbox = document.getElementById('useEmailAsUsername');
+            const submitBtn = document.getElementById('submitBtn');
+            const emailFeedback = document.getElementById('emailFeedback');
+            const usernameFeedback = document.getElementById('usernameFeedback');
+            const passwordFeedback = document.getElementById('passwordFeedback');
 
-    // ─── State ───
-    let emailAvailable    = true;
-    let usernameAvailable = true;
-    let passwordsMatch    = false;
-    let emailTimer        = null;
-    let usernameTimer     = null;
+            // ─── State ───
+            let emailAvailable = true;
+            let usernameAvailable = true;
+            let passwordsMatch = false;
+            let emailTimer = null;
+            let usernameTimer = null;
 
-    // ─── Debounced Check ───
-    function debounce(callback, delay) {
-        let timer;
-        return function(...args) {
-            clearTimeout(timer);
-            timer = setTimeout(() => callback.apply(this, args), delay);
-            return timer;
-        };
-    }
-
-    async function checkAvailability(type, value, feedbackEl, inputEl) {
-        if (!value || value.trim().length < 3) {
-            feedbackEl.textContent = '';
-            feedbackEl.className = 'field-feedback';
-            inputEl.classList.remove('input-valid', 'input-error');
-            return true;
-        }
-
-        feedbackEl.textContent = 'Checking…';
-        feedbackEl.className = 'field-feedback checking';
-
-        try {
-            const param = type === 'email' ? 'email' : 'username';
-            const resp = await fetch(`/${tenantId}/api/check-${type}?${param}=${encodeURIComponent(value)}`);
-            const data = await resp.json();
-
-            feedbackEl.textContent = data.message;
-            if (data.available) {
-                feedbackEl.className = 'field-feedback available';
-                inputEl.classList.remove('input-error');
-                inputEl.classList.add('input-valid');
-            } else {
-                feedbackEl.className = 'field-feedback taken';
-                inputEl.classList.remove('input-valid');
-                inputEl.classList.add('input-error');
+            // ─── Debounced Check ───
+            function debounce(callback, delay) {
+                let timer;
+                return function (...args) {
+                    clearTimeout(timer);
+                    timer = setTimeout(() => callback.apply(this, args), delay);
+                    return timer;
+                };
             }
-            return data.available;
-        } catch (err) {
-            feedbackEl.textContent = '';
-            feedbackEl.className = 'field-feedback';
-            inputEl.classList.remove('input-valid', 'input-error');
-            return true; // Allow submission on check failure — IAM will catch duplicates
-        }
-    }
 
-    // ─── Email field ───
-    const debouncedEmailCheck = debounce(async function() {
-        emailAvailable = await checkAvailability('email', emailInput.value, emailFeedback, emailInput);
+            async function checkAvailability(type, value, feedbackEl, inputEl) {
+                if (!value || value.trim().length < 3) {
+                    feedbackEl.textContent = '';
+                    feedbackEl.className = 'field-feedback';
+                    inputEl.classList.remove('input-valid', 'input-error');
+                    return true;
+                }
 
-        // If toggle is ON, also check username with the email value
-        if (toggleCheckbox.checked) {
-            usernameAvailable = await checkAvailability('username', emailInput.value, usernameFeedback, usernameInput);
-        }
+                feedbackEl.textContent = 'Checking…';
+                feedbackEl.className = 'field-feedback checking';
 
-        updateSubmitState();
-    }, 400);
+                try {
+                    const param = type === 'email' ? 'email' : 'username';
+                    const resp = await fetch(`/${tenantId}/api/check-${type}?${param}=${encodeURIComponent(value)}`);
+                    const data = await resp.json();
 
-    emailInput.addEventListener('input', function() {
-        debouncedEmailCheck();
+                    feedbackEl.textContent = data.message;
+                    if (data.available) {
+                        feedbackEl.className = 'field-feedback available';
+                        inputEl.classList.remove('input-error');
+                        inputEl.classList.add('input-valid');
+                    } else {
+                        feedbackEl.className = 'field-feedback taken';
+                        inputEl.classList.remove('input-valid');
+                        inputEl.classList.add('input-error');
+                    }
+                    return data.available;
+                } catch (err) {
+                    feedbackEl.textContent = '';
+                    feedbackEl.className = 'field-feedback';
+                    inputEl.classList.remove('input-valid', 'input-error');
+                    return true; // Allow submission on check failure — IAM will catch duplicates
+                }
+            }
 
-        // Sync to username field when toggle is ON
-        if (toggleCheckbox.checked) {
-            usernameInput.value = emailInput.value;
-        }
-    });
+            // ─── Email field ───
+            const debouncedEmailCheck = debounce(async function () {
+                emailAvailable = await checkAvailability('email', emailInput.value, emailFeedback, emailInput);
 
-    // ─── Username field ───
-    const debouncedUsernameCheck = debounce(async function() {
-        if (toggleCheckbox.checked) return; // Skip if synced to email
-        usernameAvailable = await checkAvailability('username', usernameInput.value, usernameFeedback, usernameInput);
-        updateSubmitState();
-    }, 400);
+                // If toggle is ON, also check username with the email value
+                if (toggleCheckbox.checked) {
+                    usernameAvailable = await checkAvailability('username', emailInput.value, usernameFeedback, usernameInput);
+                }
 
-    usernameInput.addEventListener('input', function() {
-        if (!toggleCheckbox.checked) {
-            debouncedUsernameCheck();
-        }
-    });
+                updateSubmitState();
+            }, 400);
 
-    // ─── "Same as email" Toggle ───
-    toggleCheckbox.addEventListener('change', function() {
-        if (this.checked) {
-            // ON: Disable username field, sync with email
-            usernameInput.value = emailInput.value;
-            usernameInput.disabled = true;
-            usernameInput.classList.remove('input-valid', 'input-error');
+            emailInput.addEventListener('input', function () {
+                debouncedEmailCheck();
 
-            // Check availability for the email-as-username
-            if (emailInput.value.trim().length >= 3) {
-                checkAvailability('username', emailInput.value, usernameFeedback, usernameInput)
-                    .then(available => {
-                        usernameAvailable = available;
+                // Sync to username field when toggle is ON
+                if (toggleCheckbox.checked) {
+                    usernameInput.value = emailInput.value;
+                }
+            });
+
+            // ─── Username field ───
+            const debouncedUsernameCheck = debounce(async function () {
+                if (toggleCheckbox.checked) return; // Skip if synced to email
+                usernameAvailable = await checkAvailability('username', usernameInput.value, usernameFeedback, usernameInput);
+                updateSubmitState();
+            }, 400);
+
+            usernameInput.addEventListener('input', function () {
+                if (!toggleCheckbox.checked) {
+                    debouncedUsernameCheck();
+                }
+            });
+
+            // ─── "Same as email" Toggle ───
+            toggleCheckbox.addEventListener('change', function () {
+                if (this.checked) {
+                    // ON: Disable username field, sync with email
+                    usernameInput.value = emailInput.value;
+                    usernameInput.disabled = true;
+                    usernameInput.classList.remove('input-valid', 'input-error');
+
+                    // Check availability for the email-as-username
+                    if (emailInput.value.trim().length >= 3) {
+                        checkAvailability('username', emailInput.value, usernameFeedback, usernameInput)
+                            .then(available => {
+                                usernameAvailable = available;
+                                updateSubmitState();
+                            });
+                    } else {
+                        usernameFeedback.textContent = '';
+                        usernameFeedback.className = 'field-feedback';
+                        usernameAvailable = true;
                         updateSubmitState();
-                    });
-            } else {
-                usernameFeedback.textContent = '';
-                usernameFeedback.className = 'field-feedback';
-                usernameAvailable = true;
+                    }
+                } else {
+                    // OFF: Enable username field, clear feedback
+                    usernameInput.disabled = false;
+                    usernameInput.value = '';
+                    usernameInput.classList.remove('input-valid', 'input-error');
+                    usernameFeedback.textContent = '';
+                    usernameFeedback.className = 'field-feedback';
+                    usernameAvailable = true;
+                    usernameInput.focus();
+                    updateSubmitState();
+                }
+            });
+
+            // ─── Password Match ───
+            function checkPasswordMatch() {
+                const pass = passwordInput.value;
+                const confirm = confirmInput.value;
+
+                if (!confirm) {
+                    passwordFeedback.textContent = '';
+                    passwordFeedback.className = 'password-feedback';
+                    passwordsMatch = false;
+                } else if (pass === confirm) {
+                    passwordFeedback.textContent = '✓ Passwords match';
+                    passwordFeedback.className = 'password-feedback match';
+                    passwordsMatch = true;
+                } else {
+                    passwordFeedback.textContent = '✗ Passwords do not match';
+                    passwordFeedback.className = 'password-feedback mismatch';
+                    passwordsMatch = false;
+                }
                 updateSubmitState();
             }
-        } else {
-            // OFF: Enable username field, clear feedback
-            usernameInput.disabled = false;
-            usernameInput.value = '';
-            usernameInput.classList.remove('input-valid', 'input-error');
-            usernameFeedback.textContent = '';
-            usernameFeedback.className = 'field-feedback';
-            usernameAvailable = true;
-            usernameInput.focus();
+
+            passwordInput.addEventListener('input', checkPasswordMatch);
+            confirmInput.addEventListener('input', checkPasswordMatch);
+
+            // ─── Submit Button State ───
+            function updateSubmitState() {
+                const allFieldsFilled =
+                    emailInput.value.trim() !== '' &&
+                    (toggleCheckbox.checked || usernameInput.value.trim() !== '') &&
+                    passwordInput.value !== '' &&
+                    confirmInput.value !== '' &&
+                    document.getElementById('givenName').value.trim() !== '' &&
+                    document.getElementById('familyName').value.trim() !== '';
+
+                submitBtn.disabled = !(emailAvailable && usernameAvailable && passwordsMatch && allFieldsFilled);
+            }
+
+            // ─── Form Submission — ensure username value is submitted even when disabled ───
+            document.getElementById('registerForm').addEventListener('submit', function () {
+                if (toggleCheckbox.checked) {
+                    usernameInput.disabled = false;
+                    usernameInput.value = emailInput.value;
+                }
+            });
+
+            // ─── Track all fields for submit button state ───
+            document.querySelectorAll('#registerForm input').forEach(function (input) {
+                input.addEventListener('input', updateSubmitState);
+            });
+
+            // ─── Initial state ───
             updateSubmitState();
-        }
-    });
-
-    // ─── Password Match ───
-    function checkPasswordMatch() {
-        const pass    = passwordInput.value;
-        const confirm = confirmInput.value;
-
-        if (!confirm) {
-            passwordFeedback.textContent = '';
-            passwordFeedback.className = 'password-feedback';
-            passwordsMatch = false;
-        } else if (pass === confirm) {
-            passwordFeedback.textContent = '✓ Passwords match';
-            passwordFeedback.className = 'password-feedback match';
-            passwordsMatch = true;
-        } else {
-            passwordFeedback.textContent = '✗ Passwords do not match';
-            passwordFeedback.className = 'password-feedback mismatch';
-            passwordsMatch = false;
-        }
-        updateSubmitState();
-    }
-
-    passwordInput.addEventListener('input', checkPasswordMatch);
-    confirmInput.addEventListener('input', checkPasswordMatch);
-
-    // ─── Submit Button State ───
-    function updateSubmitState() {
-        const allFieldsFilled =
-            emailInput.value.trim() !== '' &&
-            (toggleCheckbox.checked || usernameInput.value.trim() !== '') &&
-            passwordInput.value !== '' &&
-            confirmInput.value !== '' &&
-            document.getElementById('givenName').value.trim() !== '' &&
-            document.getElementById('familyName').value.trim() !== '';
-
-        submitBtn.disabled = !(emailAvailable && usernameAvailable && passwordsMatch && allFieldsFilled);
-    }
-
-    // ─── Form Submission — ensure username value is submitted even when disabled ───
-    document.getElementById('registerForm').addEventListener('submit', function() {
-        if (toggleCheckbox.checked) {
-            usernameInput.disabled = false;
-            usernameInput.value = emailInput.value;
-        }
-    });
-
-    // ─── Track all fields for submit button state ───
-    document.querySelectorAll('#registerForm input').forEach(function(input) {
-        input.addEventListener('input', updateSubmitState);
-    });
-
-    // ─── Initial state ───
-    updateSubmitState();
-})();
-</script>
+        })();
+    </script>
 
 </body>
+
 </html>

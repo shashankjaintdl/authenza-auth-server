@@ -1,6 +1,10 @@
 server:
   port: 8082
 
+# # ──────────────────────────────────────────────
+# # Redis (for dynamic tenant provisioning events)
+# # ──────────────────────────────────────────────
+
 spring:
   application:
     name: auth-iam-service
@@ -10,10 +14,14 @@ spring:
       host: localhost
       port: 6379
 
+# # ──────────────────────────────────────────────
+# # Master Database (for loading tenant connection info)
+# # ──────────────────────────────────────────────
+
 app:
   datasource:
     master:
-      jdbc-url: jdbc:mysql://localhost:3306/auth-master?createDatabaseIfNotExist=true
+      jdbc-url: jdbc:mysql://localhost:3306/auth-master
       username: root
       password: sjain@123
       driver-class-name: com.mysql.cj.jdbc.Driver

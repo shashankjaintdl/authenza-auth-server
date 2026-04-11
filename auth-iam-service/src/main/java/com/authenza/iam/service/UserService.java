@@ -71,26 +71,7 @@
          user.setCreatedAt(Instant.now());
          User savedUser = userRepository.save(user);
          generateAndSendEmailVerificationToken(savedUser);
-         
-         return mapToResponse(savedUser);
-     }
-
-     private UserResponse mapToResponse(User user) {
-         UserResponse response = new UserResponse();
-         response.setId(user.getId());
-         response.setEmail(user.getEmail());
-         response.setEmailVerified(user.getEmailVerified());
-         response.setPreferredUsername(user.getPreferredUsername());
-         response.setName(user.getName());
-         response.setGivenName(user.getGivenName());
-         response.setFamilyName(user.getFamilyName());
-         response.setPhoneNumber(user.getPhoneNumber());
-         response.setPhoneNumberVerified(user.getPhoneNumberVerified());
-         response.setStatus(user.getStatus().name());
-         response.setMfaEnabled(user.getMfaEnabled());
-         response.setCreatedAt(user.getCreatedAt());
-         response.setLastLoginAt(user.getLastLoginAt());
-         return response;
+         return new UserResponse();
      }
 
      private void generateAndSendEmailVerificationToken(final User user) throws JsonProcessingException {

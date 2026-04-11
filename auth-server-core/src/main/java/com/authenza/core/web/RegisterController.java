@@ -2,6 +2,7 @@ package com.authenza.core.web;
 
 import com.authenza.common.dto.ApiResponse;
 import com.authenza.core.client.IamServiceClient;
+import jakarta.servlet.http.HttpServletRequest;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.security.web.csrf.CsrfToken;
@@ -11,6 +12,7 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.regex.Pattern;
 
 /**
  * Serves the Thymeleaf Sign Up pages and proxies form submissions
@@ -44,7 +46,7 @@ public class RegisterController {
         CsrfToken csrfToken =
                 (CsrfToken) request.getAttribute(CsrfToken.class.getName());
         if (csrfToken != null) {
-            csrfToken.getToken(); 
+            csrfToken.getToken();
         }
 
         model.addAttribute("tenantId", tenantId);
@@ -61,12 +63,12 @@ public class RegisterController {
     public String handleRegistration(@PathVariable String tenantId,
                                      @ModelAttribute("form") RegistrationForm form,
                                      Model model,
-                                     jakarta.servlet.http.HttpServletRequest request) {
+                                     HttpServletRequest request) {
         // Force CSRF token early
-        org.springframework.security.web.csrf.CsrfToken csrfToken = 
-                (org.springframework.security.web.csrf.CsrfToken) request.getAttribute(org.springframework.security.web.csrf.CsrfToken.class.getName());
+        CsrfToken csrfToken =
+                (CsrfToken) request.getAttribute(org.springframework.security.web.csrf.CsrfToken.class.getName());
         if (csrfToken != null) {
-            csrfToken.getToken(); 
+            csrfToken.getToken();
         }
 
         model.addAttribute("tenantId", tenantId);
