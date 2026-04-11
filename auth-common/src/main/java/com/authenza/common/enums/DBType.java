@@ -1,4 +1,4 @@
-package com.authenza.common.dto;
+package com.authenza.common.enums;
 
 import org.springframework.util.StringUtils;
 

@@ -1,4 +1,4 @@
-package com.authenza.common.dto;
+package com.authenza.common.events;
 
 /**
  * Event record published to Redis when a new tenant is provisioned.

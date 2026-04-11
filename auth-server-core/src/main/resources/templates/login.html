@@ -105,6 +105,25 @@
         }
 
         button:hover { opacity: .9; }
+
+        .signup-link {
+            display: block;
+            text-align: center;
+            margin-top: 1.25rem;
+            font-size: .85rem;
+            color: #9ca3af;
+        }
+
+        .signup-link a {
+            color: #a78bfa;
+            text-decoration: none;
+            font-weight: 500;
+            transition: color .2s;
+        }
+
+        .signup-link a:hover {
+            color: #c4b5fd;
+        }
     </style>
 </head>
 <body>
@@ -129,6 +148,11 @@
 
         <button type="submit">Sign in</button>
     </form>
+
+    <p class="signup-link">
+        Don't have an account?
+        <a th:href="@{'/' + ${tenantId} + '/register'}">Create Account</a>
+    </p>
 </div>
 
 </body>

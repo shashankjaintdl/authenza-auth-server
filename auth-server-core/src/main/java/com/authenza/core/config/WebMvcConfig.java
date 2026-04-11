@@ -20,10 +20,11 @@ public class WebMvcConfig implements WebMvcConfigurer {
         // Apply to ALL paths so the database is always switched correctly
         // before any Repository or Auth Server logic runs.
         registry.addInterceptor(tenantInterceptor)
-                .excludePathPatterns("/{tenantId}/login","/{tenantId}/oauth2/**")
+                .excludePathPatterns("/{tenantId}/login", "/{tenantId}/oauth2/**")
+                .excludePathPatterns("/{tenantId}/register", "/{tenantId}/verify-email", "/{tenantId}/api/**")
                 .addPathPatterns("/**")
-//                .excludePathPatterns("/login")
+                // .excludePathPatterns("/login")
                 // Optional: exclude static assets if you have any
-                .excludePathPatterns("/favicon.ico", "/error", "/static/**");
+                .excludePathPatterns("/favicon.ico", "/error", "/error/**", "/static/**");
     }
 }

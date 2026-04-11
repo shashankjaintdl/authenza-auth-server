@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="en">
+<head>
+    <meta charset="UTF-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <title th:text="'Email Verification — ' + ${tenantId}">Email Verification</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com"/>
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="anonymous"/>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet"/>
+    <style>
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            font-family: 'Inter', 'Segoe UI', sans-serif;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: linear-gradient(135deg, #0f0c29, #302b63, #24243e);
+            color: #e0e0e0;
+            padding: 1rem;
+        }
+
+        .verify-card {
+            width: 100%;
+            max-width: 460px;
+            padding: 2.5rem;
+            text-align: center;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 16px;
+            backdrop-filter: blur(16px);
+            box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+            animation: cardFadeIn .5s ease-out;
+        }
+
+        .verify-card.success {
+            border: 1px solid rgba(34, 197, 94, 0.25);
+        }
+
+        .verify-card.error {
+            border: 1px solid rgba(239, 68, 68, 0.25);
+        }
+
+        @keyframes cardFadeIn {
+            from { opacity: 0; transform: translateY(16px); }
+            to   { opacity: 1; transform: translateY(0); }
+        }
+
+        .status-icon {
+            font-size: 3.5rem;
+            margin-bottom: 1rem;
+        }
+
+        .verify-card h1 {
+            font-size: 1.5rem;
+            font-weight: 700;
+            margin-bottom: .5rem;
+        }
+
+        .verify-card.success h1 {
+            color: #86efac;
+        }
+
+        .verify-card.error h1 {
+            color: #fca5a5;
+        }
+
+        .verify-card p {
+            font-size: .95rem;
+            color: #b0a4c8;
+            line-height: 1.6;
+            margin-bottom: 1.5rem;
+        }
+
+        .btn-signin {
+            display: inline-block;
+            padding: .75rem 2rem;
+            border: none;
+            border-radius: 8px;
+            background: linear-gradient(135deg, #7c3aed, #6d28d9);
+            color: #fff;
+            font-size: 1rem;
+            font-weight: 600;
+            font-family: 'Inter', sans-serif;
+            text-decoration: none;
+            cursor: pointer;
+            transition: opacity .2s, transform .15s;
+        }
+
+        .btn-signin:hover {
+            opacity: .9;
+            transform: translateY(-1px);
+        }
+
+        .tenant-badge {
+            display: inline-block;
+            padding: .25rem .75rem;
+            background: rgba(167, 139, 250, 0.1);
+            border: 1px solid rgba(167, 139, 250, 0.2);
+            border-radius: 6px;
+            font-size: .8rem;
+            color: #a78bfa;
+            margin-bottom: 1.5rem;
+        }
+    </style>
+</head>
+<body>
+
+<!-- ─── Success State ─── -->
+<div th:if="${verified}" class="verify-card success">
+    <div class="status-icon">✅</div>
+    <h1>Email Verified!</h1>
+    <span class="tenant-badge" th:text="${tenantId}">tenant</span>
+    <p>
+        <span th:text="${message}">Your email has been verified successfully.</span><br/><br/>
+        <strong style="color: #fff;">You may now safely close this window and return to your application to log in.</strong>
+    </p>
+</div>
+
+<!-- ─── Error State ─── -->
+<div th:unless="${verified}" class="verify-card error">
+    <div class="status-icon">❌</div>
+    <h1>Verification Failed</h1>
+    <span class="tenant-badge" th:text="${tenantId}">tenant</span>
+    <p th:text="${message}">The verification link is invalid or has expired.</p>
+    <a th:href="@{'/' + ${tenantId} + '/register'}" class="btn-signin">Register Again</a>
+</div>
+
+</body>
+</html>

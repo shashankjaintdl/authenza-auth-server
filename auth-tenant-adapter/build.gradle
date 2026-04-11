@@ -3,25 +3,23 @@ plugins {
 }
 
 dependencies {
-    // Shared module
-    implementation project(':auth-common')
+    // Shared DTOs, events, and enums
+    api project(':auth-common')
 
-    // JDBC + HikariCP (HikariCP is included transitively)
-    implementation 'org.springframework.boot:spring-boot-starter-jdbc'
+    // JDBC + HikariCP (exposed as api so consuming services get it transitively)
+    api 'org.springframework.boot:spring-boot-starter-data-jdbc'
 
     // Redis Pub/Sub for dynamic tenant provisioning events
-    implementation 'org.springframework.boot:spring-boot-starter-data-redis'
+    api 'org.springframework.boot:spring-boot-starter-data-redis'
 
-    // Jackson (used directly by TenantProvisionedListener for JSON deserialization)
-    implementation 'com.fasterxml.jackson.core:jackson-databind'
-
-    // Spring WebMVC for tenant-aware filters/interceptors
+    // Spring WebMVC for tenant-aware interceptors
     implementation 'org.springframework:spring-webmvc'
 
-    // Servlet API (compile-only, provided by the runtime container)
+    // Servlet API (provided at runtime by the embedded container)
     compileOnly 'jakarta.servlet:jakarta.servlet-api:6.1.0'
 
-    // Database Drivers: support all tenant DB types
+    // Database Drivers — exposed as runtimeOnly so all consuming services
+    // can connect to any supported tenant DB without re-declaring drivers
     runtimeOnly 'com.mysql:mysql-connector-j'
     runtimeOnly 'org.postgresql:postgresql'
     runtimeOnly 'com.oracle.database.jdbc:ojdbc8'

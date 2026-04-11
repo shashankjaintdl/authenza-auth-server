@@ -2,7 +2,7 @@ package com.authenza.adapter.config;
 
 import com.authenza.adapter.routing.TenantRoutingDataSource;
 import com.authenza.common.TenantConfig;
-import com.authenza.common.dto.TenantProvisionedEvent;
+import com.authenza.common.events.TenantProvisionedEvent;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;

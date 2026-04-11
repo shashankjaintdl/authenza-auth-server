@@ -34,6 +34,9 @@ app:
     authentication-methods: client_secret_basic
     require-consent: false
     require-proof-key: false
+  services:
+    iam:
+      base-url: http://localhost:8082
   # Ensure standard auto-config doesn't interfere
 #  jdbc:
 #    template:

@@ -45,6 +45,9 @@ public class SecurityConfig {
                                 // Allow the root URL, login page, and error pages without authentication
                                 .requestMatchers("/").permitAll()
                                 .requestMatchers("/{tenantId}/login").permitAll()
+                                .requestMatchers("/{tenantId}/register").permitAll()
+                                .requestMatchers("/{tenantId}/verify-email").permitAll()
+                                .requestMatchers("/{tenantId}/api/**").permitAll()
                                 .requestMatchers("/error/**").permitAll()
                                 .anyRequest().authenticated()
                 )

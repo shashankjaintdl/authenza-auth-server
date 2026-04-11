@@ -1,0 +1,613 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="en">
+<head>
+    <meta charset="UTF-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <meta name="description" content="Create your account securely"/>
+    <title th:text="'Create Account — ' + ${tenantId}">Create Account</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com"/>
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="anonymous"/>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet"/>
+    <style>
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            font-family: 'Inter', 'Segoe UI', sans-serif;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: linear-gradient(135deg, #0f0c29, #302b63, #24243e);
+            color: #e0e0e0;
+            padding: 1rem;
+        }
+
+        .register-card {
+            width: 100%;
+            max-width: 460px;
+            padding: 2.5rem;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            border-radius: 16px;
+            backdrop-filter: blur(16px);
+            box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+            animation: cardFadeIn .5s ease-out;
+        }
+
+        @keyframes cardFadeIn {
+            from { opacity: 0; transform: translateY(16px); }
+            to   { opacity: 1; transform: translateY(0); }
+        }
+
+        .register-card h1 {
+            font-size: 1.6rem;
+            font-weight: 700;
+            text-align: center;
+            margin-bottom: .25rem;
+        }
+
+        .tenant-badge {
+            display: block;
+            text-align: center;
+            font-size: .85rem;
+            color: #a78bfa;
+            margin-bottom: 1.5rem;
+        }
+
+        /* ─── Messages ─── */
+        .error-msg {
+            background: rgba(239, 68, 68, .15);
+            border: 1px solid rgba(239,68,68,.3);
+            color: #fca5a5;
+            padding: .65rem 1rem;
+            border-radius: 8px;
+            font-size: .85rem;
+            margin-bottom: 1rem;
+            text-align: center;
+            animation: shakeFade .4s ease;
+        }
+
+        @keyframes shakeFade {
+            0%, 100% { transform: translateX(0); }
+            20%      { transform: translateX(-6px); }
+            40%      { transform: translateX(6px); }
+            60%      { transform: translateX(-4px); }
+            80%      { transform: translateX(4px); }
+        }
+
+        .success-card {
+            text-align: center;
+            animation: cardFadeIn .5s ease-out;
+        }
+
+        .success-icon {
+            font-size: 3rem;
+            margin-bottom: 1rem;
+        }
+
+        .success-card h2 {
+            font-size: 1.3rem;
+            font-weight: 600;
+            color: #86efac;
+            margin-bottom: .5rem;
+        }
+
+        .success-card p {
+            font-size: .95rem;
+            color: #b0a4c8;
+            line-height: 1.6;
+            margin-bottom: 1.5rem;
+        }
+
+        .success-card .email-highlight {
+            color: #a78bfa;
+            font-weight: 600;
+        }
+
+        /* ─── Form ─── */
+        .name-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: .75rem;
+        }
+
+        .form-group {
+            margin-bottom: 1rem;
+            position: relative;
+        }
+
+        label {
+            display: block;
+            font-size: .8rem;
+            font-weight: 500;
+            margin-bottom: .35rem;
+            color: #c4b5fd;
+        }
+
+        input[type="text"],
+        input[type="email"],
+        input[type="password"] {
+            width: 100%;
+            padding: .7rem 1rem;
+            border: 1px solid rgba(255,255,255,.15);
+            border-radius: 8px;
+            background: rgba(255,255,255,.06);
+            color: #f1f1f1;
+            font-size: .95rem;
+            font-family: 'Inter', sans-serif;
+            outline: none;
+            transition: border-color .25s, box-shadow .25s;
+        }
+
+        input:focus {
+            border-color: #7c3aed;
+            box-shadow: 0 0 0 3px rgba(124, 58, 237, 0.15);
+        }
+
+        input:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        input.input-valid {
+            border-color: rgba(34, 197, 94, 0.5);
+        }
+
+        input.input-error {
+            border-color: rgba(239, 68, 68, 0.5);
+        }
+
+        /* ─── Availability Feedback ─── */
+        .field-feedback {
+            font-size: .78rem;
+            margin-top: .3rem;
+            min-height: 1.1rem;
+            transition: opacity .2s;
+        }
+
+        .field-feedback.available {
+            color: #86efac;
+        }
+
+        .field-feedback.taken {
+            color: #fca5a5;
+        }
+
+        .field-feedback.checking {
+            color: #a78bfa;
+        }
+
+        /* ─── Toggle Switch ─── */
+        .username-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: .35rem;
+        }
+
+        .toggle-wrapper {
+            display: flex;
+            align-items: center;
+            gap: .4rem;
+        }
+
+        .toggle-label {
+            font-size: .72rem;
+            color: #9ca3af;
+            font-weight: 400;
+            white-space: nowrap;
+        }
+
+        .toggle-switch {
+            position: relative;
+            width: 36px;
+            height: 20px;
+            flex-shrink: 0;
+        }
+
+        .toggle-switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+
+        .toggle-slider {
+            position: absolute;
+            cursor: pointer;
+            inset: 0;
+            background: rgba(255,255,255,.12);
+            border-radius: 20px;
+            transition: background .3s;
+        }
+
+        .toggle-slider::before {
+            content: '';
+            position: absolute;
+            width: 14px;
+            height: 14px;
+            left: 3px;
+            bottom: 3px;
+            background: #e0e0e0;
+            border-radius: 50%;
+            transition: transform .3s;
+        }
+
+        .toggle-switch input:checked + .toggle-slider {
+            background: linear-gradient(135deg, #7c3aed, #6d28d9);
+        }
+
+        .toggle-switch input:checked + .toggle-slider::before {
+            transform: translateX(16px);
+            background: #fff;
+        }
+
+        /* ─── Buttons ─── */
+        .btn-submit {
+            width: 100%;
+            padding: .75rem;
+            border: none;
+            border-radius: 8px;
+            background: linear-gradient(135deg, #7c3aed, #6d28d9);
+            color: #fff;
+            font-size: 1rem;
+            font-weight: 600;
+            font-family: 'Inter', sans-serif;
+            cursor: pointer;
+            transition: opacity .2s, transform .15s;
+            margin-top: .5rem;
+        }
+
+        .btn-submit:hover:not(:disabled) {
+            opacity: .9;
+            transform: translateY(-1px);
+        }
+
+        .btn-submit:active:not(:disabled) {
+            transform: translateY(0);
+        }
+
+        .btn-submit:disabled {
+            opacity: 0.4;
+            cursor: not-allowed;
+        }
+
+        /* ─── Links ─── */
+        .signin-link {
+            display: block;
+            text-align: center;
+            margin-top: 1.25rem;
+            font-size: .85rem;
+            color: #9ca3af;
+        }
+
+        .signin-link a {
+            color: #a78bfa;
+            text-decoration: none;
+            font-weight: 500;
+            transition: color .2s;
+        }
+
+        .signin-link a:hover {
+            color: #c4b5fd;
+        }
+
+        .back-link {
+            display: inline-block;
+            margin-top: 1.5rem;
+            color: #a78bfa;
+            text-decoration: none;
+            font-size: .9rem;
+            font-weight: 500;
+            transition: color .2s;
+        }
+
+        .back-link:hover {
+            color: #c4b5fd;
+        }
+
+        /* ─── Password match ─── */
+        .password-feedback {
+            font-size: .78rem;
+            margin-top: .3rem;
+            min-height: 1.1rem;
+        }
+
+        .password-feedback.match {
+            color: #86efac;
+        }
+
+        .password-feedback.mismatch {
+            color: #fca5a5;
+        }
+    </style>
+</head>
+<body>
+
+<div class="register-card">
+
+    <!-- ─── Success State ─── -->
+    <div th:if="${registrationSuccess}" class="success-card">
+        <div class="success-icon">✉️</div>
+        <h2>Check Your Email</h2>
+        <p>
+            We've sent a verification link to
+            <span class="email-highlight" th:text="${registeredEmail}">user@example.com</span>.
+            <br/>Please click the link to activate your account.
+        </p>
+        <a th:href="@{'/' + ${tenantId} + '/login'}" class="back-link">← Back to Sign In</a>
+    </div>
+
+    <!-- ─── Registration Form ─── -->
+    <div th:unless="${registrationSuccess}">
+        <h1>Create Account</h1>
+        <span class="tenant-badge" th:text="${tenantId}">tenant</span>
+
+        <!-- Server-side error from IAM service -->
+        <div class="error-msg" th:if="${errorMessage}" th:text="${errorMessage}">
+            An error occurred.
+        </div>
+
+        <form th:action="@{'/' + ${tenantId} + '/register'}" method="post" id="registerForm" autocomplete="on">
+
+            <!-- First Name / Last Name -->
+            <div class="name-row">
+                <div class="form-group">
+                    <label for="givenName">First Name</label>
+                    <input type="text" id="givenName" name="givenName"
+                           th:value="${form?.givenName}"
+                           autocomplete="given-name" required/>
+                </div>
+                <div class="form-group">
+                    <label for="familyName">Last Name</label>
+                    <input type="text" id="familyName" name="familyName"
+                           th:value="${form?.familyName}"
+                           autocomplete="family-name" required/>
+                </div>
+            </div>
+
+            <!-- Email -->
+            <div class="form-group">
+                <label for="email">Email</label>
+                <input type="email" id="email" name="email"
+                       th:value="${form?.email}"
+                       autocomplete="email" required/>
+                <div id="emailFeedback" class="field-feedback"></div>
+            </div>
+
+            <!-- Username with "Same as email" toggle -->
+            <div class="form-group">
+                <div class="username-header">
+                    <label for="preferredUsername" style="margin-bottom: 0;">Username</label>
+                    <div class="toggle-wrapper">
+                        <span class="toggle-label">Same as email</span>
+                        <label class="toggle-switch">
+                            <input type="checkbox" id="useEmailAsUsername" name="useEmailAsUsername"/>
+                            <span class="toggle-slider"></span>
+                        </label>
+                    </div>
+                </div>
+                <input type="text" id="preferredUsername" name="preferredUsername"
+                       th:value="${form?.preferredUsername}"
+                       autocomplete="username" required/>
+                <div id="usernameFeedback" class="field-feedback"></div>
+            </div>
+
+            <!-- Password -->
+            <div class="form-group">
+                <label for="password">Password</label>
+                <input type="password" id="password" name="password"
+                       autocomplete="new-password" required/>
+            </div>
+
+            <!-- Confirm Password -->
+            <div class="form-group">
+                <label for="confirmPassword">Confirm Password</label>
+                <input type="password" id="confirmPassword" name="confirmPassword"
+                       autocomplete="new-password" required/>
+                <div id="passwordFeedback" class="password-feedback"></div>
+            </div>
+
+            <button type="submit" class="btn-submit" id="submitBtn">Create Account</button>
+        </form>
+
+        <p class="signin-link">
+            Already have an account?
+            <a th:href="@{'/' + ${tenantId} + '/login'}">Sign in</a>
+        </p>
+    </div>
+</div>
+
+<script th:inline="javascript">
+(function() {
+    'use strict';
+
+    const tenantId = /*[[${tenantId}]]*/ 'tenant';
+
+    // ─── DOM References ───
+    const emailInput        = document.getElementById('email');
+    const usernameInput     = document.getElementById('preferredUsername');
+    const passwordInput     = document.getElementById('password');
+    const confirmInput      = document.getElementById('confirmPassword');
+    const toggleCheckbox    = document.getElementById('useEmailAsUsername');
+    const submitBtn         = document.getElementById('submitBtn');
+    const emailFeedback     = document.getElementById('emailFeedback');
+    const usernameFeedback  = document.getElementById('usernameFeedback');
+    const passwordFeedback  = document.getElementById('passwordFeedback');
+
+    // ─── State ───
+    let emailAvailable    = true;
+    let usernameAvailable = true;
+    let passwordsMatch    = false;
+    let emailTimer        = null;
+    let usernameTimer     = null;
+
+    // ─── Debounced Check ───
+    function debounce(callback, delay) {
+        let timer;
+        return function(...args) {
+            clearTimeout(timer);
+            timer = setTimeout(() => callback.apply(this, args), delay);
+            return timer;
+        };
+    }
+
+    async function checkAvailability(type, value, feedbackEl, inputEl) {
+        if (!value || value.trim().length < 3) {
+            feedbackEl.textContent = '';
+            feedbackEl.className = 'field-feedback';
+            inputEl.classList.remove('input-valid', 'input-error');
+            return true;
+        }
+
+        feedbackEl.textContent = 'Checking…';
+        feedbackEl.className = 'field-feedback checking';
+
+        try {
+            const param = type === 'email' ? 'email' : 'username';
+            const resp = await fetch(`/${tenantId}/api/check-${type}?${param}=${encodeURIComponent(value)}`);
+            const data = await resp.json();
+
+            feedbackEl.textContent = data.message;
+            if (data.available) {
+                feedbackEl.className = 'field-feedback available';
+                inputEl.classList.remove('input-error');
+                inputEl.classList.add('input-valid');
+            } else {
+                feedbackEl.className = 'field-feedback taken';
+                inputEl.classList.remove('input-valid');
+                inputEl.classList.add('input-error');
+            }
+            return data.available;
+        } catch (err) {
+            feedbackEl.textContent = '';
+            feedbackEl.className = 'field-feedback';
+            inputEl.classList.remove('input-valid', 'input-error');
+            return true; // Allow submission on check failure — IAM will catch duplicates
+        }
+    }
+
+    // ─── Email field ───
+    const debouncedEmailCheck = debounce(async function() {
+        emailAvailable = await checkAvailability('email', emailInput.value, emailFeedback, emailInput);
+
+        // If toggle is ON, also check username with the email value
+        if (toggleCheckbox.checked) {
+            usernameAvailable = await checkAvailability('username', emailInput.value, usernameFeedback, usernameInput);
+        }
+
+        updateSubmitState();
+    }, 400);
+
+    emailInput.addEventListener('input', function() {
+        debouncedEmailCheck();
+
+        // Sync to username field when toggle is ON
+        if (toggleCheckbox.checked) {
+            usernameInput.value = emailInput.value;
+        }
+    });
+
+    // ─── Username field ───
+    const debouncedUsernameCheck = debounce(async function() {
+        if (toggleCheckbox.checked) return; // Skip if synced to email
+        usernameAvailable = await checkAvailability('username', usernameInput.value, usernameFeedback, usernameInput);
+        updateSubmitState();
+    }, 400);
+
+    usernameInput.addEventListener('input', function() {
+        if (!toggleCheckbox.checked) {
+            debouncedUsernameCheck();
+        }
+    });
+
+    // ─── "Same as email" Toggle ───
+    toggleCheckbox.addEventListener('change', function() {
+        if (this.checked) {
+            // ON: Disable username field, sync with email
+            usernameInput.value = emailInput.value;
+            usernameInput.disabled = true;
+            usernameInput.classList.remove('input-valid', 'input-error');
+
+            // Check availability for the email-as-username
+            if (emailInput.value.trim().length >= 3) {
+                checkAvailability('username', emailInput.value, usernameFeedback, usernameInput)
+                    .then(available => {
+                        usernameAvailable = available;
+                        updateSubmitState();
+                    });
+            } else {
+                usernameFeedback.textContent = '';
+                usernameFeedback.className = 'field-feedback';
+                usernameAvailable = true;
+                updateSubmitState();
+            }
+        } else {
+            // OFF: Enable username field, clear feedback
+            usernameInput.disabled = false;
+            usernameInput.value = '';
+            usernameInput.classList.remove('input-valid', 'input-error');
+            usernameFeedback.textContent = '';
+            usernameFeedback.className = 'field-feedback';
+            usernameAvailable = true;
+            usernameInput.focus();
+            updateSubmitState();
+        }
+    });
+
+    // ─── Password Match ───
+    function checkPasswordMatch() {
+        const pass    = passwordInput.value;
+        const confirm = confirmInput.value;
+
+        if (!confirm) {
+            passwordFeedback.textContent = '';
+            passwordFeedback.className = 'password-feedback';
+            passwordsMatch = false;
+        } else if (pass === confirm) {
+            passwordFeedback.textContent = '✓ Passwords match';
+            passwordFeedback.className = 'password-feedback match';
+            passwordsMatch = true;
+        } else {
+            passwordFeedback.textContent = '✗ Passwords do not match';
+            passwordFeedback.className = 'password-feedback mismatch';
+            passwordsMatch = false;
+        }
+        updateSubmitState();
+    }
+
+    passwordInput.addEventListener('input', checkPasswordMatch);
+    confirmInput.addEventListener('input', checkPasswordMatch);
+
+    // ─── Submit Button State ───
+    function updateSubmitState() {
+        const allFieldsFilled =
+            emailInput.value.trim() !== '' &&
+            (toggleCheckbox.checked || usernameInput.value.trim() !== '') &&
+            passwordInput.value !== '' &&
+            confirmInput.value !== '' &&
+            document.getElementById('givenName').value.trim() !== '' &&
+            document.getElementById('familyName').value.trim() !== '';
+
+        submitBtn.disabled = !(emailAvailable && usernameAvailable && passwordsMatch && allFieldsFilled);
+    }
+
+    // ─── Form Submission — ensure username value is submitted even when disabled ───
+    document.getElementById('registerForm').addEventListener('submit', function() {
+        if (toggleCheckbox.checked) {
+            usernameInput.disabled = false;
+            usernameInput.value = emailInput.value;
+        }
+    });
+
+    // ─── Track all fields for submit button state ───
+    document.querySelectorAll('#registerForm input').forEach(function(input) {
+        input.addEventListener('input', updateSubmitState);
+    });
+
+    // ─── Initial state ───
+    updateSubmitState();
+})();
+</script>
+
+</body>
+</html>

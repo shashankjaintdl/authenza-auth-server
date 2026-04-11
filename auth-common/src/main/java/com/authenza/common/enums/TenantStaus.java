@@ -1,4 +1,4 @@
-package com.authenza.common.dto;
+package com.authenza.common.enums;
 
 public enum TenantStaus {
 

@@ -1,0 +1,23 @@
+plugins {
+    id 'org.springframework.boot'
+    id 'io.spring.dependency-management'
+    id 'java'
+}
+
+dependencies {
+    // Shared modules (auth-tenant-adapter transitively brings auth-common,
+    // Spring Data JDBC, HikariCP, Redis, Jackson, validation, and all DB drivers)
+    implementation project(':auth-tenant-adapter')
+
+    // Web
+    implementation 'org.springframework.boot:spring-boot-starter-web'
+
+    // Email support
+    implementation 'org.springframework.boot:spring-boot-starter-mail'
+
+    // Thymeleaf for email templates
+    implementation 'org.springframework.boot:spring-boot-starter-thymeleaf'
+
+    // OAuth2 Resource Server
+    implementation 'org.springframework.boot:spring-boot-starter-oauth2-resource-server'
+}

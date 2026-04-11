@@ -1,7 +1,7 @@
 package com.authenza.master.service;
 
 import com.authenza.common.RedisChannels;
-import com.authenza.common.dto.TenantProvisionedEvent;
+import com.authenza.common.events.TenantProvisionedEvent;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;

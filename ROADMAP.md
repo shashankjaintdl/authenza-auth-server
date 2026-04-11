@@ -1,0 +1,181 @@
+# Authenza - Project Roadmap
+
+This consolidated roadmap outlines the step-by-step feature development to evolve **Authenza** from a foundational multitenant Spring Authorization Server into a comprehensive, enterprise-grade Identity and Access Management (IAM) product.
+
+---
+
+## Phase 1: User Onboarding & Identity Lifecycle (IAM Core)
+Establish robust management of user identities within their respective tenants.
+
+- **User Registration & Verification:**
+  - Build secure "Sign Up" APIs and UI pages.
+  - Implement an email verification flow (e.g., using Spring Mail to send secure verification links or OTPs) before activating a user.
+- **Account Recovery (Forgot/Reset Password):**
+  - Develop self-service flows for resetting passwords securely using time-limited tokens.
+- **Profile Management & Deletion:**
+  - Expose APIs for users to update their details, change passwords from within the app, and view their own profile data.
+  - Provide a self-service way for users to permanently delete their accounts to comply with data privacy requests.
+- **Admin User Invitation Flow (B2B Core):**
+  - Implement an API allowing Tenant Admins to securely invite employees via email.
+  - Generate one-time invitation tokens that redirect the invited user to a "Set Password" screen rather than general sign-up.
+- **Strict Password Policies:**
+  - Enforce customizable security constraints (min length, special characters, preventing common passwords) during sign-up and password reset.
+- **Secure Refresh Token Rotation:**
+  - Implement long-lived offline access tokens with strict rotation policies (a new token is issued per use) to balance UX with anti-theft security in SPAs.
+
+---
+
+## Phase 2: Enhanced Security & Authentication
+Elevate platform security by protecting endpoints and validating identities.
+
+- **Brute Force Protection & Account Lockout:**
+  - Track failed login attempts.
+  - Automatically lock accounts for a duration after `N` failed attempts to prevent credential stuffing.
+- **Multi-Factor Authentication (MFA):**
+  - Introduce TOTP (Time-Based One Time Password, e.g., Google Authenticator).
+  - Enforce multi-step authentication flows within your custom login journey.
+- **Active Session Management:**
+  - Track active user sessions globally (e.g., via Redis or a `sessions` database table) instead of solely relying on stateless tokens.
+  - Add capabilities for users to view "Active Devices" and revoke (logout) specific remote sessions.
+- **Adaptive / Risk-Based Authentication:**
+  - Detect anomalous login attempts (e.g., impossible travel, unknown devices, or new IP addresses).
+  - Automatically challenge the user with progressive MFA or send a "New Device Detected" security alert email.
+- **FIDO2 / WebAuthn (Passwordless):**
+  - Allow users to authenticate using physical device biometrics (Apple FaceID, TouchID, Windows Hello, YubiKeys).
+- **Tenant-Level Rate Limiting:**
+  - Protect infrastructure from noisy-neighbor DDoS attacks by throttling API requests per `tenant_id` (e.g., max 10,000 auth attempts per hour).
+
+---
+
+## Phase 3: Deepening OAuth2 & OpenID Connect (OIDC) Integration
+Expand upon the Spring Authorization Server framework standardizing the token issuing processes.
+
+- **JWT Customization & Tenant Claims Context:**
+  - Implement `OAuth2TokenCustomizer` to enrich Token claims.
+  - Map the user's `tenant_id`, `roles`, and profile data directly into Access Tokens and ID Tokens.
+- **The OIDC UserInfo Endpoint:**
+  - Customize `OidcUserInfoAuthenticationProvider` or provide a custom mapper.
+  - Expose user profile data through standard OIDC claims (`email`, `given_name`, `picture`) for clients that require user info endpoints natively.
+- **Custom Multi-Tenant OAuth2 Consent Screen:**
+  - Build an `/oauth2/consent` HTML screen tailored to the tenant's brand.
+  - Require users to explicitly approve third-party applications requesting scopes (`email`, `profile`).
+- **Automated JWKS (JSON Web Key Set) Rotation:**
+  - Replace static RSA keys with a dynamic `JWKSource` backed by the master database. 
+  - Build a background cron job to securely rotate JWT signing keys every 90 days.
+- **PKCE & Token Revocation:**
+  - Enforce Proof Key for Code Exchange (PKCE) for SPA and mobile clients.
+  - Expose token revocation endpoints (RFC 7009) to allow explicit invalidation of access/refresh tokens.
+- **Advanced OAuth2 Protocol Enhancements:**
+  - **Pushed Authorization Requests (PAR - RFC 9126):** Prevent URL interception by having clients make secure back-channel POST requests to retrieve an opaque `request_uri` prior to browser redirection.
+  - **Device Authorization Grant (RFC 8628):** Support input-constrained devices (e.g., CLI tools, Smart TVs) by allowing users to authorize on a secondary browser via a short code.
+  - **Mutual TLS (mTLS) Client Authentication (RFC 8705):** Mandate X.509 client certificates for high-security B2B integrations instead of basic `client_secret` strings.
+  - **Rich Authorization Requests (RAR - RFC 9396):** Enable complex JSON payload scopes for precise transactional approvals rather than simple string scopes.
+
+---
+
+## Phase 4: Tenant Customization & Organization
+Enable complex B2B scenarios and tenant-specific configuration.
+
+- **Role-Based Access Control (RBAC):**
+  - Introduce `Roles`, `Permissions`, and `Groups` entities within the tenant database schema.
+  - Propagate these roles as scopes/claims on minted tokens.
+- **Dynamic Client Management System:**
+  - Wrap the `RegisteredClientRepository` with APIs for tenant administrators.
+  - Allow tenants to self-serve dynamic creation of their own OAuth2 clients (M2M tokens, SPAs) and rotate client secrets.
+- **Dynamic Tenant Branding:**
+  - Store tenant-specific UI Theme objects securely in the database (e.g., a JSON `branding_settings` column holding `logoUrl`, `primaryColor`, and `termsUrl`).
+  - **Dynamic Rendering Pipeline:** Intercept the `tenantId` from the request, fetch the specific tenant's branding profile from the database, and dynamically inject the branding variables into the Thymeleaf models so custom logos and themes appear natively on `login.html` and `consent.html`.
+- **Hierarchical Feature Toggles (Tenant & Client Level):**
+  - Implement a hybrid security toggle system for capabilities like `allow_public_registration`.
+  - Dynamically hide or show features like the "Create Account" option on the UI, and restrict the API accordingly based on tenant rules.
+  - **Tenant Level:** Acts as a global master switch to lock down an entire workspace if necessary (e.g., strict internal B2B environments).
+  - **Client Level:** Store granular toggles directly in OAuth2 `ClientSettings` (e.g., allowing "Create Account" on a public mobile app, but disabling it on an internal employee portal).
+- **Dynamic Registration Schemas & Custom User Attributes:**
+  - Facilitate dynamic onboarding by allowing administrators to configure custom fields (e.g., mobile, company code, employee ID) per client/tenant using a JSON schema.
+  - **Schema Validation Workflow:** 
+    - The JSON configuration specifies if a field is `required: true` vs `required: false`. 
+    - The UI dynamically generates HTML inputs with the `required` attribute based on this schema.
+    - The Backend (`UserService`) strictly enforces this schema by validating the incoming JSON payload against the Tenant's mandated rules, preventing API bypass.
+  - Store incoming flexible values natively in a JSON database schema format and dynamically inject them into minted JWTs via OAuth2 token customizers.
+- **White-Labeled Email Templates & BYO-SMTP:**
+  - Ensure the auth experience is fully branded up to the user's inbox.
+  - Allow tenants to upload custom HTML email templates (Welcome, OTP, Password Reset) and optionally configure their own SMTP server credentials.
+- **Internationalization (i18n) & Localization:**
+  - Adapt the custom login pages, consent screens, and emails natively to the user's `locale` parameter or browser settings to elegantly support global B2B workforces.
+
+---
+
+## Phase 5: Interoperability & Observability
+Mature the product to fit into wider enterprise ecosystems.
+
+- **Federated Identity (Identity Brokering):**
+  - Transform Authenza into an Identity Broker by adding standard `oauth2Login()`.
+  - Let tenants configure external Identity Providers (Google, GitHub, Microsoft Entra ID) so they can enforce Single Sign-On (SSO) with their active directories.
+- **Tenant Admin Dashboard APIs:**
+  - Prepare `auth-iam-service` routes to serve an eventual React/Angular Tenant Admin Frontend used to manage tenant users and settings.
+- **Unified Audit Logging Framework:**
+  - Intercept and safely log sensitive events (`LOGIN_SUCCESS`, `PASSWORD_CHANGED`, `CLIENT_CREATED`).
+  - Funnel logs to a data store suitable for compliance monitoring and usage tracking.
+- **Centralized Application Logging & Tracing:**
+  - Implement Distributed Tracing (Micrometer Tracing / W3C Trace Context) to automatically inject and propagate `traceId` and `spanId` across all microservices.
+  - Deploy an automated Log Aggregation stack (e.g., Grafana Loki + Promtail, or ELK) to centrally search, correlate, and monitor multi-module system logs in production.
+- **Automated Testing & Quality Assurance (`auth-e2e-tests`):**
+  - **Unit Tests (JUnit 5 + Mockito):** Write isolated tests for services, repositories, and utility classes within each module (`auth-iam-service`, `auth-notification-service`, etc.).
+  - **Integration Tests (`@SpringBootTest` + Testcontainers):** Boot individual services against real MySQL and Redis containers (via Testcontainers) to validate database interactions, Liquibase migrations, and Redis Pub/Sub event publishing.
+  - **End-to-End Tests (REST Assured in `auth-e2e-tests`):** Orchestrate full cross-service flow tests (User Registration → Redis Event → Notification Listener → Email Sent) by hitting live HTTP endpoints of all running services. Generate HTML test reports for CI/CD pipelines.
+  - **Contract Testing:** Validate that the `ApiResponse<T>` envelope and event DTOs (`EmailVerificationEvent`) remain backward-compatible across all modules.
+- **SCIM 2.0 Directory Sync Provisioning:**
+  - Expose API endpoints compliant with the System for Cross-domain Identity Management (SCIM) standard.
+  - Enable massive enterprise tenants to automatically sync (create/update/disable) their employees directly from Azure AD, Okta, or Google Workspace into Authenza.
+- **Administrator Impersonation ("Login As"):**
+  - Provide a highly secure API for Support Teams or Tenant Admins to briefly assume the identity of a specific user to troubleshoot issues, generating a restricted JWT without ever requiring the user's password.
+- **Continuous Access Evaluation (CAE):**
+  - Publish real-time "Critical Event Streams" (e.g., `user_disabled`, `password_reset`) to downstream Resource Servers.
+  - Empower microservices to instantly drop access tokens upon critical security events rather than waiting for standard the JWT 1-hour expiry window.
+
+---
+
+## Phase 6: Developer Experience (DX) & Extensibility
+Empower tenant developers to integrate deeply with the Authenza platform.
+
+- **Event Webhooks:**
+  - Fire asynchronous HTTP callbacks to tenant-configured URLs upon critical lifecycle events (`USER_REGISTERED`, `PASSWORD_CHANGED`, `TENANT_DELETED`).
+- **Custom Claims Providers:**
+  - Introduce an extensibility mechanism where tenant admins can register HTTP hooks that Authenza invokes during token minting to dynamically inject external claims.
+- **Machine-to-Machine (M2M) API Keys:**
+  - Provide static, rotatable `API_KEY` capabilities for simple scripting and service integrations that don't require full OAuth2 flows.
+- **Just-In-Time (JIT) Legacy User Migration:**
+  - Facilitate frictionless onboarding for massive B2B tenants migrating from legacy identity systems.
+  - Intercept login workflows to validate user passwords against the tenant's exact legacy API in real-time, seamlessly securing and migrating the user into the native Authenza database.
+
+---
+
+## Phase 7: Enterprise Compliance & Privacy
+Meet stringent global data privacy requirements (GDPR, CCPA).
+
+- **Data Export & Portability (Takeout):**
+  - Implement self-service APIs allowing users to request a complete JSON export of their profile, metadata, and activity history.
+- **Right to be Forgotten (Account Anonymization):**
+  - Build a secure workflow to completely scramble or purge a user's PII across a tenant's database tables rather than simply disabling the account.
+- **Step-Up Authentication:**
+  - Require re-authentication or progressive MFA prompts only when users attempt high-risk actions (e.g., updating billing, changing passwords).
+
+---
+
+## Phase 8: SaaS Monetization & Billing Architecture
+Implement the logic to map identity functionality directly to business revenue tiers, ensuring the platform scales profitably.
+
+- **Subscription Tier Modeling:**
+  - Define canonical billing plans mapping to the master `tenant` database:
+    - **`FREE` (The Entry Hook):** Provide generous MAU limits with core API access, but enforce Authenza branding ("Secured by Authenza") and block premium capabilities to drive startup adoption while securing free marketing.
+    - **`PRO` (The Core Revenue Driver):** Monetize established businesses by unlocking crucial Phase 4 Customizations (White-Labeling, Custom Domains, Custom Emails) and charging micro-transactions for overage users.
+    - **`ENTERPRISE` (The Big Whales):** Secure massive contracts by unlocking critical B2B compliance features (SCIM 2.0 Directory Sync, SLAs, Admin Impersonation) demanded by corporate security teams.
+- **Premium Feature Enforcement:**
+  - Implement Spring Security filters/aspects to dynamically intercept REST calls. Return `403 Forbidden` if a tenant attempts to access APIs restricted by their active `ServicePlan` (e.g., blocking a FREE user from accessing the Phase 6 Webhook APIs).
+- **Usage-Based Metering (Base + Overage):**
+  - Track Monthly Active Users (MAUs) and aggregate authentication events per tenant.
+  - Report usage metrics to external payment gateways (like Stripe) to automatically invoice customers who exceed their base user quotas.
+
+--- 
+
+*Generated to guide the continuous development of the Authenza Multi-Tenant Auth Service.*
