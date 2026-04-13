@@ -4,6 +4,7 @@ import com.authenza.common.RedisChannels;
 import com.authenza.common.dto.NotificationRequest;
 import com.authenza.common.enums.NotificationType;
 import com.authenza.common.events.EmailVerificationEvent;
+import com.authenza.common.events.PasswordResetEvent;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
@@ -41,5 +42,18 @@ public class NotificationEventPublisher {
         redisTemplate.convertAndSend(RedisChannels.NOTIFICATION_EMAIL_VERIFICATION, json);
     }
 
+    public void publishPasswordResetEvent(String tenantId, String email, String name, String token) throws JsonProcessingException {
+        PasswordResetEvent event = new PasswordResetEvent(
+                tenantId,
+                NotificationType.PASSWORD_RESET.name(),
+                email,
+                name,
+                token
+        );
+        String json = objectMapper.writeValueAsString(event);
+        redisTemplate.convertAndSend(RedisChannels.NOTIFICATION_PASSWORD_RESET, json);
+        log.info("Published password reset event for tenant '{}' to '{}'", tenantId, email);
+    }
 
 }
+

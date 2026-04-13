@@ -24,7 +24,7 @@ public class WebMvcConfig implements WebMvcConfigurer {
                 .excludePathPatterns("/{tenantId}/register", "/{tenantId}/verify-email", "/{tenantId}/api/**")
                 .addPathPatterns("/**")
                 // .excludePathPatterns("/login")
-                // Optional: exclude static assets if you have any
-                .excludePathPatterns("/favicon.ico", "/error", "/error/**", "/static/**");
+                // Exclude static assets
+                .excludePathPatterns("/favicon.ico", "/error", "/error/**", "/images/**", "/css/**", "/js/**", "/public/**");
     }
 }

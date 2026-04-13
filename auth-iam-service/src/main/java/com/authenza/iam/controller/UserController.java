@@ -2,6 +2,7 @@ package com.authenza.iam.controller;
 
 import com.authenza.common.constant.AuthenzaConstant;
 import com.authenza.common.dto.ApiResponse;
+import com.authenza.iam.dto.PasswordResetRequest;
 import com.authenza.iam.dto.UserRegistrationRequest;
 import com.authenza.iam.dto.UserResponse;
 import com.authenza.iam.service.UserService;
@@ -42,6 +43,46 @@ public class UserController {
         );
     }
 
+    // ─────────────────────────────────────────────
+    // Password Reset Endpoints
+    // ─────────────────────────────────────────────
+
+    /**
+     * Initiates the password reset flow by sending a reset email.
+     * Always returns success to prevent email enumeration attacks.
+     */
+    @PostMapping("/forgot-password")
+    public ResponseEntity<ApiResponse<String>> forgotPassword(@RequestBody Map<String, String> payload) throws JsonProcessingException {
+        String email = payload.get("email");
+        userService.requestPasswordReset(email);
+        return ResponseEntity.ok(
+                ApiResponse.success("If an account with that email exists, a password reset link has been sent.")
+        );
+    }
+
+    /**
+     * Validates a password reset token without consuming it.
+     * Used by the UI to check if the token is valid before showing the reset form.
+     */
+    @GetMapping("/validate-reset-token")
+    public ResponseEntity<ApiResponse<String>> validateResetToken(@RequestParam("token") String token) {
+        userService.validateResetToken(token);
+        return ResponseEntity.ok(
+                ApiResponse.success("Token is valid.")
+        );
+    }
+
+    /**
+     * Completes the password reset by updating the user's password.
+     */
+    @PostMapping("/reset-password")
+    public ResponseEntity<ApiResponse<String>> resetPassword(@Valid @RequestBody PasswordResetRequest request) {
+        userService.resetPassword(request.getToken(), request.getNewPassword());
+        return ResponseEntity.ok(
+                ApiResponse.success("Your password has been reset successfully. You can now sign in.")
+        );
+    }
+
     /**
      * Real-time email availability check for the registration form.
      * Returns whether the given email is available (not yet registered)
@@ -71,3 +112,4 @@ public class UserController {
     }
 
 }
+

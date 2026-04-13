@@ -21,6 +21,7 @@
 
  import java.time.Instant;
  import java.time.temporal.ChronoUnit;
+ import java.util.Optional;
  import java.util.UUID;
 
  @Service
@@ -114,6 +115,104 @@
                  user.getEmail(), TenantContextHolder.getTenantId());
      }
 
+     // ─────────────────────────────────────────────
+     // Password Reset Flow
+     // ─────────────────────────────────────────────
+
+     /**
+      * Initiates the password reset flow for the given email address.
+      *
+      * <p><strong>Anti-enumeration:</strong> This method silently succeeds even if no
+      * user is found with the given email, preventing attackers from probing
+      * which email addresses are registered in the system.</p>
+      *
+      * @param email the email address to send the reset link to
+      */
+     @Transactional
+     public void requestPasswordReset(String email) throws JsonProcessingException {
+         String tenantId = TenantContextHolder.getTenantId();
+         log.info("Password reset requested for email '{}' in tenant '{}'", email, tenantId);
+
+         Optional<User> userOpt = userRepository.findByEmail(email);
+
+         if (userOpt.isEmpty()) {
+             // Silently succeed — do NOT reveal whether the email exists
+             log.debug("No user found for email '{}' in tenant '{}'. Silently ignoring.", email, tenantId);
+             return;
+         }
+
+         User user = userOpt.get();
+
+         // Remove any existing password reset tokens for this user to prevent accumulation
+         verificationTokenRepository.deleteByUserIdAndTokenType(user.getId(), VerificationTokenType.PASSWORD_RESET);
+
+         // Generate a new token with 1-hour TTL (tighter than email verification's 24hrs)
+         String token = UUID.randomUUID().toString();
+         EmailVerificationToken resetToken = new EmailVerificationToken();
+         resetToken.setUserId(user.getId());
+         resetToken.setToken(token);
+         resetToken.setTokenType(VerificationTokenType.PASSWORD_RESET);
+         resetToken.setExpiresAt(Instant.now().plus(1, ChronoUnit.HOURS));
+         resetToken.setCreatedAt(Instant.now());
+         verificationTokenRepository.save(resetToken);
+
+         // Publish event → notification-service sends the password reset email
+         notificationEventPublisher.publishPasswordResetEvent(tenantId, user.getEmail(), user.getName(), token);
+
+         log.info("Password reset token generated for user '{}' in tenant '{}'", user.getEmail(), tenantId);
+     }
+
+     /**
+      * Validates that a password reset token exists and is not expired.
+      *
+      * @param token the reset token from the email link
+      * @throws InvalidTokenException if the token is invalid or expired
+      */
+     public void validateResetToken(String token) {
+         EmailVerificationToken resetToken = verificationTokenRepository
+                 .findByTokenAndTokenType(token, VerificationTokenType.PASSWORD_RESET)
+                 .orElseThrow(() -> new InvalidTokenException("Invalid or expired password reset link."));
+
+         if (resetToken.isExpired()) {
+             verificationTokenRepository.deleteByUserIdAndTokenType(resetToken.getUserId(), VerificationTokenType.PASSWORD_RESET);
+             throw new InvalidTokenException("Password reset link has expired. Please request a new one.");
+         }
+     }
+
+     /**
+      * Completes the password reset by updating the user's password.
+      *
+      * @param token       the valid reset token
+      * @param newPassword the user's new plaintext password (will be encoded)
+      * @throws InvalidTokenException if the token is invalid or expired
+      */
+     @Transactional
+     public void resetPassword(String token, String newPassword) {
+         EmailVerificationToken resetToken = verificationTokenRepository
+                 .findByTokenAndTokenType(token, VerificationTokenType.PASSWORD_RESET)
+                 .orElseThrow(() -> new InvalidTokenException("Invalid or expired password reset link."));
+
+         if (resetToken.isExpired()) {
+             verificationTokenRepository.deleteByUserIdAndTokenType(resetToken.getUserId(), VerificationTokenType.PASSWORD_RESET);
+             throw new InvalidTokenException("Password reset link has expired. Please request a new one.");
+         }
+
+         User user = userRepository.findById(resetToken.getUserId())
+                 .orElseThrow(() -> new ResourceNotFoundException("User not found."));
+
+         // Update the password
+         user.setPassword(passwordEncoder.encode(newPassword));
+         user.setPasswordChangedAt(Instant.now());
+         user.setUpdatedAt(Instant.now());
+         userRepository.save(user);
+
+         // Clean up — delete all password reset tokens for this user
+         verificationTokenRepository.deleteByUserIdAndTokenType(user.getId(), VerificationTokenType.PASSWORD_RESET);
+
+         log.info("Password successfully reset for user '{}' in tenant '{}'",
+                 user.getEmail(), TenantContextHolder.getTenantId());
+     }
+
      /**
       * Checks whether the given email address is available (not yet registered)
       * within the current tenant's database.
@@ -131,3 +230,4 @@
      }
 
  }
+

@@ -123,6 +123,64 @@ public class IamServiceClient {
         }
     }
 
+    // ─────────────────────────────────────────────
+    // Password Reset Proxies
+    // ─────────────────────────────────────────────
+
+    /**
+     * Proxies a password reset request to auth-iam-service.
+     * Always returns success to the UI (anti-enumeration is handled by IAM).
+     */
+    public ApiResponse<?> requestPasswordReset(String tenantId, String email) {
+        try {
+            return restClient.post()
+                    .uri("/api/v1/users/forgot-password")
+                    .header(TENANT_HEADER, tenantId)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .body(java.util.Map.of("email", email))
+                    .retrieve()
+                    .body(new ParameterizedTypeReference<ApiResponse<?>>() {});
+        } catch (Exception ex) {
+            // Even on error, return success to prevent enumeration
+            return ApiResponse.success("If an account with that email exists, a password reset link has been sent.");
+        }
+    }
+
+    /**
+     * Validates a password reset token by calling auth-iam-service.
+     */
+    public ApiResponse<?> validateResetToken(String tenantId, String token) {
+        try {
+            return restClient.get()
+                    .uri(uriBuilder -> uriBuilder
+                            .path("/api/v1/users/validate-reset-token")
+                            .queryParam("token", token)
+                            .build())
+                    .header(TENANT_HEADER, tenantId)
+                    .retrieve()
+                    .body(new ParameterizedTypeReference<ApiResponse<?>>() {});
+        } catch (Exception ex) {
+            return extractErrorOrFallback(ex, "Invalid or expired password reset link.");
+        }
+    }
+
+    /**
+     * Proxies the password reset (new password submission) to auth-iam-service.
+     */
+    public ApiResponse<?> resetPassword(String tenantId, String token, String newPassword) {
+        try {
+            return restClient.post()
+                    .uri("/api/v1/users/reset-password")
+                    .header(TENANT_HEADER, tenantId)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .body(java.util.Map.of("token", token, "newPassword", newPassword))
+                    .retrieve()
+                    .body(new ParameterizedTypeReference<ApiResponse<?>>() {});
+        } catch (Exception ex) {
+            return extractErrorOrFallback(ex, "Password reset failed. The link may be invalid or expired.");
+        }
+    }
+
     /**
      * Extracts the "available" boolean from the ApiResponse data map.
      */

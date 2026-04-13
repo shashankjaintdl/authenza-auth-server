@@ -1,130 +1,230 @@
 <!DOCTYPE html>
 <html xmlns:th="http://www.thymeleaf.org" lang="en">
 <head>
-    <meta charset="UTF-8"/>
-    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title th:text="'Email Verification — ' + ${tenantId}">Email Verification</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com"/>
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="anonymous"/>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet"/>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="anonymous" />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
     <style>
         *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
         body {
-            font-family: 'Inter', 'Segoe UI', sans-serif;
+            font-family: 'Inter', 'Segoe UI', -apple-system, BlinkMacSystemFont, Roboto, Helvetica, Arial, sans-serif;
             min-height: 100vh;
+            background-color: #1A1A1E;
+            color: #e0e0e0;
+            overflow-x: hidden;
+        }
+
+        .split-layout {
+            display: flex;
+            min-height: 100vh;
+            width: 100%;
+        }
+
+        /* ─── Left Form Section ─── */
+        .form-section {
+            flex: 1;
             display: flex;
             align-items: center;
             justify-content: center;
-            background: linear-gradient(135deg, #0f0c29, #302b63, #24243e);
-            color: #e0e0e0;
-            padding: 1rem;
+            padding: 2rem;
+            position: relative;
         }
 
-        .verify-card {
+        .form-container {
             width: 100%;
-            max-width: 460px;
-            padding: 2.5rem;
+            max-width: 380px;
+            animation: fadeSlideUp 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
             text-align: center;
-            background: rgba(255, 255, 255, 0.05);
-            border-radius: 16px;
-            backdrop-filter: blur(16px);
-            box-shadow: 0 8px 32px rgba(0,0,0,0.4);
-            animation: cardFadeIn .5s ease-out;
         }
 
-        .verify-card.success {
-            border: 1px solid rgba(34, 197, 94, 0.25);
-        }
-
-        .verify-card.error {
-            border: 1px solid rgba(239, 68, 68, 0.25);
-        }
-
-        @keyframes cardFadeIn {
-            from { opacity: 0; transform: translateY(16px); }
+        @keyframes fadeSlideUp {
+            from { opacity: 0; transform: translateY(20px); }
             to   { opacity: 1; transform: translateY(0); }
-        }
-
-        .status-icon {
-            font-size: 3.5rem;
-            margin-bottom: 1rem;
-        }
-
-        .verify-card h1 {
-            font-size: 1.5rem;
-            font-weight: 700;
-            margin-bottom: .5rem;
-        }
-
-        .verify-card.success h1 {
-            color: #86efac;
-        }
-
-        .verify-card.error h1 {
-            color: #fca5a5;
-        }
-
-        .verify-card p {
-            font-size: .95rem;
-            color: #b0a4c8;
-            line-height: 1.6;
-            margin-bottom: 1.5rem;
-        }
-
-        .btn-signin {
-            display: inline-block;
-            padding: .75rem 2rem;
-            border: none;
-            border-radius: 8px;
-            background: linear-gradient(135deg, #7c3aed, #6d28d9);
-            color: #fff;
-            font-size: 1rem;
-            font-weight: 600;
-            font-family: 'Inter', sans-serif;
-            text-decoration: none;
-            cursor: pointer;
-            transition: opacity .2s, transform .15s;
-        }
-
-        .btn-signin:hover {
-            opacity: .9;
-            transform: translateY(-1px);
         }
 
         .tenant-badge {
             display: inline-block;
-            padding: .25rem .75rem;
-            background: rgba(167, 139, 250, 0.1);
-            border: 1px solid rgba(167, 139, 250, 0.2);
-            border-radius: 6px;
             font-size: .8rem;
             color: #a78bfa;
-            margin-bottom: 1.5rem;
+            background: rgba(167, 139, 250, 0.1);
+            padding: .2rem .75rem;
+            border-radius: 12px;
+            margin-bottom: 2rem;
+            font-weight: 500;
+        }
+
+        .status-icon {
+            font-size: 4rem;
+            margin-bottom: 1.25rem;
+        }
+
+        .form-container h1 {
+            font-size: 2rem;
+            font-weight: 700;
+            margin-bottom: .25rem;
+            letter-spacing: -0.025em;
+        }
+
+        .form-container.success h1 { color: #86efac; }
+        .form-container.error h1 { color: #fca5a5; }
+
+        .form-container p {
+            font-size: 1rem;
+            color: #a1a1aa;
+            line-height: 1.6;
+            margin-bottom: 2.5rem;
+            margin-top: 1rem;
+        }
+
+        .btn-signin {
+            display: inline-block;
+            width: 100%;
+            padding: .85rem;
+            border: none;
+            border-radius: 8px;
+            background: #8b5cf6;
+            color: #ffffff;
+            font-size: 1rem;
+            font-weight: 600;
+            font-family: inherit;
+            text-decoration: none;
+            cursor: pointer;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            box-shadow: 0 4px 12px rgba(139, 92, 246, 0.25);
+        }
+
+        .btn-signin:hover {
+            background: #7c3aed;
+            box-shadow: 0 6px 16px rgba(139, 92, 246, 0.4);
+            transform: translateY(-1px);
+        }
+        
+        .btn-signin:active { transform: translateY(0); }
+
+        /* ─── Right Hero Section ─── */
+        .hero-section {
+            flex: 1.2;
+            background: linear-gradient(135deg, #7c3aed 0%, #4c1d95 100%);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 3rem;
+            position: relative;
+            overflow: hidden;
+            color: #ffffff;
+        }
+
+        .hero-section::before, .hero-section::after {
+            content: '';
+            position: absolute;
+            border-radius: 50%;
+            filter: blur(80px);
+            opacity: 0.5;
+            z-index: 0;
+            animation: float 10s ease-in-out infinite alternate;
+        }
+        .hero-section::before {
+            width: 400px; height: 400px;
+            background: #a78bfa;
+            top: -100px; right: -100px;
+            animation-delay: 0s;
+        }
+        .hero-section::after {
+            width: 300px; height: 300px;
+            background: #c4b5fd;
+            bottom: -50px; left: -50px;
+            animation-delay: -5s;
+        }
+
+        @keyframes float {
+            0% { transform: translateY(0) scale(1); }
+            100% { transform: translateY(30px) scale(1.05); }
+        }
+
+        .hero-content {
+            position: relative;
+            z-index: 1;
+            text-align: center;
+            max-width: 500px;
+        }
+
+        .hero-content h2 {
+            font-size: 2.5rem;
+            font-weight: 800;
+            margin-bottom: 1rem;
+            letter-spacing: -0.025em;
+        }
+
+        .hero-content p {
+            font-size: 1.1rem;
+            color: rgba(255, 255, 255, 0.85);
+            margin-bottom: 3rem;
+            line-height: 1.6;
+        }
+
+        .hero-image {
+            width: 100%;
+            max-width: 450px;
+            height: auto;
+            border-radius: 20px;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+            transition: transform 0.3s ease;
+        }
+
+        .hero-image:hover { transform: translateY(-5px); }
+
+        /* Responsive Layout */
+        @media (max-width: 900px) {
+            .hero-section { display: none; }
+            .form-section { padding: 1.5rem; }
         }
     </style>
 </head>
 <body>
 
-<!-- ─── Success State ─── -->
-<div th:if="${verified}" class="verify-card success">
-    <div class="status-icon">✅</div>
-    <h1>Email Verified!</h1>
-    <span class="tenant-badge" th:text="${tenantId}">tenant</span>
-    <p>
-        <span th:text="${message}">Your email has been verified successfully.</span><br/><br/>
-        <strong style="color: #fff;">You may now safely close this window and return to your application to log in.</strong>
-    </p>
-</div>
+    <div class="split-layout">
+        <!-- ─── Left Form Section ─── -->
+        <div class="form-section">
+            <div class="form-container" th:classappend="${verified} ? 'success' : 'error'">
+                <span class="tenant-badge" th:text="${tenantId}">tenant</span>
 
-<!-- ─── Error State ─── -->
-<div th:unless="${verified}" class="verify-card error">
-    <div class="status-icon">❌</div>
-    <h1>Verification Failed</h1>
-    <span class="tenant-badge" th:text="${tenantId}">tenant</span>
-    <p th:text="${message}">The verification link is invalid or has expired.</p>
-    <a th:href="@{'/' + ${tenantId} + '/register'}" class="btn-signin">Register Again</a>
-</div>
+                <!-- ─── Success State ─── -->
+                <div th:if="${verified}">
+                    <div class="status-icon">✅</div>
+                    <h1>Email Verified!</h1>
+                    <p>
+                        <span th:text="${message}">Your email has been verified successfully.</span><br/><br/>
+                        <strong style="color: #ffffff;">You may now safely close this window and return to your application to log in.</strong>
+                    </p>
+                    <a th:href="@{'/' + ${tenantId} + '/login'}" class="btn-signin">Go to Login</a>
+                </div>
+
+                <!-- ─── Error State ─── -->
+                <div th:unless="${verified}">
+                    <div class="status-icon">❌</div>
+                    <h1>Verification Failed</h1>
+                    <p th:text="${message}">The verification link is invalid or has expired.</p>
+                    <a th:href="@{'/' + ${tenantId} + '/register'}" class="btn-signin">Register Again</a>
+                </div>
+
+            </div>
+        </div>
+
+        <!-- ─── Right Hero Section ─── -->
+        <div class="hero-section">
+            <div class="hero-content">
+                <h2>Verified Access</h2>
+                <p>Welcome to Authenza. Secure interactions start with verified identities.</p>
+                <!-- Generated Asset placed in static resource -->
+                <img src="/images/auth-illustration.png" alt="Identity Verification" class="hero-image" />
+            </div>
+        </div>
+    </div>
 
 </body>
 </html>

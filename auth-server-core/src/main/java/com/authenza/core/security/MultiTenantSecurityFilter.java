@@ -37,8 +37,8 @@ public class MultiTenantSecurityFilter extends OncePerRequestFilter {
 
         String uri = request.getRequestURI();
 
-        // Skip validation for error pages to avoid redirect loops
-        if (uri.startsWith("/error")) {
+        // Skip validation for error pages and static resources to avoid redirect loops
+        if (uri.startsWith("/error") || uri.startsWith("/images") || uri.startsWith("/css") || uri.startsWith("/js") || uri.startsWith("/favicon.ico")) {
             filterChain.doFilter(request, response);
             return;
         }

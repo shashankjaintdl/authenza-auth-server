@@ -20,6 +20,7 @@ public class RegistrationForm {
     private boolean useEmailAsUsername;
 
     public RegistrationForm() {
+        this.useEmailAsUsername = true;
     }
 
     public String getEmail() {

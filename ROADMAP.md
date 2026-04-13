@@ -14,7 +14,7 @@ Establish robust management of user identities within their respective tenants.
   - Develop self-service flows for resetting passwords securely using time-limited tokens.
 - **Profile Management & Deletion:**
   - Expose APIs for users to update their details, change passwords from within the app, and view their own profile data.
-  - Provide a self-service way for users to permanently delete their accounts to comply with data privacy requests.
+  - Provide a self-service way for users to permanently delete their accounts to comply with data privacy requests (optionally toggled by Tenant Admins in Phase 4).
 - **Admin User Invitation Flow (B2B Core):**
   - Implement an API allowing Tenant Admins to securely invite employees via email.
   - Generate one-time invitation tokens that redirect the invited user to a "Set Password" screen rather than general sign-up.
@@ -44,6 +44,10 @@ Elevate platform security by protecting endpoints and validating identities.
   - Allow users to authenticate using physical device biometrics (Apple FaceID, TouchID, Windows Hello, YubiKeys).
 - **Tenant-Level Rate Limiting:**
   - Protect infrastructure from noisy-neighbor DDoS attacks by throttling API requests per `tenant_id` (e.g., max 10,000 auth attempts per hour).
+- **Strict Cross-Tenant Session Isolation:**
+  - Prevent "Tenant Session Hopping" by tightly coupling the `tenantId` into the active authenticated `UserPrincipal`.
+  - Enforce strict validation in the security filter to ensure a user authenticated in Tenant A cannot mistakenly (or maliciously) mint OAuth2 tokens from Tenant B's authorization endpoints.
+  - *Reference:* See [CROSS_TENANT_SESSION_BLEED.md](CROSS_TENANT_SESSION_BLEED.md) for architectural implementation details.
 
 ---
 
@@ -90,6 +94,7 @@ Enable complex B2B scenarios and tenant-specific configuration.
   - Dynamically hide or show features like the "Create Account" option on the UI, and restrict the API accordingly based on tenant rules.
   - **Tenant Level:** Acts as a global master switch to lock down an entire workspace if necessary (e.g., strict internal B2B environments).
   - **Client Level:** Store granular toggles directly in OAuth2 `ClientSettings` (e.g., allowing "Create Account" on a public mobile app, but disabling it on an internal employee portal).
+  - **Concrete Example:** Implement the toggle for *Self-Service Account Deletion* (defined in Phase 1) here to allow admins to control user-data exit flows.
 - **Dynamic Registration Schemas & Custom User Attributes:**
   - Facilitate dynamic onboarding by allowing administrators to configure custom fields (e.g., mobile, company code, employee ID) per client/tenant using a JSON schema.
   - **Schema Validation Workflow:** 
@@ -175,6 +180,21 @@ Implement the logic to map identity functionality directly to business revenue t
 - **Usage-Based Metering (Base + Overage):**
   - Track Monthly Active Users (MAUs) and aggregate authentication events per tenant.
   - Report usage metrics to external payment gateways (like Stripe) to automatically invoice customers who exceed their base user quotas.
+
+---
+
+## Phase 9: Global Identity & Multi-Account Management
+Evolve the platform to support users with multiple independent identities across different tenants.
+
+- **Unified Multi-Session Management (Google-Style):**
+  - Implement a session indexing system that allows users to stay logged into multiple tenant accounts simultaneously in one browser.
+  - Build a "Master Account Switcher" UI component for seamless transitions between workspaces.
+- **Global Identity Mapping Registry:**
+  - Create a high-performance registry in the Master Database to securely link local tenant identities to a single "Physical Person" global ID.
+- **Cross-Tenant Account Discovery:**
+  - Develop a secure workflow that allows users to "find" their existing accounts in other tenants during the login process (Privacy-preserving).
+- **Global Logout & Security Events:**
+  - Implement a "Sign out of all accounts" protocol that invalidates all active sessions across different tenant databases in a single action.
 
 --- 
 

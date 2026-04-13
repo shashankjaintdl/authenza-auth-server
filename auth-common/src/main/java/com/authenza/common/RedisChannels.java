@@ -16,5 +16,6 @@ public final class RedisChannels {
      */
     public static final String TENANT_PROVISIONED = "tenant:provisioned";
     public static final String NOTIFICATION_EMAIL_VERIFICATION = "notification:email-verification";
+    public static final String NOTIFICATION_PASSWORD_RESET = "notification:password-reset";
 
 }

@@ -19,12 +19,14 @@ public class RedisConfig {
     @Bean
     RedisMessageListenerContainer container(RedisConnectionFactory connectionFactory,
                                             @Qualifier("listenerAdapter") MessageListenerAdapter listenerAdapter,
-                                            @Qualifier("emailVerificationAdapter") MessageListenerAdapter emailVerificationAdapter) {
+                                            @Qualifier("emailVerificationAdapter") MessageListenerAdapter emailVerificationAdapter,
+                                            @Qualifier("passwordResetAdapter") MessageListenerAdapter passwordResetAdapter) {
 
         RedisMessageListenerContainer container = new RedisMessageListenerContainer();
         container.setConnectionFactory(connectionFactory);
         container.addMessageListener(listenerAdapter, new ChannelTopic(NOTIFICATION_TOPIC));
         container.addMessageListener(emailVerificationAdapter, new ChannelTopic(RedisChannels.NOTIFICATION_EMAIL_VERIFICATION));
+        container.addMessageListener(passwordResetAdapter, new ChannelTopic(RedisChannels.NOTIFICATION_PASSWORD_RESET));
         return container;
     }
 
@@ -38,6 +40,13 @@ public class RedisConfig {
     @Bean
     MessageListenerAdapter emailVerificationAdapter(NotificationEventListener receiver) {
         MessageListenerAdapter adapter = new MessageListenerAdapter(receiver, "handleEmailVerification");
+        adapter.setSerializer(new StringRedisSerializer());
+        return adapter;
+    }
+
+    @Bean
+    MessageListenerAdapter passwordResetAdapter(NotificationEventListener receiver) {
+        MessageListenerAdapter adapter = new MessageListenerAdapter(receiver, "handlePasswordReset");
         adapter.setSerializer(new StringRedisSerializer());
         return adapter;
     }

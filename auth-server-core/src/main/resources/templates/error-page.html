@@ -1,75 +1,200 @@
 <!DOCTYPE html>
 <html xmlns:th="http://www.thymeleaf.org" lang="en">
 <head>
-    <meta charset="UTF-8"/>
-    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-    <title>Access Denied</title>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Error - Authenza</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="anonymous" />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
     <style>
         *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
         body {
-            font-family: 'Inter', 'Segoe UI', sans-serif;
+            font-family: 'Inter', 'Segoe UI', -apple-system, BlinkMacSystemFont, Roboto, Helvetica, Arial, sans-serif;
             min-height: 100vh;
+            background-color: #1A1A1E;
+            color: #e0e0e0;
+            overflow-x: hidden;
+        }
+
+        .split-layout {
+            display: flex;
+            min-height: 100vh;
+            width: 100%;
+        }
+
+        /* ─── Left Form Section ─── */
+        .form-section {
+            flex: 1;
             display: flex;
             align-items: center;
             justify-content: center;
-            background: linear-gradient(135deg, #1a0a2e, #3d1a54, #1a0a2e);
-            color: #e0e0e0;
+            padding: 2rem;
+            position: relative;
         }
 
-        .error-card {
+        .form-container {
             width: 100%;
-            max-width: 460px;
-            padding: 2.5rem;
+            max-width: 380px;
             text-align: center;
-            background: rgba(255, 255, 255, 0.05);
-            border: 1px solid rgba(239, 68, 68, 0.25);
-            border-radius: 16px;
-            backdrop-filter: blur(16px);
-            box-shadow: 0 8px 32px rgba(0,0,0,0.45);
+            animation: fadeSlideUp 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+        }
+
+        @keyframes fadeSlideUp {
+            from { opacity: 0; transform: translateY(20px); }
+            to   { opacity: 1; transform: translateY(0); }
         }
 
         .error-icon {
-            font-size: 3rem;
-            margin-bottom: 1rem;
+            font-size: 3.5rem;
+            margin-bottom: 1.25rem;
+            animation: pulse-error 2s infinite;
         }
 
-        .error-card h1 {
-            font-size: 1.5rem;
-            font-weight: 600;
+        @keyframes pulse-error {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+            100% { transform: scale(1); }
+        }
+
+        .form-container h1 {
+            font-size: 1.75rem;
+            font-weight: 700;
             color: #fca5a5;
-            margin-bottom: .5rem;
+            margin-bottom: .75rem;
+            letter-spacing: -0.025em;
         }
 
-        .error-card p {
-            font-size: .95rem;
-            color: #b0a4c8;
+        .form-container p {
+            font-size: 1.05rem;
+            color: #a1a1aa;
             line-height: 1.6;
-            margin-bottom: 1.5rem;
+            margin-bottom: 2rem;
         }
 
         .error-code {
             display: inline-block;
-            padding: .3rem .75rem;
-            background: rgba(239, 68, 68, 0.12);
-            border: 1px solid rgba(239, 68, 68, 0.25);
-            border-radius: 6px;
-            font-family: monospace;
-            font-size: .85rem;
-            color: #f87171;
+            padding: .4rem 1rem;
+            background: rgba(239, 68, 68, 0.1);
+            border: 1px solid rgba(239, 68, 68, 0.2);
+            border-radius: 8px;
+            font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+            font-size: .9rem;
+            color: #fca5a5;
+            font-weight: 500;
+            margin-bottom: 2rem;
+        }
+
+        .btn-home {
+            display: inline-block;
+            width: auto;
+            padding: .85rem 2rem;
+            border: none;
+            border-radius: 8px;
+            background: #8b5cf6;
+            color: #ffffff;
+            font-size: 1rem;
+            font-weight: 600;
+            font-family: inherit;
+            text-decoration: none;
+            cursor: pointer;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            box-shadow: 0 4px 12px rgba(139, 92, 246, 0.25);
+        }
+
+        .btn-home:hover {
+            background: #7c3aed;
+            box-shadow: 0 6px 16px rgba(139, 92, 246, 0.4);
+            transform: translateY(-1px);
+        }
+
+        /* ─── Right Hero Section ─── */
+        .hero-section {
+            flex: 1.2;
+            background: linear-gradient(135deg, #7c3aed 0%, #4c1d95 100%);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 3rem;
+            position: relative;
+            overflow: hidden;
+            color: #ffffff;
+        }
+
+        .hero-section::before, .hero-section::after {
+            content: '';
+            position: absolute;
+            border-radius: 50%;
+            filter: blur(80px);
+            opacity: 0.5;
+            z-index: 0;
+            animation: float 10s ease-in-out infinite alternate;
+        }
+        .hero-section::before {
+            width: 400px; height: 400px;
+            background: #a78bfa;
+            top: -100px; right: -100px;
+            animation-delay: 0s;
+        }
+        .hero-section::after {
+            width: 300px; height: 300px;
+            background: #c4b5fd;
+            bottom: -50px; left: -50px;
+            animation-delay: -5s;
+        }
+
+        @keyframes float {
+            0% { transform: translateY(0) scale(1); }
+            100% { transform: translateY(30px) scale(1.05); }
+        }
+
+        .hero-content {
+            position: relative;
+            z-index: 1;
+            text-align: center;
+            max-width: 500px;
+        }
+
+        /* Responsive Layout */
+        @media (max-width: 900px) {
+            .hero-section { display: none; }
+            .form-section { padding: 1.5rem; }
         }
     </style>
 </head>
 <body>
 
-<div class="error-card">
-    <div class="error-icon">🚫</div>
-    <h1 th:text="${title ?: 'Unauthorized'}">Unauthorized</h1>
-    <p th:text="${message ?: 'The requested resource could not be accessed.'}">
-        The requested resource could not be accessed.
-    </p>
-    <span class="error-code" th:text="'Error: ' + ${errorCode ?: '401'}">Error: 401</span>
-</div>
+    <div class="split-layout">
+        <!-- ─── Left Form Section ─── -->
+        <div class="form-section">
+            <div class="form-container">
+                <div class="error-icon">⚠️</div>
+                <h1 th:text="${error != null ? error : 'Authentication Error'}">Error</h1>
+                <p th:text="${message != null ? message : 'An unexpected security issue occurred while processing your request. Please try again or contact support.'}"></p>
+                
+                <div class="error-code" th:if="${status != null}" th:text="'Status Code: ' + ${status}"></div>
+                
+                <br/>
+                <a href="javascript:history.back()" class="btn-home">Go Back</a>
+            </div>
+        </div>
+
+        <!-- ─── Right Hero Section ─── -->
+        <div class="hero-section">
+            <div class="hero-content">
+                <!-- Using a simple icon/graphic for the error page since illustration might not fully fit -->
+                <svg width="120" height="120" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="margin-bottom: 2rem; opacity: 0.8;">
+                    <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+                    <line x1="12" y1="9" x2="12" y2="13"/>
+                    <line x1="12" y1="17" x2="12.01" y2="17"/>
+                </svg>
+                <h2 style="font-size: 2rem; font-weight: 800; margin-bottom: 1rem;">Security Protocol Paused</h2>
+                <p style="font-size: 1.1rem; color: rgba(255, 255, 255, 0.85); line-height: 1.6;">Our multi-tenant security layers intercepted an anomaly. Don't worry, your data remains safely encrypted and protected.</p>
+            </div>
+        </div>
+    </div>
 
 </body>
 </html>

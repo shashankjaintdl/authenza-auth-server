@@ -68,7 +68,7 @@ public final class TenantAwareRegisteredClientRepository implements RegisteredCl
     private RegisteredClient getRegisteredClient(TenantRegisteredClient tenantRegisteredClient, String tenantId) {
         RegisteredClient registeredClient = this.toObject(tenantRegisteredClient);
         String registeredTenantId = registeredClient.getClientSettings().getSetting("tenant_id");
-        if (!StringUtils.hasText(registeredTenantId) || !registeredTenantId.equals(tenantId)) {
+        if (!StringUtils.hasText(registeredTenantId) || !registeredTenantId.equalsIgnoreCase(tenantId)) {
             throw new AccessDeniedException("");
         }
         return registeredClient;
