@@ -8,8 +8,10 @@ import java.time.Instant;
 import java.util.HashSet;
 import java.util.Set;
 
+import com.authenza.common.enums.UserStatus;
+
 @Table("application_user")
-public class User {
+public class User{
 
     // ══════════════════════════════════════════
     // OIDC Standard Claims (Section 5.1)
@@ -34,8 +36,8 @@ public class User {
     // ══════════════════════════════════════════
     // Internal Authentication (NOT exposed as OIDC claims)
     // ══════════════════════════════════════════
-    private String password;               // BCrypt hashed
-    private String status;                 // ACTIVE, DISABLED, LOCKED
+    private String password;              // BCrypt hashed
+    private UserStatus status;             // ACTIVE, DISABLED, LOCKED
     private Integer failedLoginAttempts;
     private Instant lockedUntil;
     private Instant passwordChangedAt;
@@ -191,11 +193,11 @@ public class User {
         this.password = password;
     }
 
-    public String getStatus() {
+    public UserStatus getStatus() {
         return status;
     }
 
-    public void setStatus(String status) {
+    public void setStatus(UserStatus status) {
         this.status = status;
     }
 

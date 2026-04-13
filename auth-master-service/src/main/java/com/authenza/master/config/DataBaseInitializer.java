@@ -1,8 +1,7 @@
 package com.authenza.master.config;
 
-import com.authenza.common.dto.DBType;
+import com.authenza.common.enums.DBType;
 import com.authenza.common.dto.TenantRequest;
-import com.authenza.master.model.Tenant;
 import com.authenza.master.repository.MasterTenantRepository;
 import com.authenza.master.service.TenantProvisioningService;
 import org.slf4j.Logger;

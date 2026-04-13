@@ -4,11 +4,12 @@ plugins {
 
 dependencies {
     // Jackson for DTOs and event serialization
-    implementation 'com.fasterxml.jackson.core:jackson-databind'
+    api 'com.fasterxml.jackson.core:jackson-databind'
 
+    // Spring Data JDBC annotations (@Table, @Id) — compile-only since
+    // the actual runtime dependency is provided by consuming services
     compileOnly 'org.springframework.boot:spring-boot-starter-data-jdbc'
 
-
     // Validation annotations (@NotBlank, @NotNull, etc.)
-    implementation 'org.springframework.boot:spring-boot-starter-validation'
+    api 'org.springframework.boot:spring-boot-starter-validation'
 }

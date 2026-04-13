@@ -1,0 +1,25 @@
+server:
+  port: 8084
+  servlet:
+    context-path: /notification
+
+app:
+  datasource:
+    master:
+      jdbc-url: jdbc:mysql://localhost:3306/auth-master
+      username: root
+      password: sjain@123
+      driver-class-name: com.mysql.cj.jdbc.Driver
+      maximum-pool-size: 2
+      minimum-idle: 1
+
+spring:
+  application:
+    name: auth-notification-service
+  
+  # OAuth2 Resource Server configuration if it needs to protect its endpoints
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: http://localhost:8080/issuer # Adjust to correct core issuer URL

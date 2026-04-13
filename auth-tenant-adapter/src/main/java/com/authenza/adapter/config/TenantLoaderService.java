@@ -59,8 +59,11 @@ public class TenantLoaderService {
         hikariConfig.setPassword(config.password());
         hikariConfig.setDriverClassName(config.driverClassName());
 
-        // Optional: Optimize pool size per tenant
-        hikariConfig.setMaximumPoolSize(10);
+        // Pool sizing optimized for local development.
+        // With 4 services × N tenants, keep pools small to avoid
+        // exhausting MySQL's max_connections limit (default: 151).
+        hikariConfig.setMaximumPoolSize(2);
+        hikariConfig.setMinimumIdle(1);
         hikariConfig.setPoolName("Pool-" + config.tenantId());
 
         HikariDataSource ds = new HikariDataSource(hikariConfig);

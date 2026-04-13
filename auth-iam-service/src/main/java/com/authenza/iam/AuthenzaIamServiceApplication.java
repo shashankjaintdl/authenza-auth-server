@@ -7,9 +7,9 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
         "com.authenza.iam",
         "com.authenza.adapter"
 })
-public class IamServiceApplication {
+public class AuthenzaIamServiceApplication {
 
     public static void main(String[] args) {
-        SpringApplication.run(IamServiceApplication.class, args);
+        SpringApplication.run(AuthenzaIamServiceApplication.class, args);
     }
 }

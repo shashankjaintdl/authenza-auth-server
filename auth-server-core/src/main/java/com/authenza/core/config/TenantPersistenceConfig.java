@@ -21,26 +21,5 @@ import org.springframework.beans.factory.annotation.Qualifier;
         jdbcOperationsRef = "tenantJdbcOperations"
 )
 public class TenantPersistenceConfig {
-
-//    @Bean
-//    public TenantRoutingDataSource tenantRoutingDataSource(
-//            @Qualifier("masterDataSource") DataSource masterDataSource) {
-//        TenantRoutingDataSource tenantRoutingDataSource = new TenantRoutingDataSource(masterDataSource);
-//
-//        return tenantRoutingDataSource;
-//    }
-//
-//    @Bean
-//    @Primary
-//    public DataSource dataSource(TenantRoutingDataSource routingDataSource) {
-//        return routingDataSource;
-//    }
-//
-//
-//    @Bean(name = "tenantJdbcOperations")
-//    @Primary
-//    public NamedParameterJdbcOperations tenantJdbcOperations(DataSource dataSource) {
-//        return new NamedParameterJdbcTemplate(dataSource);
-//    }
 }
 

@@ -1,7 +1,7 @@
 plugins {
-	id 'java'
-	id 'org.springframework.boot' version '3.5.7'
-	id 'io.spring.dependency-management' version '1.1.7'
+    id 'java'
+    id 'org.springframework.boot' version '3.5.7'
+    id 'io.spring.dependency-management' version '1.1.7'
 }
 
 // ──────────────────────────────────────────────
@@ -14,6 +14,7 @@ jar.enabled = true
 allprojects {
     group = 'com.authenza'
     version = '1.0.0-SNAPSHOT'
+
     repositories {
         mavenCentral()
     }
@@ -29,6 +30,7 @@ subprojects {
         }
     }
 
+    // All subprojects inherit the Spring Boot BOM for consistent dependency versions
     dependencyManagement {
         imports {
             mavenBom "org.springframework.boot:spring-boot-dependencies:3.5.7"
@@ -36,6 +38,7 @@ subprojects {
     }
 
     dependencies {
+        // Common test dependency for all modules
         testImplementation 'org.springframework.boot:spring-boot-starter-test'
     }
 

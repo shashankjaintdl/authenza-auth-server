@@ -4,9 +4,10 @@ plugins {
     id 'java'
 }
 
+// IAM Service (Admin Dashboard)
 dependencies {
-    // Shared modules
-    implementation project(':auth-common')
+    // Shared modules (auth-tenant-adapter transitively brings auth-common,
+    // Spring Data JDBC, HikariCP, Redis, Jackson, validation, and all DB drivers)
     implementation project(':auth-tenant-adapter')
 
     // Web
@@ -14,15 +15,4 @@ dependencies {
 
     // OAuth2 Resource Server (validates JWT tokens issued by auth-server-core)
     implementation 'org.springframework.boot:spring-boot-starter-oauth2-resource-server'
-
-    // Data Access
-    implementation 'org.springframework.boot:spring-boot-starter-data-jdbc'
-
-    // Validation for request DTOs
-    implementation 'org.springframework.boot:spring-boot-starter-validation'
-
-    // Database Drivers (all supported tenant DB types)
-    runtimeOnly 'com.mysql:mysql-connector-j'
-    runtimeOnly 'org.postgresql:postgresql'
-    runtimeOnly 'com.oracle.database.jdbc:ojdbc8'
 }

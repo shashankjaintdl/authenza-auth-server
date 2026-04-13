@@ -5,22 +5,14 @@ plugins {
 }
 
 dependencies {
-    // Shared modules
-    implementation project(':auth-common')
+    // Shared modules (auth-tenant-adapter transitively brings auth-common,
+    // Spring Data JDBC, HikariCP, Redis, Jackson, and all DB drivers)
     implementation project(':auth-tenant-adapter')
     implementation project(':auth-tenant-schema')
 
-    // Web & Data
+    // Web
     implementation 'org.springframework.boot:spring-boot-starter-web'
-    implementation 'org.springframework.boot:spring-boot-starter-data-jdbc'
-    implementation 'org.springframework.boot:spring-boot-starter-data-redis'
-
-    // Validation for tenant onboarding APIs
-    implementation 'org.springframework.boot:spring-boot-starter-validation'
 
     // Liquibase for programmatic schema migrations
     implementation 'org.liquibase:liquibase-core'
-
-    // Database Driver for Master DB
-    runtimeOnly 'com.mysql:mysql-connector-j'
 }
