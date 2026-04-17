@@ -20,13 +20,15 @@ public class RedisConfig {
     RedisMessageListenerContainer container(RedisConnectionFactory connectionFactory,
                                             @Qualifier("listenerAdapter") MessageListenerAdapter listenerAdapter,
                                             @Qualifier("emailVerificationAdapter") MessageListenerAdapter emailVerificationAdapter,
-                                            @Qualifier("passwordResetAdapter") MessageListenerAdapter passwordResetAdapter) {
+                                            @Qualifier("passwordResetAdapter") MessageListenerAdapter passwordResetAdapter,
+                                            @Qualifier("adminInviteAdapter") MessageListenerAdapter adminInviteAdapter) {
 
         RedisMessageListenerContainer container = new RedisMessageListenerContainer();
         container.setConnectionFactory(connectionFactory);
         container.addMessageListener(listenerAdapter, new ChannelTopic(NOTIFICATION_TOPIC));
         container.addMessageListener(emailVerificationAdapter, new ChannelTopic(RedisChannels.NOTIFICATION_EMAIL_VERIFICATION));
         container.addMessageListener(passwordResetAdapter, new ChannelTopic(RedisChannels.NOTIFICATION_PASSWORD_RESET));
+        container.addMessageListener(adminInviteAdapter, new ChannelTopic(RedisChannels.NOTIFICATION_ADMIN_INVITE));
         return container;
     }
 
@@ -47,6 +49,13 @@ public class RedisConfig {
     @Bean
     MessageListenerAdapter passwordResetAdapter(NotificationEventListener receiver) {
         MessageListenerAdapter adapter = new MessageListenerAdapter(receiver, "handlePasswordReset");
+        adapter.setSerializer(new StringRedisSerializer());
+        return adapter;
+    }
+
+    @Bean
+    MessageListenerAdapter adminInviteAdapter(NotificationEventListener receiver) {
+        MessageListenerAdapter adapter = new MessageListenerAdapter(receiver, "handleAdminInvite");
         adapter.setSerializer(new StringRedisSerializer());
         return adapter;
     }

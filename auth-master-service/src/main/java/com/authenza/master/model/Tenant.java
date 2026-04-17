@@ -1,16 +1,15 @@
 package com.authenza.master.model;
 
-import jakarta.annotation.Generated;
 import org.springframework.data.annotation.Id;
 import org.springframework.data.relational.core.mapping.Table;
 
 @Table(name = "tenants")
-public class Tenant{
+public class Tenant {
 
     @Id
     private Long id;
-    private String tenantId;        // e.g., "customer-a"
-    private String dbType;        // MYSQL, POSTGRES, ORACLE
+    private String tenantId; // e.g., "customer-a"
+    private String dbType; // MYSQL, POSTGRES, ORACLE
     private String jdbcUrl;
     private String username;
     private String encryptedPassword;
@@ -82,8 +81,8 @@ public class Tenant{
     }
 
     public static Tenant create(String tenantId, String dbType, String jdbcUrl,
-                                String username, String encryptedPassword, String driverClassName,
-                                String active){
+            String username, String encryptedPassword, String driverClassName,
+            String active) {
         Tenant tenant = new Tenant();
         tenant.setId(null);
         tenant.setTenantId(tenantId);

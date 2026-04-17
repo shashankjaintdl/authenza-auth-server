@@ -1,0 +1,389 @@
+{
+  "info": {
+    "name": "Authenza IAM Service",
+    "description": "Postman collection for the auth-iam-service REST APIs.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:8081",
+      "type": "string"
+    },
+    {
+      "key": "userId",
+      "value": "1",
+      "type": "string"
+    },
+    {
+      "key": "tenantId",
+      "value": "tenant-a",
+      "type": "string",
+      "description": "Tenant ID header/subdomain context"
+    }
+  ],
+  "item": [
+    {
+      "name": "1. Public Registration & Auth Flows",
+      "item": [
+        {
+          "name": "Register User",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"email\": \"test@example.com\",\n    \"preferredUsername\": \"testuser\",\n    \"password\": \"SuperSecret123!\",\n    \"givenName\": \"Test\",\n    \"familyName\": \"User\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/users/register",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "users",
+                "register"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Verify Email",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/users/verify-email?token=REPLACE_WITH_TOKEN",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "users",
+                "verify-email"
+              ],
+              "query": [
+                {
+                  "key": "token",
+                  "value": "REPLACE_WITH_TOKEN"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Check Email Availability",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/users/check-email?email=test@example.com",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "users",
+                "check-email"
+              ],
+              "query": [
+                {
+                  "key": "email",
+                  "value": "test@example.com"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Check Username Availability",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/users/check-username?username=testuser",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "users",
+                "check-username"
+              ],
+              "query": [
+                {
+                  "key": "username",
+                  "value": "testuser"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "2. Password Reset Flow",
+      "item": [
+        {
+          "name": "Forgot Password",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"email\": \"test@example.com\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/users/forgot-password",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "users",
+                "forgot-password"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Validate Reset Token",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/users/validate-reset-token?token=REPLACE_WITH_TOKEN",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "users",
+                "validate-reset-token"
+              ],
+              "query": [
+                {
+                  "key": "token",
+                  "value": "REPLACE_WITH_TOKEN"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Reset Password",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"token\": \"REPLACE_WITH_TOKEN\",\n    \"newPassword\": \"NewStrongPass123!\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/users/reset-password",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "users",
+                "reset-password"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "3. Admin Invitation Flow",
+      "item": [
+        {
+          "name": "Invite User (Admin Only)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Inviter-Name",
+                "value": "Admin User",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"email\": \"employee@example.com\",\n    \"givenName\": \"Jane\",\n    \"familyName\": \"Doe\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/users/invite",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "users",
+                "invite"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Accept Invitation",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"token\": \"REPLACE_WITH_TOKEN\",\n    \"password\": \"SecurePass123!\",\n    \"preferredUsername\": \"jane.doe\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/users/accept-invite",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "users",
+                "accept-invite"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "4. Profile Management (Authenticated)",
+      "item": [
+        {
+          "name": "Get User Profile",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/users/{{userId}}/profile",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "users",
+                "{{userId}}",
+                "profile"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Update Profile",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"givenName\": \"Johnny\",\n    \"familyName\": \"Doe\",\n    \"phoneNumber\": \"+1234567890\",\n    \"locale\": \"en-US\",\n    \"zoneinfo\": \"America/New_York\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/users/{{userId}}/profile",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "users",
+                "{{userId}}",
+                "profile"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Change Password",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"currentPassword\": \"SuperSecret123!\",\n    \"newPassword\": \"NewStrongPass456!\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/users/{{userId}}/change-password",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "users",
+                "{{userId}}",
+                "change-password"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Delete Account",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/users/{{userId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "users",
+                "{{userId}}"
+              ]
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

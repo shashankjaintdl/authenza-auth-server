@@ -55,5 +55,19 @@ public class NotificationEventPublisher {
         log.info("Published password reset event for tenant '{}' to '{}'", tenantId, email);
     }
 
-}
+    public void publishAdminInviteEvent(String tenantId, String email, String name,
+                                        String token, String invitedByName) throws JsonProcessingException {
+        com.authenza.common.events.AdminInviteEvent event = new com.authenza.common.events.AdminInviteEvent(
+                tenantId,
+                NotificationType.ADMIN_INVITE.name(),
+                email,
+                name,
+                token,
+                invitedByName
+        );
+        String json = objectMapper.writeValueAsString(event);
+        redisTemplate.convertAndSend(RedisChannels.NOTIFICATION_ADMIN_INVITE, json);
+        log.info("Published admin invite event for tenant '{}' to '{}'", tenantId, email);
+    }
 
+}

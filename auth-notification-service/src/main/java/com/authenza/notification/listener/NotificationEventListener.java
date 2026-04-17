@@ -1,6 +1,7 @@
 package com.authenza.notification.listener;
 
 import com.authenza.common.dto.NotificationRequest;
+import com.authenza.common.events.AdminInviteEvent;
 import com.authenza.common.events.EmailVerificationEvent;
 import com.authenza.common.events.PasswordResetEvent;
 import com.authenza.notification.service.NotificationService;
@@ -101,6 +102,29 @@ public class NotificationEventListener {
         }
     }
 
+    /**
+     * Handles admin invitation events published by auth-iam-service.
+     * Builds the invitation link and delegates to the notification service
+     * to send the branded invitation email.
+     */
+    public void handleAdminInvite(String message) {
+        try {
+            log.info("Received admin invite event: {}", message);
+            AdminInviteEvent event = objectMapper.readValue(message, AdminInviteEvent.class);
+
+            // Set the database routing context for this tenant
+            TenantContextHolder.setTenantId(event.tenantId());
+
+            NotificationRequest request = getAdminInviteNotificationRequest(event);
+            notificationService.sendNotification(request);
+
+        } catch (Exception e) {
+            log.error("Failed to process admin invite event", e);
+        } finally {
+            TenantContextHolder.clear();
+        }
+    }
+
     private NotificationRequest getVerificationNotificationRequest(EmailVerificationEvent event) {
         String verificationLink = iamBaseUrl + "/"+ event.tenantId()+"/verify-email?token=" + event.token();
 
@@ -132,5 +156,22 @@ public class NotificationEventListener {
         return request;
     }
 
-}
+    private NotificationRequest getAdminInviteNotificationRequest(AdminInviteEvent event) {
+        // The URL pattern usually directs to a page where the user can set their password.
+        // For simplicity, we are appending the token. 
+        String inviteLink = iamBaseUrl + "/" + event.tenantId() + "/accept-invite?token=" + event.token();
 
+        java.util.Map<String, Object> variables = new java.util.HashMap<>();
+        variables.put("name", event.recipientName());
+        variables.put("inviter_name", event.invitedByName());
+        variables.put("invite_link", inviteLink);
+
+        NotificationRequest request = new NotificationRequest();
+        request.setTenantId(event.tenantId());
+        request.setContextType(com.authenza.common.enums.NotificationType.ADMIN_INVITE);
+        request.setTargetEmail(event.recipientEmail());
+        request.setTemplateVariables(variables);
+        return request;
+    }
+
+}
