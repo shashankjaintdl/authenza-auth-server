@@ -20,8 +20,6 @@ Establish robust management of user identities within their respective tenants.
   - Generate one-time invitation tokens that redirect the invited user to a "Set Password" screen rather than general sign-up.
 - **Strict Password Policies:**
   - Enforce customizable security constraints (min length, special characters, preventing common passwords) during sign-up and password reset.
-- **Secure Refresh Token Rotation:**
-  - Implement long-lived offline access tokens with strict rotation policies (a new token is issued per use) to balance UX with anti-theft security in SPAs.
 
 ---
 
@@ -69,6 +67,8 @@ Expand upon the Spring Authorization Server framework standardizing the token is
 - **PKCE & Token Revocation:**
   - Enforce Proof Key for Code Exchange (PKCE) for SPA and mobile clients.
   - Expose token revocation endpoints (RFC 7009) to allow explicit invalidation of access/refresh tokens.
+- **Secure Refresh Token Rotation:**
+  - Implement long-lived offline access tokens with strict rotation policies (a new token is issued per use) to balance UX with anti-theft security in SPAs.
 - **Advanced OAuth2 Protocol Enhancements:**
   - **Pushed Authorization Requests (PAR - RFC 9126):** Prevent URL interception by having clients make secure back-channel POST requests to retrieve an opaque `request_uri` prior to browser redirection.
   - **Device Authorization Grant (RFC 8628):** Support input-constrained devices (e.g., CLI tools, Smart TVs) by allowing users to authorize on a secondary browser via a short code.

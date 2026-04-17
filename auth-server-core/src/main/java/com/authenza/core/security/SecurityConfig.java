@@ -6,6 +6,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.security.config.Customizer;
 import org.springframework.core.annotation.Order;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
@@ -40,6 +41,8 @@ public class SecurityConfig {
                 // Add the tenant filter so TenantContextHolder is populated
                 // before security decisions are made (including login redirects)
                 .addFilterBefore(tenantSecurityFilter, DisableEncodeUrlFilter.class)
+                // Enable CORS — delegates to the CorsConfigurationSource bean
+                .cors(Customizer.withDefaults())
                 .authorizeHttpRequests((authorize) ->
                         authorize
                                 // Allow the root URL, login page, and error pages without authentication
@@ -169,19 +172,11 @@ public class SecurityConfig {
         return null;
     }
 
-    @Bean
-    public UserDetailsService userDetailsService() {
-        UserDetails userDetails = User.builder()
-                .username("user")
-                .password(passwordEncoder().encode("pass"))
-                .roles("USER")
-                .build();
-        return new InMemoryUserDetailsManager(userDetails);
-    }
 
     @Bean
     public PasswordEncoder passwordEncoder() {
         return PasswordEncoderFactories.createDelegatingPasswordEncoder();
     }
+
 
 }

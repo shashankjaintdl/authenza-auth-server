@@ -13,54 +13,69 @@ dependencies {
     liquibaseRuntime 'com.mysql:mysql-connector-j:8.0.33'
 }
 
-// ──────────────────────────────────────────────
-// Custom task: generate a clean SQL file by stripping
-// Liquibase tracking/locking metadata from updateSql output
-// ──────────────────────────────────────────────
-tasks.register('generateMigrationScript') {
-    group = 'liquibase'
-    description = 'Generates a clean SQL file without DATABASECHANGELOG or Locking statements.'
+import org.gradle.api.tasks.JavaExec
 
-    dependsOn 'updateSql'
+// Register a task that iterates through all XMLs and calls javaexec to liquibase
+tasks.register('generateMigrationScripts') {
+    group = 'liquibase'
+    description = 'Generates individual SQL files mirroring the XML tree'
+
+    def changelogDir = project.file('src/main/resources/db/changelog')
+    def outDir = project.file('build/reports/liquibase')
 
     doLast {
-        def sqlFile = project.file("build/reports/liquibase/master_update.sql")
+        def cp = project.configurations.liquibaseRuntime
+        
+        fileTree(dir: changelogDir, include: '**/*.xml', exclude: '**/db.changelog*.xml').each { File file ->
+            def relativePath = changelogDir.toPath().relativize(file.toPath()).toString()
+            def outSqlPath = new File(outDir, relativePath.replace('.xml', '.sql'))
+            
+            // Ensure parent dirs exist
+            outSqlPath.parentFile.mkdirs()
 
-        if (!sqlFile.exists()) {
-            throw new GradleException("ERROR: Could not find the generated SQL file at ${sqlFile.path}. " +
-                    "Ensure 'outputFile' is set in your master activity.")
+            // Delete the offline tracking CSV so Liquibase thinks the DB is always blank
+            def csvState = project.file('databasechangelog.csv')
+            if (csvState.exists()) csvState.delete()
+
+            println "- Generating SQL for ${relativePath} -> ${outSqlPath.absolutePath}"
+            
+            project.javaexec {
+                classpath = cp + project.files('src/main/resources')
+                mainClass = 'liquibase.integration.commandline.Main'
+                args = [
+                    "--url=offline:mysql",
+                    "--changeLogFile=db/changelog/${relativePath}",
+                    "updateSQL"
+                ]
+                standardOutput = new FileOutputStream(outSqlPath)
+            }
+
+            // Cleanup the file metadata
+            def cleanLines = outSqlPath.readLines().findAll { line ->
+                String upper = line.toUpperCase()
+                !(upper.contains("DATABASECHANGELOG") ||
+                  upper.contains("DATABASECHANGELOGLOCK") ||
+                  upper.contains("RELEASE DATABASE LOCK") ||
+                  upper.contains("LOCK GRANTED"))
+            }
+            outSqlPath.text = cleanLines.join("\n").replaceAll("(?m)^\\s*\n", "")
         }
-
-        println "──────────────────────────────────────────"
-        println "PROCESS: Cleaning Liquibase metadata from: ${sqlFile.path}"
-
-        def cleanLines = sqlFile.readLines().findAll { line ->
-            String upper = line.toUpperCase()
-            !(upper.contains("DATABASECHANGELOG") ||
-              upper.contains("DATABASECHANGELOGLOCK") ||
-              upper.contains("RELEASE DATABASE LOCK") ||
-              upper.contains("LOCK GRANTED"))
-        }
-
-        sqlFile.text = cleanLines.join("\n").replaceAll("(?m)^\\s*\n", "")
-
-        println "SUCCESS: Generated clean SQL containing only business DDL."
-        println "LOCATION: ${sqlFile.absolutePath}"
-        println "──────────────────────────────────────────"
+        println "DONE! Check build/reports/liquibase/"
     }
 }
 
+// Keep the standard master definition available if needed
 liquibase {
     activities {
         master {
-            changelogFile "/auth-tenant-schema/src/main/resources/db/changelog/master/db.changelog-master.xml"
+            changelogFile "src/main/resources/db/changelog/master/db.changelog-master.xml"
             url System.getenv("MASTER_DB_URL") ?: 'jdbc:mysql://localhost:3306/auth-master'
             username System.getenv("MASTER_DB_USER") ?: 'root'
             password System.getenv("MASTER_DB_PASS") ?: 'sjain@123'
             driver "com.mysql.cj.jdbc.Driver"
-            outputFile 'auth-tenant-schema/build/reports/liquibase/master_update.sql'
+            outputFile 'build/reports/liquibase/master_update.sql'
             logLevel 'info'
-            logFile 'auth-tenant-schema/build/reports/liquibase/liquibase.log'
+            logFile 'build/reports/liquibase/liquibase.log'
         }
     }
 }

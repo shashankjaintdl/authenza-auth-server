@@ -28,7 +28,16 @@ import java.security.KeyPair;
 import java.security.KeyPairGenerator;
 import java.security.interfaces.RSAPrivateKey;
 import java.security.interfaces.RSAPublicKey;
+import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Collectors;
+
+import com.authenza.adapter.context.TenantContextHolder;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.GrantedAuthority;
+import org.springframework.security.oauth2.server.authorization.OAuth2TokenType;
+import org.springframework.security.oauth2.server.authorization.token.JwtEncodingContext;
+import org.springframework.security.oauth2.server.authorization.token.OAuth2TokenCustomizer;
 
 @Configuration
 public class AuthorizationServerConfig {
@@ -61,6 +70,10 @@ public class AuthorizationServerConfig {
                 )
                 .securityMatcher(tenantEndpointsMatcher)
                 .addFilterBefore(tenantSecurityFilter, DisableEncodeUrlFilter.class)
+                // Enable CORS so that XHR requests to /.well-known/openid-configuration
+                // (and other OAuth2 endpoints) receive proper Access-Control-* headers.
+                // Delegates to the CorsConfigurationSource bean in CorsConfig.
+                .cors(Customizer.withDefaults())
                 .authorizeHttpRequests((authorize) ->
                         authorize
                                 .requestMatchers("/{tenantId}/.well-known/openid-configuration").permitAll()
@@ -131,6 +144,43 @@ public class AuthorizationServerConfig {
         return AuthorizationServerSettings.builder()
                 .multipleIssuersAllowed(true)
                 .build();
+    }
+
+    @Bean
+    public OAuth2TokenCustomizer<JwtEncodingContext> jwtTokenCustomizer() {
+        return (context) -> {
+            // Customize Access Token and OIDC ID Token
+            if (OAuth2TokenType.ACCESS_TOKEN.equals(context.getTokenType()) ||
+                    context.getTokenType().getValue().equals("id_token")) {
+
+                Authentication principal = context.getPrincipal();
+
+                // Extract all granted authorities mapping to role/permission strings
+                Set<String> authorities = principal.getAuthorities().stream()
+                        .map(GrantedAuthority::getAuthority)
+                        .collect(Collectors.toSet());
+
+                // Split into Roles (Start with ROLE_) and Permissions
+                Set<String> roles = authorities.stream()
+                        .filter(a -> a.startsWith("ROLE_"))
+                        .map(a -> a.replaceFirst("ROLE_", ""))
+                        .collect(Collectors.toSet());
+
+                Set<String> permissions = authorities.stream()
+                        .filter(a -> !a.startsWith("ROLE_"))
+                        .collect(Collectors.toSet());
+
+                // Bake into the JWT payload
+                context.getClaims().claim("roles", roles);
+                context.getClaims().claim("permissions", permissions);
+
+                // Bake the Tenant ID into the JWT to prevent Cross-Tenant bleed
+                String tenantId = TenantContextHolder.getTenantId();
+                if (tenantId != null) {
+                    context.getClaims().claim("tenant_id", tenantId);
+                }
+            }
+        };
     }
 
 }
