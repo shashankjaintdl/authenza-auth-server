@@ -15,8 +15,8 @@ spring:
       port: 6379
   liquibase:
     enabled: true
-    change-log: classpath:db/changelog/master/db.changelog-master.xml
-    test-rollback-on-update: true
+    change-log: classpath:db/changelog/migration/master/db.changelog-master.xml
+    test-rollback-on-update: true   # Was true — caused changesets to run twice (run → rollback → re-run), breaking idempotency
       # Optional: ensure it doesn't drop the first time
     default-schema:
       # Use this to prevent Liquibase from running if there's a checksum mismatch

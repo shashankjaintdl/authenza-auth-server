@@ -58,7 +58,7 @@ public class TenantMigrationRunner {
             try {
                 // All tenants (including system-admin) use the tenant changelog.
                 // The master changelog is ONLY for the auth_master registry.
-                String changelogFile = "db/changelog/tenant/db.changelog-tenant.xml";
+                String changelogFile = "db/changelog/migration/tenant/db.changelog-tenant.xml";
 
                 runMigration(tenant, changelogFile);
                 success++;

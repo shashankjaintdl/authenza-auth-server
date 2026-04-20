@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+    http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd"
+        logicalFilePath="db/changelog/master/db.changelog-master.xml">
+
+    <!--
+        logicalFilePath: decouples the physical file location from what Liquibase
+        records in DATABASECHANGELOG. Physical files live under migration/master/
+        but DATABASECHANGELOG tracks them under the original db/changelog/master/ path.
+        This means moving files never breaks existing DATABASECHANGELOG records.
+    -->
+
+    <include file="V0.0.1/ddl.xml" relativeToChangelogFile="true"/>
+
+    <!-- V0.0.2 removed: oauth2_registered_client no longer lives in master schema -->
+
+</databaseChangeLog>

@@ -1,0 +1,74 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+    http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd"
+        logicalFilePath="db/changelog/tenant/V0.0.7/ddl.xml">
+
+    <!--
+        V0.0.7 — Tenant-level MFA policy settings
+        Adds a tenant_settings key-value store so tenant admins can enforce
+        MFA for all users in their tenant without touching individual records.
+    -->
+    <changeSet id="V0.0.7-1-create-tenant-settings" author="authenza">
+        <preConditions onFail="MARK_RAN">
+            <not>
+                <tableExists tableName="tenant_settings"/>
+            </not>
+        </preConditions>
+        <createTable tableName="tenant_settings">
+            <column name="id" type="BIGINT" autoIncrement="true">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="setting_key" type="VARCHAR(100)">
+                <constraints nullable="false" unique="true"/>
+            </column>
+            <column name="setting_value" type="VARCHAR(500)">
+                <constraints nullable="true"/>
+            </column>
+            <column name="updated_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+    </changeSet>
+
+    <!-- Seed the MFA policy default: off (tenant admin must explicitly enable) -->
+    <changeSet id="V0.0.7-2-seed-mfa-policy" author="authenza">
+        <preConditions onFail="MARK_RAN">
+            <sqlCheck expectedResult="0">
+                SELECT COUNT(*) FROM tenant_settings WHERE setting_key = 'mfa_required_for_all'
+            </sqlCheck>
+        </preConditions>
+        <insert tableName="tenant_settings">
+            <column name="setting_key" value="mfa_required_for_all"/>
+            <column name="setting_value" value="false"/>
+        </insert>
+    </changeSet>
+
+    <!-- Seed the Session policy default: enabled with 30 days (tenant admin can override) -->
+    <changeSet id="V0.0.7-3-seed-session-policy" author="authenza">
+        <preConditions onFail="MARK_RAN">
+            <sqlCheck expectedResult="0">
+                SELECT COUNT(*) FROM tenant_settings WHERE setting_key = 'session_policy_enabled'
+            </sqlCheck>
+        </preConditions>
+        <insert tableName="tenant_settings">
+            <column name="setting_key" value="session_policy_enabled"/>
+            <column name="setting_value" value="true"/>
+        </insert>
+    </changeSet>
+
+    <changeSet id="V0.0.7-4-seed-session-ttl-days" author="authenza">
+        <preConditions onFail="MARK_RAN">
+            <sqlCheck expectedResult="0">
+                SELECT COUNT(*) FROM tenant_settings WHERE setting_key = 'session_ttl_days'
+            </sqlCheck>
+        </preConditions>
+        <insert tableName="tenant_settings">
+            <column name="setting_key" value="session_ttl_days"/>
+            <column name="setting_value" value="30"/>
+        </insert>
+    </changeSet>
+
+</databaseChangeLog>

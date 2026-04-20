@@ -29,9 +29,16 @@ Elevate platform security by protecting endpoints and validating identities.
 - **Brute Force Protection & Account Lockout:**
   - Track failed login attempts.
   - Automatically lock accounts for a duration after `N` failed attempts to prevent credential stuffing.
+  - **Distributed Enforcement (Redis) Pending:** Move attack counters from local memory to Redis to ensure account lockouts are consistent across all cluster instances.
 - **Multi-Factor Authentication (MFA):**
   - Introduce TOTP (Time-Based One Time Password, e.g., Google Authenticator).
   - Enforce multi-step authentication flows within your custom login journey.
+  - Two-level policy enforcement: tenant-wide (`mfa_required_for_all`) and per-user (`mfa_enabled`) flags.
+  - Admin-initiated enrollment: tenant admin sets `mfa_enabled=true`; user is directed to QR code setup on next login.
+- **MFA Endpoint Security Hardening:**
+  - Require authentication before calling self-service MFA endpoints (`/mfa/setup`, `/mfa/confirm`, `/mfa/disable`).
+  - Enforce user identity scoping: a user can only manage their own MFA secret, not another user's.
+  - *(Full RBAC-based admin override — "admin can manage any user's MFA" — deferred to Phase 4.)*
 - **Active Session Management:**
   - Track active user sessions globally (e.g., via Redis or a `sessions` database table) instead of solely relying on stateless tokens.
   - Add capabilities for users to view "Active Devices" and revoke (logout) specific remote sessions.
@@ -67,6 +74,17 @@ Expand upon the Spring Authorization Server framework standardizing the token is
 - **PKCE & Token Revocation:**
   - Enforce Proof Key for Code Exchange (PKCE) for SPA and mobile clients.
   - Expose token revocation endpoints (RFC 7009) to allow explicit invalidation of access/refresh tokens.
+- **Token Introspection Endpoint (RFC 7662):**
+  - Enable the `/oauth2/introspect` endpoint on the authorization server so resource servers can verify token validity in real time, rather than relying solely on local JWT signature + expiry checks.
+  - **Why this matters for session revocation:** When a session is revoked (e.g. via the Active Devices API), the `oauth2_authorization` row is deleted, blocking refresh-token reuse immediately. However, access tokens are short-lived JWTs validated locally — a revoked user can still call APIs until the JWT expires (typically 5–60 min). Introspection closes this gap: resource servers query the auth server on each request, and a revoked authorization returns `{ "active": false }` instantly.
+  - **Trade-off:** Each API request incurs a network round-trip to the auth server (~1–5ms). Suitable for high-security endpoints (admin panels, billing, MFA management). Lower-sensitivity endpoints can continue using local JWT validation.
+  - Switch resource servers from `oauth2ResourceServer(rs -> rs.jwt(...))` to `opaqueToken()` with introspection URI and client credentials to opt in.
+  - *Prerequisite for Phase 5 Continuous Access Evaluation (CAE).*
+- **Persistent OAuth2 Authorization Storage (`JdbcOAuth2AuthorizationService`):**
+  - Replace the default `InMemoryOAuth2AuthorizationService` with a tenant-aware `JdbcOAuth2AuthorizationService` to persist authorization codes, access tokens, refresh tokens, and consent records across server restarts.
+  - Add `oauth2_authorization` and `oauth2_authorization_consent` tables to the tenant Liquibase schema (new versioned migration).
+  - Ensure the JDBC service is wired through the multi-tenant `RoutingDataSource` so each tenant's tokens are stored in their own isolated database.
+  - This is a prerequisite for Refresh Token Rotation, Token Revocation, and Active Session Management.
 - **Secure Refresh Token Rotation:**
   - Implement long-lived offline access tokens with strict rotation policies (a new token is issued per use) to balance UX with anti-theft security in SPAs.
 - **Advanced OAuth2 Protocol Enhancements:**
@@ -83,9 +101,14 @@ Enable complex B2B scenarios and tenant-specific configuration.
 - **Role-Based Access Control (RBAC):**
   - Introduce `Roles`, `Permissions`, and `Groups` entities within the tenant database schema.
   - Propagate these roles as scopes/claims on minted tokens.
+  - Build a **custom `UserDetails`** principal that carries `userId` (database PK) alongside `username`, enabling precise ownership checks in controllers.
+  - Add `@PreAuthorize` expressions for MFA management: users can only manage their own MFA; `ROLE_ADMIN` or `ROLE_TENANT_ADMIN` can manage any user's MFA.
+  - Role-gate the tenant-wide MFA policy endpoint (`PUT /api/v1/settings/mfa-policy`) to `ROLE_TENANT_ADMIN` only.
 - **Dynamic Client Management System:**
   - Wrap the `RegisteredClientRepository` with APIs for tenant administrators.
   - Allow tenants to self-serve dynamic creation of their own OAuth2 clients (M2M tokens, SPAs) and rotate client secrets.
+- **Shared Session Storage (Redis Persistence):**
+  - Enable High Availability (HA) by moving Spring Security's `HttpSession` storage from local RAM to a shared Redis cluster. This ensures that users stay logged in even if the backend server instance restarts or if traffic is routed to a different node.
 - **Dynamic Tenant Branding:**
   - Store tenant-specific UI Theme objects securely in the database (e.g., a JSON `branding_settings` column holding `logoUrl`, `primaryColor`, and `termsUrl`).
   - **Dynamic Rendering Pipeline:** Intercept the `tenantId` from the request, fetch the specific tenant's branding profile from the database, and dynamically inject the branding variables into the Thymeleaf models so custom logos and themes appear natively on `login.html` and `consent.html`.
@@ -113,6 +136,22 @@ Enable complex B2B scenarios and tenant-specific configuration.
 ## Phase 5: Interoperability & Observability
 Mature the product to fit into wider enterprise ecosystems.
 
+- **Production Database Separation (system-admin Isolation):**
+  - Currently `system-admin` tenant shares the `auth-master` database because `DataBaseInitializer` registers it with the same JDBC URL (dev shortcut).
+  - Separate `system-admin` into its own dedicated database (`jdbc:mysql://.../system-admin`) to cleanly isolate tenant registry data from tenant user/IAM data.
+  - Add `app.system-tenant.url` to `auth-master-service/application.yaml` and update `DataBaseInitializer` to use it when provisioning the system tenant.
+  - Migrate existing `application_user`, `oauth2_registered_client`, `roles`, `tenant_settings`, and all IAM tables out of `auth-master` into the dedicated database before go-live.
+  - Each tenant (system-admin, acme-corp, etc.) will then have a fully isolated database, with `auth-master` containing only the tenant registry table.
+
+- **Liquibase Changelog Restructuring (initialization / migration split):**
+  - Currently all Liquibase changesets for tenant databases live under `migration/tenant/V0.0.1` through `V0.0.7`, including the initial schema creation and seed data.
+  - Activate the `initialization/` folder (currently a Phase 5 placeholder) by moving the baseline schema and seed data out of versioned migrations:
+    - Move `migration/tenant/V0.0.1/ddl.xml` (base table creation) → `initialization/ddl.xml`
+    - Move `migration/tenant/V0.0.5/dml.xml` (default roles/permissions seed) → `initialization/dml.xml`
+  - Wire `initialization/db.changelog-initialization.xml` into `TenantProvisioningService` so it runs first on every new tenant database, followed by `migration/tenant/db.changelog-tenant.xml` for incremental changes.
+  - Update the `DATABASECHANGELOG` table on all existing tenant databases to reflect the new file paths, preventing Liquibase checksum failures during the cut-over.
+  - End state: `initialization/` = one-time baseline; `migration/` = incremental versioned changes only.
+
 - **Federated Identity (Identity Brokering):**
   - Transform Authenza into an Identity Broker by adding standard `oauth2Login()`.
   - Let tenants configure external Identity Providers (Google, GitHub, Microsoft Entra ID) so they can enforce Single Sign-On (SSO) with their active directories.
@@ -137,6 +176,10 @@ Mature the product to fit into wider enterprise ecosystems.
 - **Continuous Access Evaluation (CAE):**
   - Publish real-time "Critical Event Streams" (e.g., `user_disabled`, `password_reset`) to downstream Resource Servers.
   - Empower microservices to instantly drop access tokens upon critical security events rather than waiting for standard the JWT 1-hour expiry window.
+  - *Requires Token Introspection (Phase 3) to be enabled on resource servers — without it, access tokens remain valid locally until expiry even after a critical security event.*
+- **Scale-Out Policy Caching (Caffeine + Redis Pub/Sub):**
+  - Optimize the performance of tenant-specific security policies (MFA, Session TTL) by introducing ultra-low-latency local Caffeine caches.
+  - Implement a Redis Pub/Sub invalidation mechanism to "broadcast" setting changes from the `auth-iam-service` to all `auth-server-core` instances, ensuring instant policy updates while maintaining near-zero database load during logins.
 
 ---
 

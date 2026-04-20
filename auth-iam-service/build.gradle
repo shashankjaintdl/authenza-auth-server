@@ -15,4 +15,7 @@ dependencies {
 
     // OAuth2 Resource Server (validates JWT tokens issued by auth-server-core)
     implementation 'org.springframework.boot:spring-boot-starter-oauth2-resource-server'
+
+    // TOTP (RFC 6238) — Google Authenticator-compatible MFA enrollment
+    implementation 'dev.samstevens.totp:totp-spring-boot-starter:1.7.1'
 }

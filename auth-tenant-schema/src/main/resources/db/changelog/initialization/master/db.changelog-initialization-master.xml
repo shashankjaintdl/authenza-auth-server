@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+    http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <!--
+        MASTER INITIALIZATION CHANGELOG — Phase 5 placeholder
+        ══════════════════════════════════════════════════════════════════
+
+        Entry point for auth-master DB one-time initialization.
+        Referenced by: auth-master-service application.yaml
+          spring.liquibase.change-log: classpath:db/changelog/initialization/master/db.changelog-initialization-master.xml
+
+        Followed by: migration/master/db.changelog-master.xml
+          (which handles all incremental versioned changes after baseline is in place)
+        ══════════════════════════════════════════════════════════════════
+    -->
+
+    <!-- Uncomment in Phase 5 -->
+    <!-- <include file="ddl.xml" relativeToChangelogFile="true"/> -->
+
+</databaseChangeLog>

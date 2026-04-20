@@ -18,4 +18,7 @@ dependencies {
 
     // Java 8 Date/Time serialization support for JWT claims
     implementation 'com.fasterxml.jackson.datatype:jackson-datatype-jsr310'
+
+    // TOTP (RFC 6238) — Google Authenticator-compatible MFA
+    implementation 'dev.samstevens.totp:totp-spring-boot-starter:1.7.1'
 }

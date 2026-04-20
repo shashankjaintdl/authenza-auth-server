@@ -196,6 +196,60 @@ public class IamServiceClient {
         return true;
     }
 
+    // ─────────────────────────────────────────────
+    // MFA (TOTP) Proxies
+    // ─────────────────────────────────────────────
+
+    /**
+     * Initiates TOTP MFA setup for the given user via auth-iam-service.
+     * Returns the QR code data URI and the raw base32 secret.
+     */
+    public ApiResponse<?> setupMfa(String tenantId, Long userId) {
+        try {
+            return restClient.post()
+                    .uri("/api/v1/users/" + userId + "/mfa/setup")
+                    .header(TENANT_HEADER, tenantId)
+                    .retrieve()
+                    .body(new ParameterizedTypeReference<ApiResponse<?>>() {});
+        } catch (Exception ex) {
+            return extractErrorOrFallback(ex, "MFA setup failed. Please try again.");
+        }
+    }
+
+    /**
+     * Confirms MFA enrollment by verifying the first authenticator code.
+     */
+    public ApiResponse<?> confirmMfa(String tenantId, Long userId, String code) {
+        try {
+            return restClient.post()
+                    .uri("/api/v1/users/" + userId + "/mfa/confirm")
+                    .header(TENANT_HEADER, tenantId)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .body(java.util.Map.of("code", code))
+                    .retrieve()
+                    .body(new ParameterizedTypeReference<ApiResponse<?>>() {});
+        } catch (Exception ex) {
+            return extractErrorOrFallback(ex, "MFA confirmation failed. The code may be invalid.");
+        }
+    }
+
+    /**
+     * Disables MFA after verifying the current TOTP code.
+     */
+    public ApiResponse<?> disableMfa(String tenantId, Long userId, String code) {
+        try {
+            return restClient.post()
+                    .uri("/api/v1/users/" + userId + "/mfa/disable")
+                    .header(TENANT_HEADER, tenantId)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .body(java.util.Map.of("code", code))
+                    .retrieve()
+                    .body(new ParameterizedTypeReference<ApiResponse<?>>() {});
+        } catch (Exception ex) {
+            return extractErrorOrFallback(ex, "MFA disable failed. The code may be invalid.");
+        }
+    }
+
     /**
      * Attempts to extract an error message from a RestClient exception.
      * Falls back to the provided default message if extraction fails.
@@ -218,4 +272,63 @@ public class IamServiceClient {
 
         return ApiResponse.internalServerError(fallbackMessage);
     }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // Tenant Settings
+    // ─────────────────────────────────────────────────────────────────────────
+
+    /**
+     * Fetches all tenant settings from auth-iam-service.
+     *
+     * @param tenantId the tenant scope
+     */
+    public ApiResponse<?> getTenantSettings(String tenantId) {
+        try {
+            return restClient.get()
+                    .uri("/api/v1/settings")
+                    .header(TENANT_HEADER, tenantId)
+                    .retrieve()
+                    .body(new ParameterizedTypeReference<ApiResponse<?>>() {});
+        } catch (Exception ex) {
+            return extractErrorOrFallback(ex, "Failed to retrieve tenant settings.");
+        }
+    }
+
+    /**
+     * Reads the current tenant-wide MFA enforcement policy.
+     *
+     * @param tenantId the tenant scope
+     */
+    public ApiResponse<?> getMfaPolicy(String tenantId) {
+        try {
+            return restClient.get()
+                    .uri("/api/v1/settings/mfa-policy")
+                    .header(TENANT_HEADER, tenantId)
+                    .retrieve()
+                    .body(new ParameterizedTypeReference<ApiResponse<?>>() {});
+        } catch (Exception ex) {
+            return extractErrorOrFallback(ex, "Failed to retrieve MFA policy.");
+        }
+    }
+
+    /**
+     * Updates the tenant-wide MFA enforcement policy.
+     *
+     * @param tenantId        the tenant scope
+     * @param requireForAll   {@code true} to enforce MFA for every user; {@code false} to relax
+     */
+    public ApiResponse<?> setMfaPolicy(String tenantId, boolean requireForAll) {
+        try {
+            return restClient.put()
+                    .uri("/api/v1/settings/mfa-policy")
+                    .header(TENANT_HEADER, tenantId)
+                    .contentType(org.springframework.http.MediaType.APPLICATION_JSON)
+                    .body(java.util.Map.of("mfaRequiredForAll", requireForAll))
+                    .retrieve()
+                    .body(new ParameterizedTypeReference<ApiResponse<?>>() {});
+        } catch (Exception ex) {
+            return extractErrorOrFallback(ex, "Failed to update MFA policy.");
+        }
+    }
 }
+

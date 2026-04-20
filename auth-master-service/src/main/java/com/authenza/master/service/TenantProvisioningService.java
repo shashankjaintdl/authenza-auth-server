@@ -82,7 +82,7 @@ public class TenantProvisioningService {
             Database database = DatabaseFactory.getInstance()
                     .findCorrectDatabaseImplementation(new JdbcConnection(connection));
 
-            String changeDb = "db/changelog/tenant/db.changelog-tenant.xml";;
+            String changeDb = "db/changelog/migration/tenant/db.changelog-tenant.xml";;
 //            if(isMaster){
 //                changeDb = "db/changelog/master/db.changelog-master.xml";
 //            }

@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+    http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <!--
+        TENANT INITIALIZATION DML — Phase 5 placeholder
+        ══════════════════════════════════════════════════════════════════
+
+        Purpose:
+          Inserts the default seed data every new tenant database needs to function.
+          Runs after ddl.xml during tenant provisioning.
+
+        Data to move here from migration/tenant/V0.0.5/dml.xml in Phase 5:
+          - Default roles:        SUPER_ADMIN, TENANT_ADMIN, USER
+          - Default permissions:  READ_USERS, WRITE_USERS, MANAGE_ROLES, etc.
+          - Default role_permissions mappings
+
+        Additional seed data for new features:
+          - tenant_settings:  mfa_required_for_all = 'false'   ← from V0.0.7
+
+        ⚠️  Do NOT add changesets here until Phase 5.
+        ══════════════════════════════════════════════════════════════════
+    -->
+
+</databaseChangeLog>

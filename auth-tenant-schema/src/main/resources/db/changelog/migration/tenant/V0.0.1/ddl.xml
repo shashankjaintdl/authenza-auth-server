@@ -3,8 +3,12 @@
         xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
         xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
-    http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+    http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd"
+        logicalFilePath="db/changelog/tenant/V0.0.1/ddl.xml">
     <changeSet id="002-create-oauth2-client-table" author="admin">
+        <preConditions onFail="MARK_RAN">
+            <not><tableExists tableName="oauth2_registered_client"/></not>
+        </preConditions>
         <createTable tableName="oauth2_registered_client">
             <column name="id" type="VARCHAR(100)">
                 <constraints primaryKey="true" nullable="false"/>

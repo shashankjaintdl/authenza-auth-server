@@ -13,6 +13,10 @@ import org.springframework.core.annotation.Order;
 import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
+import org.springframework.security.oauth2.server.authorization.JdbcOAuth2AuthorizationConsentService;
+import org.springframework.security.oauth2.server.authorization.JdbcOAuth2AuthorizationService;
+import org.springframework.security.oauth2.server.authorization.OAuth2AuthorizationConsentService;
+import org.springframework.security.oauth2.server.authorization.OAuth2AuthorizationService;
 import org.springframework.security.oauth2.server.authorization.client.RegisteredClientRepository;
 import org.springframework.security.oauth2.server.authorization.config.annotation.web.configuration.OAuth2AuthorizationServerConfiguration;
 import org.springframework.security.oauth2.server.authorization.config.annotation.web.configurers.OAuth2AuthorizationServerConfigurer;
@@ -23,7 +27,9 @@ import org.springframework.security.web.session.DisableEncodeUrlFilter;
 import org.springframework.security.web.util.matcher.AntPathRequestMatcher;
 import org.springframework.security.web.util.matcher.OrRequestMatcher;
 import org.springframework.security.web.util.matcher.RequestMatcher;
+import org.springframework.jdbc.core.JdbcTemplate;
 
+import javax.sql.DataSource;
 import java.security.KeyPair;
 import java.security.KeyPairGenerator;
 import java.security.interfaces.RSAPrivateKey;
@@ -42,11 +48,13 @@ import org.springframework.security.oauth2.server.authorization.token.OAuth2Toke
 @Configuration
 public class AuthorizationServerConfig {
 
-
     private final JdbcTenantClientRepository tenantClientRepository;
+    private final DataSource dataSource;
 
-    public AuthorizationServerConfig(JdbcTenantClientRepository tenantClientRepository) {
+    public AuthorizationServerConfig(JdbcTenantClientRepository tenantClientRepository,
+                                     DataSource dataSource) {
         this.tenantClientRepository = tenantClientRepository;
+        this.dataSource = dataSource;
     }
 
     @Bean
@@ -104,6 +112,34 @@ public class AuthorizationServerConfig {
     @Bean
     public RegisteredClientRepository registeredClientRepository() {
         return new TenantAwareRegisteredClientRepository(this.tenantClientRepository);
+    }
+
+    /**
+     * Replaces the default {@code InMemoryOAuth2AuthorizationService} with a
+     * tenant-aware JDBC implementation backed by the {@code RoutingDataSource}.
+     *
+     * <p>Each tenant's authorization records (auth codes, access tokens, refresh
+     * tokens) are stored in their own isolated database, preventing cross-tenant
+     * token leakage. Tokens survive server restarts and support horizontal scaling.
+     */
+    @Bean
+    public OAuth2AuthorizationService authorizationService(
+            RegisteredClientRepository registeredClientRepository) {
+        return new JdbcOAuth2AuthorizationService(
+                new JdbcTemplate(this.dataSource),
+                registeredClientRepository);
+    }
+
+    /**
+     * Persists OAuth2 consent decisions per user per client in the tenant DB.
+     * Replaces the default in-memory consent service.
+     */
+    @Bean
+    public OAuth2AuthorizationConsentService authorizationConsentService(
+            RegisteredClientRepository registeredClientRepository) {
+        return new JdbcOAuth2AuthorizationConsentService(
+                new JdbcTemplate(this.dataSource),
+                registeredClientRepository);
     }
 
     @Bean // <5>
@@ -178,6 +214,34 @@ public class AuthorizationServerConfig {
                 String tenantId = TenantContextHolder.getTenantId();
                 if (tenantId != null) {
                     context.getClaims().claim("tenant_id", tenantId);
+                }
+
+                // ── Link OAuth2 Authorization to Active Session ──────────────
+                // This connects the session recorded heavily at login time
+                // to the cryptographic token we are minting now.
+                try {
+                    if (context.getAuthorization() != null && context.getAuthorization().getId() != null) {
+                        String authId = context.getAuthorization().getId();
+                        String username = principal.getName();
+                        org.springframework.jdbc.core.JdbcTemplate jdbcTemplate = 
+                                new org.springframework.jdbc.core.JdbcTemplate(AuthorizationServerConfig.this.dataSource);
+
+                        java.util.List<Long> userIds = jdbcTemplate.queryForList(
+                                "SELECT id FROM application_user WHERE preferred_username = ? OR email = ? LIMIT 1",
+                                Long.class, username, username);
+
+                        if (!userIds.isEmpty()) {
+                            Long userId = userIds.get(0);
+                            // Link to the most recent un-linked session for this user
+                            jdbcTemplate.update(
+                                    "UPDATE user_session SET authorization_id = ? " +
+                                    "WHERE user_id = ? AND authorization_id IS NULL " +
+                                    "ORDER BY created_at DESC LIMIT 1",
+                                    authId, userId);
+                        }
+                    }
+                } catch (Exception e) {
+                    // Non-fatal, swallow so we don't break the token exchange
                 }
             }
         };

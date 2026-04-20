@@ -42,6 +42,12 @@ public class User{
     private Instant lockedUntil;
     private Instant passwordChangedAt;
     private Boolean mfaEnabled;
+    /**
+     * AES-256 encrypted, base32-encoded TOTP secret.
+     * NULL until the user initiates MFA setup.
+     * Present but {@code mfaEnabled=false} means setup was started but never confirmed.
+     */
+    private String mfaSecret;
 
     // ══════════════════════════════════════════
     // Audit
@@ -231,6 +237,14 @@ public class User{
 
     public void setMfaEnabled(Boolean mfaEnabled) {
         this.mfaEnabled = mfaEnabled;
+    }
+
+    public String getMfaSecret() {
+        return mfaSecret;
+    }
+
+    public void setMfaSecret(String mfaSecret) {
+        this.mfaSecret = mfaSecret;
     }
 
     public Instant getCreatedAt() {

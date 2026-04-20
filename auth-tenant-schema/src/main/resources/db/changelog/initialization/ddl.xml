@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+    http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <!--
+        INITIALIZATION DDL — Phase 5 placeholder
+        ══════════════════════════════════════════════════════════════════
+
+        This file will contain the baseline CREATE TABLE statements for every
+        new tenant database — the structural foundation every tenant starts with.
+
+        Tables to move here from migration/tenant/V0.0.1/ddl.xml in Phase 5:
+          - application_user
+          - roles
+          - role_permissions
+          - user_roles
+          - oauth2_registered_client
+          - oauth2_authorization
+          - oauth2_authorization_consent
+          - oauth2_authorization_server_settings
+
+        Tables to move from later migration versions:
+          - tenant_settings   (currently V0.0.7)
+          - failed_login_attempts / brute_force tables (V0.0.6)
+          - mfa-related columns (V0.0.6)
+
+        ⚠️  Do NOT add changesets here until Phase 5. Moving changesets from
+            migration/ to initialization/ requires updating the DATABASECHANGELOG
+            table on all existing tenant databases to avoid checksum failures.
+
+        ══════════════════════════════════════════════════════════════════
+    -->
+
+</databaseChangeLog>

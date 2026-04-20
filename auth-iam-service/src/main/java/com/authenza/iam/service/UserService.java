@@ -485,6 +485,75 @@ public class UserService {
     }
 
     /**
+     * Manually unlocks a user account that was locked due to excessive failed login attempts.
+     * Resets the failed attempt counter and clears the temporary lock window.
+     *
+     * <p>This method is intended for call by tenant admins via the management API.
+     *
+     * @param userId the user's database ID
+     * @throws ResourceNotFoundException if the user does not exist
+     * @throws IllegalStateException     if the user account is not currently locked
+     */
+    @Transactional
+    public void unlockUser(Long userId) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found."));
+
+        if (user.getStatus() != com.authenza.common.enums.UserStatus.LOCKED) {
+            throw new IllegalStateException("User account is not currently locked.");
+        }
+
+        user.setStatus(com.authenza.common.enums.UserStatus.ACTIVE);
+        user.setFailedLoginAttempts(0);
+        user.setLockedUntil(null);
+        user.setUpdatedAt(Instant.now());
+        userRepository.save(user);
+
+        log.info("Account manually unlocked for user ID '{}' in tenant '{}'",
+                userId, TenantContextHolder.getTenantId());
+    }
+
+    /**
+     * Admin-only: Updates a user's email address directly.
+     * Since this is an admin action, no re-verification flow is required.
+     * The new email is checked for uniqueness within the tenant, and
+     * {@code email_verified} is reset to {@code false}.
+     *
+     * @param userId   the user's database ID
+     * @param newEmail the new email address
+     * @return the updated UserResponse DTO
+     * @throws ResourceNotFoundException      if the user does not exist
+     * @throws ResourceAlreadyExistsException if the email is already taken
+     */
+    @Transactional
+    public UserResponse updateEmail(Long userId, String newEmail) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found."));
+
+        // Skip if the email hasn't actually changed
+        if (newEmail.equalsIgnoreCase(user.getEmail())) {
+            return toUserResponse(user);
+        }
+
+        // Ensure the new email isn't already registered in this tenant
+        userRepository.findByEmail(newEmail)
+                .ifPresent(u -> {
+                    throw new ResourceAlreadyExistsException(
+                            "A user with email '" + newEmail + "' already exists in this tenant.");
+                });
+
+        user.setEmail(newEmail);
+        user.setEmailVerified(false); // New email has not been verified yet
+        user.setUpdatedAt(Instant.now());
+        User saved = userRepository.save(user);
+
+        log.info("Email updated by admin for user ID '{}' to '{}' in tenant '{}'",
+                userId, newEmail, TenantContextHolder.getTenantId());
+
+        return toUserResponse(saved);
+    }
+
+    /**
      * Permanently deletes a user's account and all associated data.
      * This is the self-service account deletion flow for GDPR/CCPA compliance.
      *

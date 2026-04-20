@@ -67,7 +67,7 @@
             font-weight: 500;
         }
 
-        .error-msg, .logout-msg {
+        .error-msg, .logout-msg, .locked-msg {
             padding: .75rem 1rem;
             border-radius: 8px;
             font-size: .875rem;
@@ -76,8 +76,9 @@
             animation: shakeFade .5s cubic-bezier(.36,.07,.19,.97) both;
         }
 
-        .error-msg { background: rgba(239, 68, 68, .1); border-left: 3px solid #ef4444; color: #fca5a5; }
-        .logout-msg { background: rgba(34, 197, 94, .1); border-left: 3px solid #22c55e; color: #86efac; }
+        .error-msg  { background: rgba(239, 68, 68, .1);  border-left: 3px solid #ef4444; color: #fca5a5; }
+        .logout-msg { background: rgba(34, 197, 94, .1);  border-left: 3px solid #22c55e; color: #86efac; }
+        .locked-msg { background: rgba(251, 191, 36, .1); border-left: 3px solid #fbbf24; color: #fde68a; }
 
         @keyframes shakeFade {
             0%, 100% { transform: translateX(0); opacity: 1; }
@@ -294,9 +295,17 @@
                 <h1>Login</h1>
                 <p class="subtitle">Enter your account details to securely access your workspace.</p>
 
+                <!-- Generic failed-credentials error -->
                 <div class="error-msg" th:if="${param.error}">
                     Invalid username or password.
                 </div>
+
+                <!-- Account locked due to too many failed attempts -->
+                <div class="locked-msg" th:if="${param.locked}">
+                    🔒 Your account has been temporarily locked due to too many failed login attempts.
+                    Please try again later or contact your administrator.
+                </div>
+
                 <div class="logout-msg" th:if="${param.logout}">
                     You have been signed out.
                 </div>

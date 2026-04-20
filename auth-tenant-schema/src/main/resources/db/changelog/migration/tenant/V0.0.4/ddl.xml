@@ -3,9 +3,13 @@
         xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
         xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
-    http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+    http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd"
+        logicalFilePath="db/changelog/tenant/V0.0.4/ddl.xml">
 
     <changeSet id="010-create-tenant-smtp-settings" author="admin">
+        <preConditions onFail="MARK_RAN">
+            <not><tableExists tableName="tenant_smtp_settings"/></not>
+        </preConditions>
         <createTable tableName="tenant_smtp_settings">
             <column name="id" type="BIGINT" autoIncrement="true">
                 <constraints primaryKey="true" nullable="false"/>
@@ -29,6 +33,9 @@
     </changeSet>
 
     <changeSet id="011-create-tenant-branding-settings" author="admin">
+        <preConditions onFail="MARK_RAN">
+            <not><tableExists tableName="tenant_branding_settings"/></not>
+        </preConditions>
         <createTable tableName="tenant_branding_settings">
             <column name="id" type="BIGINT" autoIncrement="true">
                 <constraints primaryKey="true" nullable="false"/>
@@ -44,6 +51,9 @@
     </changeSet>
 
     <changeSet id="010-create-email-verification-token" author="admin">
+        <preConditions onFail="MARK_RAN">
+            <not><tableExists tableName="email_verification_token"/></not>
+        </preConditions>
         <createTable tableName="email_verification_token">
             <column name="id" type="BIGINT" autoIncrement="true">
                 <constraints primaryKey="true" nullable="false"/>

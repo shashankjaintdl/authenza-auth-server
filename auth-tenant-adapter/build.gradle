@@ -15,6 +15,9 @@ dependencies {
     // Spring WebMVC for tenant-aware interceptors
     implementation 'org.springframework:spring-webmvc'
 
+    // Caffeine for ultra-fast, in-memory caching (e.g. TenantSettings)
+    api 'com.github.ben-manes.caffeine:caffeine'
+
     // Servlet API (provided at runtime by the embedded container)
     compileOnly 'jakarta.servlet:jakarta.servlet-api:6.1.0'
 

@@ -36,6 +36,23 @@ app:
     authentication-methods: client_secret_basic
     require-consent: false
     require-proof-key: false
+  brute-force:
+    # Lock account after this many consecutive failed login attempts
+    max-attempts: 5
+    # Duration (in minutes) for which a locked account remains inaccessible
+    lock-duration-minutes: 15
+
+  security:
+    session:
+      # Default session active time. Can be overridden in DB (tenant_settings)
+      default-ttl-days: 30
+
+  mfa:
+    # AES-256-GCM key (base64-encoded, must decode to exactly 32 bytes).
+    # Generate a production key with: openssl rand -base64 32
+    # WARNING: This dev key is insecure — rotate before deploying to production!
+    encryption-key: "bQT4Q2jU7KEI4Z3DjRUCnkWPwkDmkgoZLwk8ydbGYXc="
+
   services:
     iam:
       base-url: http://localhost:8082

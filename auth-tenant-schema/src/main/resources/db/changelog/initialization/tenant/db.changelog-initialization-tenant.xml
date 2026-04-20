@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+    http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <!--
+        TENANT INITIALIZATION CHANGELOG — Phase 5 placeholder
+        ══════════════════════════════════════════════════════════════════
+
+        Entry point for per-tenant one-time initialization.
+        Referenced by: TenantProvisioningService (Phase 5 update)
+
+        Execution order at tenant provisioning time (Phase 5):
+          1. initialization/tenant/db.changelog-initialization-tenant.xml  ← this file (baseline)
+          2. migration/tenant/db.changelog-tenant.xml                       ← incremental changes
+
+        Called by TenantProvisioningService.runLiquibaseMigration():
+          String initChangelog  = "db/changelog/initialization/tenant/db.changelog-initialization-tenant.xml";
+          String migrChangelog  = "db/changelog/migration/tenant/db.changelog-tenant.xml";
+          liquibase.update(initChangelog);   // run baseline first
+          liquibase.update(migrChangelog);   // then apply all incremental versions
+        ══════════════════════════════════════════════════════════════════
+    -->
+
+    <!-- Uncomment in Phase 5 after migrating from migration/tenant/V0.0.1 -->
+    <!-- <include file="ddl.xml" relativeToChangelogFile="true"/> -->
+    <!-- <include file="dml.xml" relativeToChangelogFile="true"/> -->
+
+</databaseChangeLog>

@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+    http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd"
+        logicalFilePath="db/changelog/tenant/V0.0.6/ddl.xml">
+
+    <changeSet id="012-add-mfa-secret-to-application-user" author="admin">
+        <preConditions onFail="MARK_RAN">
+            <not>
+                <columnExists tableName="application_user" columnName="mfa_secret"/>
+            </not>
+        </preConditions>
+        <addColumn tableName="application_user">
+            <!--
+                Stores the AES-encrypted, base32-encoded TOTP secret.
+                NULL means MFA has never been set up for this user.
+                The plain mfa_enabled column (added in V0.0.3) stays the
+                authoritative flag — mfa_secret != NULL but mfa_enabled = false
+                means setup was started but never confirmed.
+            -->
+            <column name="mfa_secret" type="VARCHAR(256)">
+                <constraints nullable="true"/>
+            </column>
+        </addColumn>
+    </changeSet>
+
+</databaseChangeLog>

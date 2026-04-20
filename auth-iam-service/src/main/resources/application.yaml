@@ -26,6 +26,11 @@ app:
       password: sjain@123
       driver-class-name: com.mysql.cj.jdbc.Driver
 
+  mfa:
+    # AES-256-GCM key — MUST match the key in auth-server-core/application.yaml
+    # Generate a production key with: openssl rand -base64 32
+    encryption-key: "bQT4Q2jU7KEI4Z3DjRUCnkWPwkDmkgoZLwk8ydbGYXc="
+
 logging:
   level:
     root: INFO
