@@ -14,7 +14,9 @@
     -->
 
     <include file="V0.0.1/ddl.xml" relativeToChangelogFile="true"/>
-
     <!-- V0.0.2 removed: oauth2_registered_client no longer lives in master schema -->
+    <include file="V0.0.3/ddl.xml" relativeToChangelogFile="true"/>
+    <!-- V0.0.4: Global Identity Registry — global_accounts + tenant_memberships -->
+    <include file="V0.0.4/ddl.xml" relativeToChangelogFile="true"/>
 
 </databaseChangeLog>

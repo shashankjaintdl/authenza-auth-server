@@ -3,6 +3,7 @@ package com.authenza.iam.controller;
 import com.authenza.common.dto.ApiResponse;
 import com.authenza.iam.service.TenantSettingsService;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.Map;
@@ -50,6 +51,8 @@ public class TenantSettingsController {
      * }</pre>
      */
     @GetMapping
+    // @PreAuthorize("hasAuthority('audit:read') or
+    // hasAuthority('sec:settings:write')")
     public ResponseEntity<ApiResponse<Map<String, String>>> getAllSettings() {
         return ResponseEntity.ok(
                 ApiResponse.success(settingsService.getAllSettings(), "Settings retrieved successfully."));
@@ -72,6 +75,8 @@ public class TenantSettingsController {
      * }</pre>
      */
     @GetMapping("/mfa-policy")
+    // @PreAuthorize("hasAuthority('audit:read') or
+    // hasAuthority('sec:settings:write')")
     public ResponseEntity<ApiResponse<Map<String, Object>>> getMfaPolicy() {
         boolean required = settingsService.isMfaRequiredForAll();
         return ResponseEntity.ok(
@@ -101,6 +106,7 @@ public class TenantSettingsController {
      * @param body JSON object containing {@code mfaRequiredForAll} (boolean)
      */
     @PutMapping("/mfa-policy")
+    // @PreAuthorize("hasAuthority('sec:settings:write')")
     public ResponseEntity<ApiResponse<?>> setMfaPolicy(@RequestBody Map<String, Object> body) {
         Object value = body.get("mfaRequiredForAll");
         if (value == null) {
@@ -133,12 +139,13 @@ public class TenantSettingsController {
      * <p>Request body:
      * <pre>{@code
      * {
-     *   "session_policy_enabled": "true",
-     *   "session_ttl_days": "14"
+     * "session_policy_enabled": "true",
+     * "session_ttl_days": "14"
      * }
      * }</pre>
      */
     @PutMapping
+    // @PreAuthorize("hasAuthority('sec:settings:write')")
     public ResponseEntity<ApiResponse<?>> setBulkSettings(@RequestBody Map<String, String> settings) {
         if (settings == null || settings.isEmpty()) {
             return ResponseEntity.badRequest().body(

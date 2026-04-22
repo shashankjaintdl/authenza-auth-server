@@ -13,8 +13,10 @@ import org.springframework.web.servlet.HandlerInterceptor;
  * validates that the tenant is provisioned in the routing DataSource,
  * and sets the TenantContextHolder for the duration of the request.
  *
- * <p>If the tenant is unknown or missing, the user is redirected to
- * the error page at {@code /error/invalid-tenant}.</p>
+ * <p>
+ * If the tenant is unknown or missing, the user is redirected to
+ * the error page at {@code /error/invalid-tenant}.
+ * </p>
  */
 @Component
 public class TenantInterceptor implements HandlerInterceptor {
@@ -28,7 +30,8 @@ public class TenantInterceptor implements HandlerInterceptor {
     }
 
     @Override
-    public boolean preHandle(HttpServletRequest request, HttpServletResponse response, Object handler) throws Exception {
+    public boolean preHandle(HttpServletRequest request, HttpServletResponse response, Object handler)
+            throws Exception {
         String path = request.getServletPath();
         String[] segments = path.split("/");
 
@@ -55,7 +58,8 @@ public class TenantInterceptor implements HandlerInterceptor {
     }
 
     @Override
-    public void afterCompletion(HttpServletRequest request, HttpServletResponse response, Object handler, Exception ex) {
+    public void afterCompletion(HttpServletRequest request, HttpServletResponse response, Object handler,
+            Exception ex) {
         // Clear tenant context to prevent thread-local leaks
         TenantContextHolder.clear();
         log.debug("Tenant context cleared for thread: {}", Thread.currentThread().getName());

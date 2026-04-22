@@ -24,7 +24,7 @@ import org.springframework.security.oauth2.server.authorization.settings.Authori
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.LoginUrlAuthenticationEntryPoint;
 import org.springframework.security.web.session.DisableEncodeUrlFilter;
-import org.springframework.security.web.util.matcher.AntPathRequestMatcher;
+import org.springframework.security.web.servlet.util.matcher.PathPatternRequestMatcher;
 import org.springframework.security.web.util.matcher.OrRequestMatcher;
 import org.springframework.security.web.util.matcher.RequestMatcher;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -52,7 +52,7 @@ public class AuthorizationServerConfig {
     private final DataSource dataSource;
 
     public AuthorizationServerConfig(JdbcTenantClientRepository tenantClientRepository,
-                                     DataSource dataSource) {
+            DataSource dataSource) {
         this.tenantClientRepository = tenantClientRepository;
         this.dataSource = dataSource;
     }
@@ -60,15 +60,15 @@ public class AuthorizationServerConfig {
     @Bean
     @Order(1)
     public SecurityFilterChain authorizationServerSecurityFilterChain(HttpSecurity http,
-                                                                      MultiTenantSecurityFilter tenantSecurityFilter)
+            MultiTenantSecurityFilter tenantSecurityFilter)
             throws Exception {
-        OAuth2AuthorizationServerConfigurer authorizationServerConfigurer =
-                OAuth2AuthorizationServerConfigurer.authorizationServer();
+        OAuth2AuthorizationServerConfigurer authorizationServerConfigurer = OAuth2AuthorizationServerConfigurer
+                .authorizationServer();
 
         RequestMatcher tenantEndpointsMatcher = new OrRequestMatcher(
-                new AntPathRequestMatcher("/{tenantId}/oauth2/**"),
-                new AntPathRequestMatcher("/{tenantId}/.well-known/openid-configuration")
-        );
+                PathPatternRequestMatcher.withDefaults().matcher("/{tenantId}/oauth2/**"),
+                PathPatternRequestMatcher.withDefaults().matcher("/{tenantId}/connect/**"),
+                PathPatternRequestMatcher.withDefaults().matcher("/{tenantId}/.well-known/openid-configuration"));
 
         // @formatter:off
         http
@@ -118,7 +118,8 @@ public class AuthorizationServerConfig {
      * Replaces the default {@code InMemoryOAuth2AuthorizationService} with a
      * tenant-aware JDBC implementation backed by the {@code RoutingDataSource}.
      *
-     * <p>Each tenant's authorization records (auth codes, access tokens, refresh
+     * <p>
+     * Each tenant's authorization records (auth codes, access tokens, refresh
      * tokens) are stored in their own isolated database, preventing cross-tenant
      * token leakage. Tokens survive server restarts and support horizontal scaling.
      */
@@ -163,8 +164,7 @@ public class AuthorizationServerConfig {
             KeyPairGenerator keyPairGenerator = KeyPairGenerator.getInstance("RSA");
             keyPairGenerator.initialize(2048);
             keyPair = keyPairGenerator.generateKeyPair();
-        }
-        catch (Exception ex) {
+        } catch (Exception ex) {
             throw new IllegalStateException(ex);
         }
         return keyPair;
@@ -179,6 +179,7 @@ public class AuthorizationServerConfig {
     public AuthorizationServerSettings authorizationServerSettings() {
         return AuthorizationServerSettings.builder()
                 .multipleIssuersAllowed(true)
+                .oidcLogoutEndpoint("/connect/logout")
                 .build();
     }
 
@@ -223,8 +224,8 @@ public class AuthorizationServerConfig {
                     if (context.getAuthorization() != null && context.getAuthorization().getId() != null) {
                         String authId = context.getAuthorization().getId();
                         String username = principal.getName();
-                        org.springframework.jdbc.core.JdbcTemplate jdbcTemplate = 
-                                new org.springframework.jdbc.core.JdbcTemplate(AuthorizationServerConfig.this.dataSource);
+                        org.springframework.jdbc.core.JdbcTemplate jdbcTemplate = new org.springframework.jdbc.core.JdbcTemplate(
+                                AuthorizationServerConfig.this.dataSource);
 
                         java.util.List<Long> userIds = jdbcTemplate.queryForList(
                                 "SELECT id FROM application_user WHERE preferred_username = ? OR email = ? LIMIT 1",
@@ -235,8 +236,8 @@ public class AuthorizationServerConfig {
                             // Link to the most recent un-linked session for this user
                             jdbcTemplate.update(
                                     "UPDATE user_session SET authorization_id = ? " +
-                                    "WHERE user_id = ? AND authorization_id IS NULL " +
-                                    "ORDER BY created_at DESC LIMIT 1",
+                                            "WHERE user_id = ? AND authorization_id IS NULL " +
+                                            "ORDER BY created_at DESC LIMIT 1",
                                     authId, userId);
                         }
                     }

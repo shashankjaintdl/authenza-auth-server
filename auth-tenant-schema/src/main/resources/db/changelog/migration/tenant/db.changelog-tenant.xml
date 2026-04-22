@@ -15,5 +15,6 @@
     <include file="V0.0.6/ddl.xml" relativeToChangelogFile="true"/>
     <include file="V0.0.7/ddl.xml" relativeToChangelogFile="true"/>
     <include file="V0.0.8/ddl.xml" relativeToChangelogFile="true"/>
+    <include file="V0.0.9/ddl.xml" relativeToChangelogFile="true"/>
 
 </databaseChangeLog>

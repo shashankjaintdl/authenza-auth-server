@@ -13,10 +13,13 @@ import com.authenza.iam.dto.ChangePasswordRequest;
 import com.authenza.iam.dto.InviteUserRequest;
 import com.authenza.iam.dto.UpdateProfileRequest;
 import com.authenza.iam.dto.UserRegistrationRequest;
+import com.authenza.iam.dto.AdminUserCreateRequest;
 import com.authenza.iam.dto.UserResponse;
 import com.authenza.iam.model.EmailVerificationToken;
-import com.authenza.iam.repository.EmailVerificationTokenRepository;
 import com.authenza.iam.repository.UserRepository;
+import com.authenza.iam.repository.RoleRepository;
+import com.authenza.iam.repository.EmailVerificationTokenRepository;
+import com.authenza.common.model.iam.Role;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -40,13 +43,16 @@ public class UserService {
 
     private final UserRepository userRepository;
     private final EmailVerificationTokenRepository verificationTokenRepository;
+    private final RoleRepository roleRepository;
     private final PasswordEncoder passwordEncoder;
     private final NotificationEventPublisher notificationEventPublisher;
 
     public UserService(UserRepository userRepository, EmailVerificationTokenRepository verificationTokenRepository,
-            PasswordEncoder passwordEncoder, NotificationEventPublisher notificationEventPublisher) {
+            RoleRepository roleRepository, PasswordEncoder passwordEncoder,
+            NotificationEventPublisher notificationEventPublisher) {
         this.userRepository = userRepository;
         this.verificationTokenRepository = verificationTokenRepository;
+        this.roleRepository = roleRepository;
         this.passwordEncoder = passwordEncoder;
         this.notificationEventPublisher = notificationEventPublisher;
     }
@@ -82,9 +88,74 @@ public class UserService {
         user.setFailedLoginAttempts(0);
         user.setMfaEnabled(false);
         user.setCreatedAt(Instant.now());
+
+        // Assign correct Role based on the Tenant Context
+        // String targetRoleName = tenantId.equals("system-admin") ? "ROLE_SYSTEM_ADMIN"
+        // : "ROLE_TENANT_ADMIN";
+        // Role targetRole = roleRepository.findByName(targetRoleName)
+        // .orElseThrow(() -> new IllegalStateException(
+        // "Required system role " + targetRoleName + " is missing from the
+        // database."));
+
+        // User.UserRoleRef roleRef = new User.UserRoleRef();
+        // roleRef.setRoleId(targetRole.getId());
+        // user.getRoles().add(roleRef);
+
         User savedUser = userRepository.save(user);
         generateAndSendEmailVerificationToken(savedUser);
         return new UserResponse();
+    }
+
+    @Transactional
+    public UserResponse createUser(AdminUserCreateRequest request) throws JsonProcessingException {
+        String tenantId = TenantContextHolder.getTenantId();
+        log.info("Admin creating user '{}' in tenant '{}'", request.getEmail(), tenantId);
+
+        userRepository.findByEmail(request.getEmail())
+                .ifPresent(u -> {
+                    throw new ResourceAlreadyExistsException("A user with this email already exists.");
+                });
+
+        if (request.getPreferredUsername() != null && !request.getPreferredUsername().isBlank()) {
+            userRepository.findByPreferredUsername(request.getPreferredUsername())
+                    .ifPresent(u -> {
+                        throw new ResourceAlreadyExistsException("Username is already in use.");
+                    });
+        }
+
+        User user = new User();
+        user.setEmail(request.getEmail());
+        user.setPreferredUsername(request.getPreferredUsername() != null && !request.getPreferredUsername().isBlank() 
+            ? request.getPreferredUsername() 
+            : request.getEmail());
+        user.setGivenName(request.getGivenName());
+        user.setFamilyName(request.getFamilyName());
+        user.setName(request.getGivenName() + " " + request.getFamilyName());
+        
+        // Enforce password policies
+        PasswordPolicyValidator.validate(request.getPassword());
+        user.setPassword(passwordEncoder.encode(request.getPassword()));
+
+        user.setEmailVerified(true); // Admin-created users are trusted by default in this flow
+        user.setPhoneNumberVerified(false);
+        user.setStatus(UserStatus.ACTIVE);
+        user.setFailedLoginAttempts(0);
+        user.setMfaEnabled(false);
+        user.setCreatedAt(Instant.now());
+
+        // Assign roles if provided
+        if (request.getRoleIds() != null && !request.getRoleIds().isEmpty()) {
+            for (Long roleId : request.getRoleIds()) {
+                User.UserRoleRef roleRef = new User.UserRoleRef();
+                roleRef.setRoleId(roleId);
+                user.getRoles().add(roleRef);
+            }
+        }
+
+        User savedUser = userRepository.save(user);
+        log.info("User '{}' created by admin in tenant '{}'", savedUser.getEmail(), tenantId);
+
+        return toUserResponse(savedUser);
     }
 
     private void generateAndSendEmailVerificationToken(final User user) throws JsonProcessingException {
@@ -137,8 +208,9 @@ public class UserService {
                     .of(databaseHelper.getCurrentPage(), databaseHelper.getItemPerPage())
                     .withSort(Sort.Direction.fromString(databaseHelper.getSortOrder()), databaseHelper.getSortBy());
         }
-        // Map the secure User entity safely to the UserResponse DTO
-        return userRepository.findAll(pageable).map(this::toUserResponse);
+        // Map the secure User entity safely to the UserResponse DTO.
+        // We filter out shadow admins by excluding users with the sentinel password [GLOBAL_ACCOUNT].
+        return userRepository.findByPasswordNot("[GLOBAL_ACCOUNT]", pageable).map(this::toUserResponse);
     }
 
     // ─────────────────────────────────────────────
@@ -485,10 +557,12 @@ public class UserService {
     }
 
     /**
-     * Manually unlocks a user account that was locked due to excessive failed login attempts.
+     * Manually unlocks a user account that was locked due to excessive failed login
+     * attempts.
      * Resets the failed attempt counter and clears the temporary lock window.
      *
-     * <p>This method is intended for call by tenant admins via the management API.
+     * <p>
+     * This method is intended for call by tenant admins via the management API.
      *
      * @param userId the user's database ID
      * @throws ResourceNotFoundException if the user does not exist

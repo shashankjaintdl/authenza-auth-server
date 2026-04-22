@@ -18,6 +18,10 @@ Establish robust management of user identities within their respective tenants.
 - **Admin User Invitation Flow (B2B Core):**
   - Implement an API allowing Tenant Admins to securely invite employees via email.
   - Generate one-time invitation tokens that redirect the invited user to a "Set Password" screen rather than general sign-up.
+- **Initial Admin User Provisioning (The "Onboarding Bridge"):**
+  - Automatically create a `User` record in the tenant's private database for the `ownerId` immediately after schema migration.
+  - Assign the `TENANT_ADMIN` role to this user so the tenant creator has full platform and application access from day one.
+  - This establishes the "local shadow" record required for Step 3 (OIDC) and Phase 9 (Multi-Account Management).
 - **Strict Password Policies:**
   - Enforce customizable security constraints (min length, special characters, preventing common passwords) during sign-up and password reset.
 
@@ -29,6 +33,7 @@ Elevate platform security by protecting endpoints and validating identities.
 - **Brute Force Protection & Account Lockout:**
   - Track failed login attempts.
   - Automatically lock accounts for a duration after `N` failed attempts to prevent credential stuffing.
+  - **Conditional Captcha (Core Logic):** Implement backend attempt tracking, validation filters, and a default "Math Captcha" challenge that appears after 2 failed attempts to differentiate between human errors and bot attacks.
   - **Distributed Enforcement (Redis) Pending:** Move attack counters from local memory to Redis to ensure account lockouts are consistent across all cluster instances.
 - **Multi-Factor Authentication (MFA):**
   - Introduce TOTP (Time-Based One Time Password, e.g., Google Authenticator).
@@ -104,6 +109,13 @@ Enable complex B2B scenarios and tenant-specific configuration.
   - Build a **custom `UserDetails`** principal that carries `userId` (database PK) alongside `username`, enabling precise ownership checks in controllers.
   - Add `@PreAuthorize` expressions for MFA management: users can only manage their own MFA; `ROLE_ADMIN` or `ROLE_TENANT_ADMIN` can manage any user's MFA.
   - Role-gate the tenant-wide MFA policy endpoint (`PUT /api/v1/settings/mfa-policy`) to `ROLE_TENANT_ADMIN` only.
+  - **Tenant Portal UI & Backend Endpoint Segregation (In Progress):**
+    - Enable Spring Security `oauth2ResourceServer` in `auth-iam-service` to validate JWTs.
+    - Add `@PreAuthorize("hasRole('TENANT_ADMIN')")` restrictions on `UserController`, `TenantSettingsController`, etc.
+    - Implement an Angular Route Guard (`admin.guard`) on the frontend to dynamically hide Dashboard/Users/Settings views from normal users.
+  - **Master Service Network Isolation (Do some validation before proceed):**
+    - Explicitly maintain `.permitAll()` in `auth-master-service` core controllers (`GlobalAccountController`, `TenantRegistrationController`).
+    - Enforce security natively using VPC Network level isolation (internal routing / ingress blocks) to speed up Phase 4 delivery without M2M overhead.
 - **Dynamic Client Management System:**
   - Wrap the `RegisteredClientRepository` with APIs for tenant administrators.
   - Allow tenants to self-serve dynamic creation of their own OAuth2 clients (M2M tokens, SPAs) and rotate client secrets.
@@ -118,6 +130,9 @@ Enable complex B2B scenarios and tenant-specific configuration.
   - **Tenant Level:** Acts as a global master switch to lock down an entire workspace if necessary (e.g., strict internal B2B environments).
   - **Client Level:** Store granular toggles directly in OAuth2 `ClientSettings` (e.g., allowing "Create Account" on a public mobile app, but disabling it on an internal employee portal).
   - **Concrete Example:** Implement the toggle for *Self-Service Account Deletion* (defined in Phase 1) here to allow admins to control user-data exit flows.
+- **Tenant-Selectable Captcha (Advanced):** 
+  - Expose UI settings for Tenant Admins to choose their preferred security challenge (Math, Google reCAPTCHA, or Cloudflare Turnstile).
+  - Update the dynamic login rendering pipeline to inject the chosen captcha provider based on tenant configuration.
 - **Dynamic Registration Schemas & Custom User Attributes:**
   - Facilitate dynamic onboarding by allowing administrators to configure custom fields (e.g., mobile, company code, employee ID) per client/tenant using a JSON schema.
   - **Schema Validation Workflow:** 
@@ -168,6 +183,9 @@ Mature the product to fit into wider enterprise ecosystems.
   - **Integration Tests (`@SpringBootTest` + Testcontainers):** Boot individual services against real MySQL and Redis containers (via Testcontainers) to validate database interactions, Liquibase migrations, and Redis Pub/Sub event publishing.
   - **End-to-End Tests (REST Assured in `auth-e2e-tests`):** Orchestrate full cross-service flow tests (User Registration → Redis Event → Notification Listener → Email Sent) by hitting live HTTP endpoints of all running services. Generate HTML test reports for CI/CD pipelines.
   - **Contract Testing:** Validate that the `ApiResponse<T>` envelope and event DTOs (`EmailVerificationEvent`) remain backward-compatible across all modules.
+- **Zero-Trust Master Service Hardening (SOC2 Compliance readiness) (Do some validation before proceed):**
+  - Upgrade `auth-master-service` from simple VPC network isolation (Phase 4) to formal OAuth2 Resource Server protocols.
+  - Enforce M2M `client_credentials` validation via `auth-server-core` tokens using a `system-admin` scope strictly for administrative microservice routes (`/admin/tenant`, `/admin/accounts/register`).
 - **SCIM 2.0 Directory Sync Provisioning:**
   - Expose API endpoints compliant with the System for Cross-domain Identity Management (SCIM) standard.
   - Enable massive enterprise tenants to automatically sync (create/update/disable) their employees directly from Azure AD, Okta, or Google Workspace into Authenza.
@@ -195,6 +213,15 @@ Empower tenant developers to integrate deeply with the Authenza platform.
 - **Just-In-Time (JIT) Legacy User Migration:**
   - Facilitate frictionless onboarding for massive B2B tenants migrating from legacy identity systems.
   - Intercept login workflows to validate user passwords against the tenant's exact legacy API in real-time, seamlessly securing and migrating the user into the native Authenza database.
+- **Professional Notification Engine (BYO-SMTP):**
+  - **Provider Marketplace Architecture:** Support standard providers (Amazon SES, SendGrid, Gmail, Microsoft 365) via a plugin-based strategy pattern.
+  - **Bring-Your-Own-SMTP (BYO-SMTP):** Allow tenants to securely provide their own credentials, enabling them to maintain their own IP reputation and email deliverability.
+  - **Zero-Knowledge Credential Management:** Use Per-Tenant Envelope Encryption to secure SMTP passwords at rest using a Platform Master Key.
+  - **The "Auth0+" Experience:**
+    - **In-Browser Sandbox:** Provide a "Test Connection" UI for real-time validation of SMTP handshakes and DKIM/SPF health checks.
+    - **Regional Binding:** Allow tenants to choose specific geo-regions (e.g., AWS Frankfurt vs. N. Virginia) for email dispatch to satisfy local data residency requirements.
+    - **Auto-Failover Logic:** Automatically route critical system emails through the "Platform Default" account if a tenant's custom SMTP account becomes unreachable.
+  - **Liquid/Handlebars Templating:** Empower tenants to design and host their own HTML email templates within their isolated storage.
 
 ---
 

@@ -7,6 +7,8 @@ app:
     username: root
     password: sjain@123
     driverClassName: com.mysql.cj.jdbc.Driver
+  system-tenant:
+    url: jdbc:mysql://localhost:3306/system_admin?createDatabaseIfNotExist=true&allowPublicKeyRetrieval=true
 
 spring:
   data:

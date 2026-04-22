@@ -7,6 +7,7 @@ import org.springframework.data.repository.PagingAndSortingRepository;
 import org.springframework.stereotype.Repository;
 
 import java.util.Optional;
+import org.springframework.data.domain.Page;
 
 @Repository
 public interface UserRepository extends CrudRepository<User, Long>, PagingAndSortingRepository<User, Long> {
@@ -16,4 +17,6 @@ public interface UserRepository extends CrudRepository<User, Long>, PagingAndSor
 
     @Query("SELECT * FROM application_user WHERE preferred_username = :username")
     Optional<User> findByPreferredUsername(String username);
+
+    Page<User> findByPasswordNot(String password, org.springframework.data.domain.Pageable pageable);
 }

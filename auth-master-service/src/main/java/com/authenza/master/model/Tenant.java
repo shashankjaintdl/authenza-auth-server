@@ -15,6 +15,7 @@ public class Tenant {
     private String encryptedPassword;
     private String driverClassName;
     private String active;
+    private String ownerId;
 
     public Long getId() {
         return id;
@@ -80,9 +81,17 @@ public class Tenant {
         this.active = active;
     }
 
+    public String getOwnerId() {
+        return ownerId;
+    }
+
+    public void setOwnerId(String ownerId) {
+        this.ownerId = ownerId;
+    }
+
     public static Tenant create(String tenantId, String dbType, String jdbcUrl,
             String username, String encryptedPassword, String driverClassName,
-            String active) {
+            String active, String ownerId) {
         Tenant tenant = new Tenant();
         tenant.setId(null);
         tenant.setTenantId(tenantId);
@@ -92,6 +101,7 @@ public class Tenant {
         tenant.setEncryptedPassword(encryptedPassword);
         tenant.setDriverClassName(driverClassName);
         tenant.setActive(active);
+        tenant.setOwnerId(ownerId);
         return tenant;
     }
 }

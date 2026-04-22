@@ -6,7 +6,8 @@ import jakarta.validation.constraints.NotBlank;
 /**
  * DTO for the admin user invitation endpoint.
  * The admin provides the invitee's email and name.
- * No password is set at this stage — the invited user sets it via the invitation link.
+ * No password is set at this stage — the invited user sets it via the
+ * invitation link.
  */
 public class InviteUserRequest {
 

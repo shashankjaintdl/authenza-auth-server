@@ -5,6 +5,7 @@ import com.authenza.common.dto.ApiResponse;
 import com.authenza.iam.dto.SessionResponse;
 import com.authenza.iam.service.SessionService;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -58,6 +59,7 @@ public class SessionController {
      * }</pre>
      */
     @GetMapping
+    @PreAuthorize("hasAuthority('audit:read') or principal.id == #userId")
     public ResponseEntity<ApiResponse<List<SessionResponse>>> listSessions(
             @PathVariable Long userId) {
         List<SessionResponse> sessions = sessionService.listActiveSessions(userId);
@@ -77,6 +79,7 @@ public class SessionController {
      * <pre>DELETE /api/v1/users/{userId}/sessions/{sessionId}</pre>
      */
     @DeleteMapping("/{sessionId}")
+    @PreAuthorize("hasAuthority('user:delete') or principal.id == #userId")
     public ResponseEntity<ApiResponse<Map<String, Object>>> revokeSession(
             @PathVariable Long userId,
             @PathVariable Long sessionId) {
@@ -97,6 +100,7 @@ public class SessionController {
      * <pre>DELETE /api/v1/users/{userId}/sessions</pre>
      */
     @DeleteMapping
+    @PreAuthorize("hasAuthority('user:delete') or principal.id == #userId")
     public ResponseEntity<ApiResponse<Map<String, Object>>> revokeAllSessions(
             @PathVariable Long userId) {
         int count = sessionService.revokeAllSessions(userId);

@@ -76,7 +76,10 @@ public final class TenantAwareRegisteredClientRepository implements RegisteredCl
 
     private RegisteredClient toObject(TenantRegisteredClient client) {
         Set<String> clientAuthenticationMethods = StringUtils.commaDelimitedListToSet(client.getClientAuthenticationMethods());
-        Set<String> clientScopes = StringUtils.commaDelimitedListToSet(client.getScopes());
+        // Trim each scope to guard against accidental whitespace stored in the DB
+        Set<String> clientScopes = StringUtils.commaDelimitedListToSet(client.getScopes())
+                .stream().map(String::trim).filter(s -> !s.isEmpty())
+                .collect(java.util.stream.Collectors.toSet());
         Set<String> authorizationGrantTypes = StringUtils.commaDelimitedListToSet(client.getAuthorizationGrantTypes());
         Set<String> redirectUris = StringUtils.commaDelimitedListToSet(client.getRedirectUris());
         Set<String> postLogoutRedirectUris = StringUtils.commaDelimitedListToSet(client.getPostLogoutRedirectUris());

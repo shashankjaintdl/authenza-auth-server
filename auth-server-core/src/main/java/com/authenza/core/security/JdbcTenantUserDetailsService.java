@@ -2,6 +2,7 @@ package com.authenza.core.security;
 
 import com.authenza.adapter.context.TenantContextHolder;
 import com.authenza.adapter.cache.TenantSettingsCache;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
@@ -9,6 +10,8 @@ import org.springframework.security.core.userdetails.User;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 import javax.sql.DataSource;
@@ -33,15 +36,24 @@ import java.util.Set;
 @Service
 public class JdbcTenantUserDetailsService implements UserDetailsService {
 
+    private static final Logger log = LoggerFactory.getLogger(JdbcTenantUserDetailsService.class);
+
     private final JdbcTemplate jdbcTemplate;
+    // Master datasource for Option B login fallback — resolves BCrypt hash
+    // for passwordless shadow admin users from global_accounts.
+    private final JdbcTemplate masterJdbcTemplate;
     private final BruteForceProtectionService bruteForceProtectionService;
     private final TenantSettingsCache settingsCache;
 
-    public JdbcTenantUserDetailsService(DataSource dataSource,
+    public JdbcTenantUserDetailsService(
+            DataSource dataSource,
+            @Qualifier("masterDataSource") DataSource masterDataSource,
             BruteForceProtectionService bruteForceProtectionService,
             TenantSettingsCache settingsCache) {
-        // The dataSource injected here is natively tenant-aware.
+        // The primary dataSource is natively tenant-aware (RoutingDataSource).
         this.jdbcTemplate = new JdbcTemplate(dataSource);
+        // The master datasource is fixed — always points to the master registry DB.
+        this.masterJdbcTemplate = new JdbcTemplate(masterDataSource);
         this.bruteForceProtectionService = bruteForceProtectionService;
         this.settingsCache = settingsCache;
     }
@@ -112,9 +124,29 @@ public class JdbcTenantUserDetailsService implements UserDetailsService {
         boolean accountNonExpired = true;
         boolean credentialsNonExpired = true;
 
+        // ── Option B: Passwordless Shadow Admin Login Fallback ──────────────────
+        // If the shadow user's password is the sentinel [GLOBAL_ACCOUNT], this is a global admin whose
+        // credential is stored exclusively in global_accounts (master DB).
+        // We resolve it here so Spring Security can verify it normally.
+        String resolvedPassword = base.password;
+        if ("[GLOBAL_ACCOUNT]".equals(resolvedPassword)) {
+            List<String> globalPwd = masterJdbcTemplate.query(
+                "SELECT password_hash FROM global_accounts WHERE email = ? LIMIT 1",
+                (rs, i) -> rs.getString("password_hash"),
+                username
+            );
+            if (globalPwd.isEmpty()) {
+                throw new UsernameNotFoundException(
+                    "Shadow admin '" + username + "' has no password and no global_accounts record.");
+            }
+            resolvedPassword = globalPwd.get(0);
+            log.debug("Option B fallback: resolved BCrypt hash from global_accounts for '{}'", username);
+        }
+        // ───────────────────────────────────────────────────────────────────────
+
         return User.builder()
                 .username(base.username)
-                .password(base.password)
+                .password(resolvedPassword)
                 .authorities(new ArrayList<>(authorities))
                 .disabled(!enabled)
                 .accountLocked(!accountNonLocked)

@@ -15,4 +15,10 @@ dependencies {
 
     // Liquibase for programmatic schema migrations
     implementation 'org.liquibase:liquibase-core'
+
+    // BCrypt password hashing for global_accounts
+    implementation 'org.springframework.boot:spring-boot-starter-security'
+
+    // Bean validation for GlobalAccountRequest (@NotBlank, @Email, etc.)
+    implementation 'org.springframework.boot:spring-boot-starter-validation'
 }

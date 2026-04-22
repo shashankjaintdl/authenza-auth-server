@@ -11,6 +11,7 @@ import com.authenza.iam.dto.MfaSetupResponse;
 import com.authenza.iam.dto.PasswordResetRequest;
 import com.authenza.iam.dto.UpdateProfileRequest;
 import com.authenza.iam.dto.UserRegistrationRequest;
+import com.authenza.iam.dto.AdminUserCreateRequest;
 import com.authenza.iam.dto.UserResponse;
 import com.authenza.iam.service.MfaService;
 import com.authenza.iam.service.UserService;
@@ -18,6 +19,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import jakarta.validation.Valid;
 import org.springframework.data.domain.Page;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -47,7 +49,20 @@ public class UserController {
                                 .body(apiResponse);
         }
 
+        @PostMapping("/create")
+        // @PreAuthorize("hasAuthority('user:create')")
+        public ResponseEntity<ApiResponse<UserResponse>> createUser(
+                        @Valid @RequestBody AdminUserCreateRequest request) throws JsonProcessingException {
+                UserResponse response = userService.createUser(request);
+                ApiResponse<UserResponse> apiResponse = ApiResponse.created(response,
+                                "User created successfully by administrator.");
+                return ResponseEntity
+                                .status(apiResponse.getStatus())
+                                .body(apiResponse);
+        }
+
         @GetMapping
+        // @PreAuthorize("hasAuthority('audit:read')")
         public ResponseEntity<ApiResponse<List<UserResponse>>> getUsers(
                         @RequestParam(name = "currentPage", defaultValue = "0", required = false) int currentPage,
                         @RequestParam(name = "itemsPerPage", defaultValue = "10", required = false) int itemsPerPage,
@@ -55,7 +70,8 @@ public class UserController {
                         @RequestParam(name = "sortBy", defaultValue = "createdAt", required = false) String sortBy) {
                 DatabaseHelper databaseHelper = new DatabaseHelper(currentPage, itemsPerPage, sortBy, sortOrder);
                 Page<UserResponse> users = userService.getUsers(databaseHelper);
-                ApiResponse<List<UserResponse>> apiResponse = ApiResponse.paginated(users, "Users retrieved successfully.");
+                ApiResponse<List<UserResponse>> apiResponse = ApiResponse.paginated(users,
+                                "Users retrieved successfully.");
                 return ResponseEntity.ok(apiResponse);
         }
 
@@ -141,6 +157,7 @@ public class UserController {
          * Creates a user in INVITED status and sends a one-time invitation email.
          */
         @PostMapping("/invite")
+        // @PreAuthorize("hasAuthority('user:create')")
         public ResponseEntity<ApiResponse<UserResponse>> inviteUser(
                         @Valid @RequestBody InviteUserRequest request,
                         @RequestHeader(value = "X-Inviter-Name", defaultValue = "Admin") String inviterName)
@@ -211,6 +228,7 @@ public class UserController {
          * This is the self-service deletion flow for GDPR/CCPA compliance.
          */
         @DeleteMapping("/{userId}")
+        // @PreAuthorize("hasAuthority('user:delete') or principal.id == #userId")
         public ResponseEntity<ApiResponse<String>> deleteAccount(@PathVariable Long userId) {
                 userService.deleteAccount(userId);
                 return ResponseEntity.ok(
@@ -227,6 +245,7 @@ public class UserController {
          * automatic lockout window to expire.
          */
         @PostMapping("/{userId}/unlock")
+        // @PreAuthorize("hasAuthority('user:create')")
         public ResponseEntity<ApiResponse<String>> unlockUser(@PathVariable Long userId) {
                 userService.unlockUser(userId);
                 return ResponseEntity.ok(
@@ -241,6 +260,7 @@ public class UserController {
          * @param body   JSON body: {@code { "email": "new@acme.com" }}
          */
         @PatchMapping("/{userId}/email")
+        // @PreAuthorize("hasAuthority('user:create')")
         public ResponseEntity<ApiResponse<UserResponse>> updateEmail(
                         @PathVariable Long userId,
                         @RequestBody Map<String, String> body) {
@@ -268,7 +288,8 @@ public class UserController {
         public ResponseEntity<ApiResponse<MfaSetupResponse>> setupMfa(@PathVariable Long userId) {
                 MfaSetupResponse setupResponse = mfaService.setupMfa(userId);
                 return ResponseEntity.ok(
-                                ApiResponse.success(setupResponse, "MFA setup initiated. Scan the QR code and confirm with a valid code."));
+                                ApiResponse.success(setupResponse,
+                                                "MFA setup initiated. Scan the QR code and confirm with a valid code."));
         }
 
         /**

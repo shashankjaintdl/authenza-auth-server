@@ -38,9 +38,9 @@ public class SecurityConfig {
     private final SessionRecordingService sessionRecordingService;
 
     public SecurityConfig(BruteForceProtectionService bruteForceProtectionService,
-                          JdbcTenantUserDetailsService userDetailsService,
-                          MfaAuthenticationFilter mfaAuthenticationFilter,
-                          SessionRecordingService sessionRecordingService) {
+            JdbcTenantUserDetailsService userDetailsService,
+            MfaAuthenticationFilter mfaAuthenticationFilter,
+            SessionRecordingService sessionRecordingService) {
         this.bruteForceProtectionService = bruteForceProtectionService;
         this.userDetailsService = userDetailsService;
         this.mfaAuthenticationFilter = mfaAuthenticationFilter;
@@ -190,9 +190,11 @@ public class SecurityConfig {
     /**
      * Custom failure handler that:
      * <ol>
-     *   <li>Records the failed attempt via {@link BruteForceProtectionService}.</li>
-     *   <li>Redirects to {@code /{tenantId}/login?locked} if the account was just locked.</li>
-     *   <li>Redirects to {@code /{tenantId}/login?error} for an ordinary bad-credential failure.</li>
+     * <li>Records the failed attempt via {@link BruteForceProtectionService}.</li>
+     * <li>Redirects to {@code /{tenantId}/login?locked} if the account was just
+     * locked.</li>
+     * <li>Redirects to {@code /{tenantId}/login?error} for an ordinary
+     * bad-credential failure.</li>
      * </ol>
      */
     @Bean
@@ -244,11 +246,9 @@ public class SecurityConfig {
         return null;
     }
 
-
     @Bean
     public PasswordEncoder passwordEncoder() {
         return PasswordEncoderFactories.createDelegatingPasswordEncoder();
     }
-
 
 }

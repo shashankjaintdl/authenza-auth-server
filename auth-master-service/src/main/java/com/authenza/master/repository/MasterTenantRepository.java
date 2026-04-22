@@ -14,4 +14,7 @@ public interface MasterTenantRepository extends ListCrudRepository<Tenant, Long>
 
     // Check if a tenant exists before initialization
     boolean existsByTenantId(String tenantId);
+
+    // Used by portal to fetch tenants owned by logged in user
+    java.util.List<Tenant> findByOwnerId(String ownerId);
 }

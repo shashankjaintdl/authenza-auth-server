@@ -24,21 +24,23 @@ public class MultiTenantSecurityFilter extends OncePerRequestFilter {
     private final TenantRoutingDataSource routingDataSource;
 
     public MultiTenantSecurityFilter(AuthorizationServerSettings settings,
-                                     TenantRoutingDataSource routingDataSource) {
+            TenantRoutingDataSource routingDataSource) {
         this.settings = settings;
         this.routingDataSource = routingDataSource;
     }
 
     @Override
     protected void doFilterInternal(HttpServletRequest request,
-                                    HttpServletResponse response,
-                                    FilterChain filterChain)
+            HttpServletResponse response,
+            FilterChain filterChain)
             throws ServletException, IOException {
 
         String uri = request.getRequestURI();
 
-        // Skip validation for error pages and static resources to avoid redirect loops
-        if (uri.startsWith("/error") || uri.startsWith("/images") || uri.startsWith("/css") || uri.startsWith("/js") || uri.startsWith("/favicon.ico")) {
+        // Skip validation for error pages, static resources, and root metadata to avoid
+        // redirect loops
+        if (uri.startsWith("/error") || uri.startsWith("/images") || uri.startsWith("/css") || uri.startsWith("/js")
+                || uri.startsWith("/favicon.ico")) {
             filterChain.doFilter(request, response);
             return;
         }
@@ -66,7 +68,9 @@ public class MultiTenantSecurityFilter extends OncePerRequestFilter {
 
             AuthorizationServerContext authContext = new AuthorizationServerContext() {
                 @Override
-                public String getIssuer() { return issuer; }
+                public String getIssuer() {
+                    return issuer;
+                }
 
                 @Override
                 public AuthorizationServerSettings getAuthorizationServerSettings() {
@@ -87,10 +91,12 @@ public class MultiTenantSecurityFilter extends OncePerRequestFilter {
     }
 
     private String resolveTenantId(String uri) {
-        if (uri == null || uri.equals("/")) return null;
+        if (uri == null || uri.equals("/"))
+            return null;
         String[] parts = uri.split("/");
         for (String part : parts) {
-            if (!part.isEmpty()) return part;
+            if (!part.isEmpty())
+                return part;
         }
         return null;
     }

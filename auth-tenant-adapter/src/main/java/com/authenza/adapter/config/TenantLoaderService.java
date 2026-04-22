@@ -26,8 +26,11 @@ public class TenantLoaderService {
 
     /**
      * Executes automatically after the application context is ready.
+     * Guaranteed to execute FIRST so that connection pools are ready
+     * for any other initializers (like SuperAdminClientInitializer).
      */
     @EventListener(ApplicationReadyEvent.class)
+    @org.springframework.core.annotation.Order(org.springframework.core.Ordered.HIGHEST_PRECEDENCE)
     public void loadAllTenantsOnStartup() {
         JdbcTemplate jdbcTemplate = new JdbcTemplate(masterDataSource);
         String sql = "SELECT tenant_id, jdbc_url, username, encrypted_password, driver_class_name FROM tenants";
