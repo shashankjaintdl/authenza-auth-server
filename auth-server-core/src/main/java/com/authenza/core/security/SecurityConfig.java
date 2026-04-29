@@ -21,6 +21,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.AuthenticationFailureHandler;
 import org.springframework.security.web.authentication.SavedRequestAwareAuthenticationSuccessHandler;
+import org.springframework.security.web.context.HttpSessionSecurityContextRepository;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.security.web.savedrequest.HttpSessionRequestCache;
 import org.springframework.security.web.savedrequest.SavedRequest;
@@ -71,6 +72,7 @@ public class SecurityConfig {
                                 // MFA challenge and setup pages — session-gated by their controllers
                                 .requestMatchers("/{tenantId}/mfa-verify").permitAll()
                                 .requestMatchers("/{tenantId}/mfa-setup").permitAll()
+                                .requestMatchers("/{tenantId}/force-password-change").permitAll()
                                 .requestMatchers("/{tenantId}/api/**").permitAll()
                                 .requestMatchers("/error/**").permitAll()
                                 .requestMatchers("/images/**", "/css/**", "/js/**", "/favicon.ico").permitAll()
@@ -132,6 +134,20 @@ public class SecurityConfig {
 
                 String username = authentication.getName();
 
+                // ── Force Password Change gate: if admin set a temporary password ──
+                if (userDetailsService.isPasswordChangeRequired(username)) {
+                    SecurityContextHolder.clearContext();
+                    HttpSession forceChangeSession = request.getSession(true);
+                    forceChangeSession.removeAttribute(HttpSessionSecurityContextRepository.SPRING_SECURITY_CONTEXT_KEY);
+                    forceChangeSession.setAttribute("PENDING_PASSWORD_CHANGE_USERNAME", username);
+                    forceChangeSession.setAttribute("PENDING_PASSWORD_CHANGE_TENANT", tenantId);
+                    Long userId = userDetailsService.loadUserId(username);
+                    forceChangeSession.setAttribute("PENDING_PASSWORD_CHANGE_USER_ID", userId);
+
+                    response.sendRedirect("/" + tenantId + "/force-password-change");
+                    return;
+                }
+
                 // ── MFA gate: if MFA is enabled for this user, do NOT complete auth yet ──
                 // Store the pending state in session and redirect to the TOTP challenge page.
                 // The SecurityContext is NOT set here — MfaAuthenticationFilter will do it
@@ -141,6 +157,7 @@ public class SecurityConfig {
                     // so the user is not treated as logged-in yet
                     SecurityContextHolder.clearContext();
                     HttpSession mfaSession = request.getSession(true);
+                    mfaSession.removeAttribute(HttpSessionSecurityContextRepository.SPRING_SECURITY_CONTEXT_KEY);
                     mfaSession.setAttribute(MfaAuthenticationFilter.PENDING_MFA_USERNAME, username);
                     mfaSession.setAttribute(MfaAuthenticationFilter.PENDING_MFA_TENANT, tenantId);
                     // Also store userId for the setup flow (needed to call IAM API)

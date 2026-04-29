@@ -10,72 +10,141 @@ dependencies {
     // ── Liquibase Gradle Plugin Runtime ──
     liquibaseRuntime 'org.liquibase:liquibase-core:4.24.0'
     liquibaseRuntime 'info.picocli:picocli:4.7.5'
+
+    // JDBC drivers — required for offline dialect-correct SQL generation
     liquibaseRuntime 'com.mysql:mysql-connector-j:8.0.33'
+    liquibaseRuntime 'org.postgresql:postgresql:42.7.3'
+    liquibaseRuntime 'com.microsoft.sqlserver:mssql-jdbc:12.6.1.jre11'
+    // Note: Oracle ojdbc11 must be downloaded separately from Oracle Maven or manually
+    // liquibaseRuntime 'com.oracle.database.jdbc:ojdbc11:23.4.0.24.05'
 }
 
 import org.gradle.api.tasks.JavaExec
 
-// Register a task that iterates through all XMLs and calls javaexec to liquibase
-tasks.register('generateMigrationScripts') {
+/**
+ * generateSqlReports
+ *
+ * Generates dialect-correct SQL scripts from the single Liquibase XML source for
+ * every supported database engine. Output is written to:
+ *
+ *   build/reports/sql/{db-type}/{initialization|migration}/.../{file}.sql
+ *
+ * Supported databases   Offline URL token
+ * ─────────────────     ─────────────────
+ *   MySQL               offline:mysql
+ *   PostgreSQL          offline:postgresql
+ *   Oracle              offline:oracle
+ *   MSSQL               offline:mssql
+ *
+ * Usage:
+ *   ./gradlew :auth-tenant-schema:generateSqlReports
+ */
+tasks.register('generateSqlReports') {
     group = 'liquibase'
-    description = 'Generates individual SQL files mirroring the XML tree'
+    description = 'Generates dialect-specific SQL mirroring the XML folder structure for MySQL, PostgreSQL, Oracle, and MSSQL'
 
     def changelogDir = project.file('src/main/resources/db/changelog')
-    def outDir = project.file('build/reports/liquibase')
+    def resourcesDir = project.file('src/main/resources')
+    def outBaseDir   = project.file('build/reports/sql')
+    def tmpDir       = project.file('build/tmp/liquibase-csv')
+
+    // Map: folder name → Liquibase offline URL token
+    def databases = [
+        'mysql'     : 'offline:mysql',
+        'postgresql': 'offline:postgresql',
+        'oracle'    : 'offline:oracle',
+        'mssql'     : 'offline:mssql'
+    ]
 
     doLast {
         def cp = project.configurations.liquibaseRuntime
-        
-        fileTree(dir: changelogDir, include: '**/*.xml', exclude: '**/db.changelog*.xml').each { File file ->
-            def relativePath = changelogDir.toPath().relativize(file.toPath()).toString()
-            def outSqlPath = new File(outDir, relativePath.replace('.xml', '.sql'))
-            
-            // Ensure parent dirs exist
-            outSqlPath.parentFile.mkdirs()
 
-            // Delete the offline tracking CSV so Liquibase thinks the DB is always blank
-            def csvState = project.file('databasechangelog.csv')
-            if (csvState.exists()) csvState.delete()
+        // Collect all individual XML files — exclude root changelog aggregators
+        def xmlFiles = fileTree(
+            dir    : changelogDir,
+            include: '**/*.xml',
+            exclude: '**/db.changelog*.xml'
+        ).files.sort { it.absolutePath }  // stable ordering
 
-            println "- Generating SQL for ${relativePath} -> ${outSqlPath.absolutePath}"
-            
-            project.javaexec {
-                classpath = cp + project.files('src/main/resources')
-                mainClass = 'liquibase.integration.commandline.Main'
-                args = [
-                    "--url=offline:mysql",
-                    "--changeLogFile=db/changelog/${relativePath}",
-                    "updateSQL"
-                ]
-                standardOutput = new FileOutputStream(outSqlPath)
+        databases.each { dbName, offlineUrl ->
+            println "\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+            println "  Generating SQL for: ${dbName.toUpperCase()}"
+            println "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
+            xmlFiles.each { File file ->
+                def relativePath = changelogDir.toPath().relativize(file.toPath()).toString()
+                def outSqlFile   = new File(outBaseDir, "${dbName}/${relativePath.replace('.xml', '.sql')}")
+                outSqlFile.parentFile.mkdirs()
+
+                // ★ Key fix: each file+db combination gets its own isolated CSV
+                // so Liquibase always starts from a blank-slate and generates real SQL.
+                def safeName = relativePath.replaceAll('[/\\\\:*?"<>|]', '_')
+                def csvFile  = new File(tmpDir, "${dbName}/${safeName}.csv")
+                csvFile.parentFile.mkdirs()
+                if (csvFile.exists()) csvFile.delete()
+
+                // Embed the unique CSV path inside the offline URL
+                def fullUrl = "${offlineUrl}?changeLogFile=${csvFile.absolutePath.replace('\\', '/')}"
+
+                println "  → ${relativePath}"
+
+                try {
+                    project.javaexec {
+                        classpath      = cp + project.files(resourcesDir)
+                        mainClass      = 'liquibase.integration.commandline.Main'
+                        args           = [
+                            "--url=${fullUrl}",
+                            "--changeLogFile=db/changelog/${relativePath}",
+                            "updateSQL"
+                        ]
+                        standardOutput = new FileOutputStream(outSqlFile)
+                        errorOutput    = System.err
+                    }
+
+                    // Strip Liquibase internal tracking boilerplate from output
+                    def cleanLines = outSqlFile.readLines().findAll { line ->
+                        String upper = line.toUpperCase()
+                        !(upper.contains('DATABASECHANGELOG') ||
+                          upper.contains('DATABASECHANGELOGLOCK') ||
+                          upper.contains('RELEASE DATABASE LOCK') ||
+                          upper.contains('LOCK GRANTED'))
+                    }
+                    outSqlFile.text = cleanLines.join('\n').replaceAll('(?m)^\\s*\n', '')
+
+                } catch (Exception e) {
+                    println "  ⚠ Skipped ${relativePath} for ${dbName}: ${e.message}"
+                }
             }
-
-            // Cleanup the file metadata
-            def cleanLines = outSqlPath.readLines().findAll { line ->
-                String upper = line.toUpperCase()
-                !(upper.contains("DATABASECHANGELOG") ||
-                  upper.contains("DATABASECHANGELOGLOCK") ||
-                  upper.contains("RELEASE DATABASE LOCK") ||
-                  upper.contains("LOCK GRANTED"))
-            }
-            outSqlPath.text = cleanLines.join("\n").replaceAll("(?m)^\\s*\n", "")
         }
-        println "DONE! Check build/reports/liquibase/"
+
+        println "\n✅ Done! Reports are in: ${outBaseDir.absolutePath}"
+        println "   Structure:"
+        println "     build/reports/sql/"
+        println "     ├── mysql/"
+        println "     │   ├── initialization/"
+        println "     │   │   ├── ddl.sql"
+        println "     │   │   ├── dml.sql"
+        println "     │   │   └── tenant/ ddl.sql, dml.sql"
+        println "     │   └── migration/"
+        println "     │       └── tenant/ V0.0.1/ddl.sql ... V0.0.9/ddl.sql"
+        println "     ├── postgresql/  (same)"
+        println "     ├── oracle/      (same)"
+        println "     └── mssql/       (same)"
     }
 }
 
-// Keep the standard master definition available if needed
+// ── Keep the existing MySQL live-DB task for local dev ────────────────────────
 liquibase {
     activities {
         master {
             changelogFile "src/main/resources/db/changelog/master/db.changelog-master.xml"
-            url System.getenv("MASTER_DB_URL") ?: 'jdbc:mysql://localhost:3306/auth-master'
+            url      System.getenv("MASTER_DB_URL")  ?: 'jdbc:mysql://localhost:3306/auth-master'
             username System.getenv("MASTER_DB_USER") ?: 'root'
             password System.getenv("MASTER_DB_PASS") ?: 'sjain@123'
-            driver "com.mysql.cj.jdbc.Driver"
+            driver   "com.mysql.cj.jdbc.Driver"
             outputFile 'build/reports/liquibase/master_update.sql'
-            logLevel 'info'
-            logFile 'build/reports/liquibase/liquibase.log'
+            logLevel   'info'
+            logFile    'build/reports/liquibase/liquibase.log'
         }
     }
 }

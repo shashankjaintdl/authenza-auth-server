@@ -66,6 +66,7 @@ public class AuthorizationServerConfig {
                 .authorizationServer();
 
         RequestMatcher tenantEndpointsMatcher = new OrRequestMatcher(
+                PathPatternRequestMatcher.withDefaults().matcher("/{tenantId}/userinfo"),
                 PathPatternRequestMatcher.withDefaults().matcher("/{tenantId}/oauth2/**"),
                 PathPatternRequestMatcher.withDefaults().matcher("/{tenantId}/connect/**"),
                 PathPatternRequestMatcher.withDefaults().matcher("/{tenantId}/.well-known/openid-configuration"));

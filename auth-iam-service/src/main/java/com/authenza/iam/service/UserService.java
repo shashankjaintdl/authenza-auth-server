@@ -135,10 +135,11 @@ public class UserService {
         // Enforce password policies
         PasswordPolicyValidator.validate(request.getPassword());
         user.setPassword(passwordEncoder.encode(request.getPassword()));
+        user.setRequiresPasswordChange(true);
 
         user.setEmailVerified(true); // Admin-created users are trusted by default in this flow
         user.setPhoneNumberVerified(false);
-        user.setStatus(UserStatus.ACTIVE);
+        user.setStatus(UserStatus.PENDING_VERIFICATION);
         user.setFailedLoginAttempts(0);
         user.setMfaEnabled(false);
         user.setCreatedAt(Instant.now());
@@ -309,6 +310,7 @@ public class UserService {
 
         // Update the password
         user.setPassword(passwordEncoder.encode(newPassword));
+        user.setRequiresPasswordChange(false);
         user.setPasswordChangedAt(Instant.now());
         user.setUpdatedAt(Instant.now());
         userRepository.save(user);
@@ -535,8 +537,17 @@ public class UserService {
                 .orElseThrow(() -> new ResourceNotFoundException("User not found."));
 
         // Verify the current password before allowing the change
-        if (!passwordEncoder.matches(request.getCurrentPassword(), user.getPassword())) {
-            throw new IllegalArgumentException("Current password is incorrect.");
+        try {
+            if (!passwordEncoder.matches(request.getCurrentPassword(), user.getPassword())) {
+                throw new IllegalArgumentException("Incorrect current password.");
+            }
+        } catch (IllegalArgumentException ex) {
+            if (ex.getMessage() != null && ex.getMessage().contains("password encoding prefix")) {
+                // If it lacks a prefix, it's an old legacy format and definitely won't match 
+                // the new delegating encoder logic. We treat it as incorrect.
+                throw new IllegalArgumentException("Incorrect current password.");
+            }
+            throw ex;
         }
 
         // Prevent setting the same password
@@ -548,11 +559,55 @@ public class UserService {
         PasswordPolicyValidator.validate(request.getNewPassword());
 
         user.setPassword(passwordEncoder.encode(request.getNewPassword()));
+        user.setRequiresPasswordChange(false);
         user.setPasswordChangedAt(Instant.now());
         user.setUpdatedAt(Instant.now());
         userRepository.save(user);
 
         log.info("Password changed for user '{}' in tenant '{}'",
+                user.getEmail(), TenantContextHolder.getTenantId());
+    }
+
+    /**
+     * Forces a password change for a user (e.g. after admin assigned a temporary password).
+     * Bypasses current password verification, but requires the requires_password_change flag to be true.
+     *
+     * @param userId      the user's database ID
+     * @param newPassword the new plaintext password
+     */
+    @Transactional
+    public void forceChangePassword(Long userId, String newPassword) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found."));
+
+        if (user.getRequiresPasswordChange() == null || !user.getRequiresPasswordChange()) {
+            throw new IllegalStateException("Password change is not currently forced for this user.");
+        }
+
+        // Prevent setting the same password
+        try {
+            if (user.getPassword() != null && passwordEncoder.matches(newPassword, user.getPassword())) {
+                throw new IllegalArgumentException("New password must be different from the temporary password.");
+            }
+        } catch (IllegalArgumentException ex) {
+            // DelegatingPasswordEncoder throws this if the current DB password lacks a {prefix}.
+            // If it lacks a prefix (like [GLOBAL_ACCOUNT] or legacy text), we safely assume 
+            // the new password is "different" and allow the change to proceed.
+            if (!ex.getMessage().contains("password encoding prefix")) {
+                throw ex;
+            }
+        }
+
+        // Enforce strict password policies
+        PasswordPolicyValidator.validate(newPassword);
+
+        user.setPassword(passwordEncoder.encode(newPassword));
+        user.setRequiresPasswordChange(false);
+        user.setPasswordChangedAt(Instant.now());
+        user.setUpdatedAt(Instant.now());
+        userRepository.save(user);
+
+        log.info("Forced password change completed for user '{}' in tenant '{}'",
                 user.getEmail(), TenantContextHolder.getTenantId());
     }
 

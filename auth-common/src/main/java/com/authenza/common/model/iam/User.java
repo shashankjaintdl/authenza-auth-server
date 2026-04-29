@@ -41,6 +41,7 @@ public class User{
     private Integer failedLoginAttempts;
     private Instant lockedUntil;
     private Instant passwordChangedAt;
+    private Boolean requiresPasswordChange;
     private Boolean mfaEnabled;
     /**
      * AES-256 encrypted, base32-encoded TOTP secret.
@@ -229,6 +230,14 @@ public class User{
 
     public void setPasswordChangedAt(Instant passwordChangedAt) {
         this.passwordChangedAt = passwordChangedAt;
+    }
+
+    public Boolean getRequiresPasswordChange() {
+        return requiresPasswordChange;
+    }
+
+    public void setRequiresPasswordChange(Boolean requiresPasswordChange) {
+        this.requiresPasswordChange = requiresPasswordChange;
     }
 
     public Boolean getMfaEnabled() {

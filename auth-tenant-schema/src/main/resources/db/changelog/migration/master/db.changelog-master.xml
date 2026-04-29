@@ -18,5 +18,9 @@
     <include file="V0.0.3/ddl.xml" relativeToChangelogFile="true"/>
     <!-- V0.0.4: Global Identity Registry — global_accounts + tenant_memberships -->
     <include file="V0.0.4/ddl.xml" relativeToChangelogFile="true"/>
+    <!-- V0.0.5: Tenant Organisation Metadata — account_type, org_name, employee_range -->
+    <include file="V0.0.5/ddl.xml" relativeToChangelogFile="true"/>
+    <!-- V0.0.6: Default Tenant Logic — is_default, last_accessed_at -->
+    <include file="V0.0.6/ddl.xml" relativeToChangelogFile="true"/>
 
 </databaseChangeLog>

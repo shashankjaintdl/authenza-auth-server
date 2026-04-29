@@ -36,6 +36,6 @@
 
     <!-- Uncomment in Phase 5 if a single entry point is ever needed -->
     <!-- <include file="master/db.changelog-initialization-master.xml" relativeToChangelogFile="true"/> -->
-    <!-- <include file="tenant/db.changelog-initialization-tenant.xml" relativeToChangelogFile="true"/> -->
+    <include file="tenant/db.changelog-initialization-tenant.xml" relativeToChangelogFile="true"/>
 
 </databaseChangeLog>

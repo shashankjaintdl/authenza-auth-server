@@ -25,7 +25,7 @@
     -->
 
     <!-- Uncomment in Phase 5 after migrating from migration/tenant/V0.0.1 -->
-    <!-- <include file="ddl.xml" relativeToChangelogFile="true"/> -->
-    <!-- <include file="dml.xml" relativeToChangelogFile="true"/> -->
+    <include file="ddl.xml" relativeToChangelogFile="true"/>
+    <include file="dml.xml" relativeToChangelogFile="true"/>
 
 </databaseChangeLog>

@@ -29,10 +29,15 @@ import java.util.Map;
 @RequestMapping("/admin/accounts")
 public class GlobalAccountController {
 
-    private final GlobalAccountService globalAccountService;
+    private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(GlobalAccountController.class);
 
-    public GlobalAccountController(GlobalAccountService globalAccountService) {
+    private final GlobalAccountService globalAccountService;
+    private final com.authenza.master.service.TenantProvisioningService tenantProvisioningService;
+
+    public GlobalAccountController(GlobalAccountService globalAccountService,
+                                   com.authenza.master.service.TenantProvisioningService tenantProvisioningService) {
         this.globalAccountService = globalAccountService;
+        this.tenantProvisioningService = tenantProvisioningService;
     }
 
     /**
@@ -46,6 +51,14 @@ public class GlobalAccountController {
     public ResponseEntity<GlobalAccountResponse> register(
             @Valid @RequestBody GlobalAccountRequest request) {
         GlobalAccountResponse response = globalAccountService.registerAccount(request);
+        
+        try {
+            com.authenza.master.model.GlobalAccount account = globalAccountService.findByEmailOrThrow(request.email());
+            tenantProvisioningService.seedShadowUserInSystemAdmin(account);
+        } catch (Exception e) {
+            log.warn("Failed to automatically seed shadow user into system-admin for new registry account", e);
+        }
+
         return ResponseEntity.status(201).body(response);
     }
 

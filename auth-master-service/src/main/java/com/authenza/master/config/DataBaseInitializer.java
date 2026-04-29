@@ -113,7 +113,11 @@ public class DataBaseInitializer implements CommandLineRunner {
                     username,
                     password,
                     driverClassName,
-                    superAdminEmail); // ownerId = global admin email
+                    superAdminEmail,  // ownerId = global admin email
+                    "PERSONAL",       // system-admin is a platform-internal tenant
+                    null,
+                    null,
+                    true); // isDefault
 
             this.provisioningService.onboardNewTenant(systemTenant);
             log.info("System tenant '{}' successfully provisioned with super-admin '{}'.",

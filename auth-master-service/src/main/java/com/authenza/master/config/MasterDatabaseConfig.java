@@ -6,6 +6,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.jdbc.DataSourceBuilder;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
@@ -54,9 +55,12 @@ public class MasterDatabaseConfig {
     }
 
     /**
-     * Standard Spring Security DelegatingPasswordEncoder for {@link com.authenza.master.service.GlobalAccountService}.
-     * This ensures the password stored in global_accounts includes the {bcrypt} prefix,
-     * which auth-server-core requires when verifying the password during Option B fallback.
+     * Standard Spring Security DelegatingPasswordEncoder for
+     * {@link com.authenza.master.service.GlobalAccountService}.
+     * This ensures the password stored in global_accounts includes the {bcrypt}
+     * prefix,
+     * which auth-server-core requires when verifying the password during Option B
+     * fallback.
      */
     @Bean
     public PasswordEncoder passwordEncoder() {
@@ -64,14 +68,33 @@ public class MasterDatabaseConfig {
     }
 
     /**
-     * auth-master-service is an internal API — security is enforced at the network/gateway level.
+     * auth-master-service is an internal API — security is enforced at the
+     * network/gateway level.
      * Disables Spring Security's default login page and CSRF for REST APIs.
      */
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http
-            .csrf(AbstractHttpConfigurer::disable)
-            .authorizeHttpRequests(auth -> auth.anyRequest().permitAll());
+                .cors(Customizer.withDefaults())
+                .csrf(AbstractHttpConfigurer::disable)
+                .authorizeHttpRequests(auth -> auth.anyRequest().permitAll());
         return http.build();
+    }
+
+    /**
+     * Allow cross-origin requests from the developer/SPA portals.
+     */
+    @Bean
+    public org.springframework.web.cors.CorsConfigurationSource corsConfigurationSource() {
+        org.springframework.web.cors.CorsConfiguration configuration = new org.springframework.web.cors.CorsConfiguration();
+        configuration.setAllowedOriginPatterns(java.util.Collections.singletonList("*")); // Allow any origin pattern
+                                                                                          // for dev
+        configuration
+                .setAllowedMethods(java.util.Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS", "HEAD", "PATCH"));
+        configuration.setAllowedHeaders(java.util.Arrays.asList("*"));
+        configuration.setAllowCredentials(true);
+        org.springframework.web.cors.UrlBasedCorsConfigurationSource source = new org.springframework.web.cors.UrlBasedCorsConfigurationSource();
+        source.registerCorsConfiguration("/**", configuration);
+        return source;
     }
 }

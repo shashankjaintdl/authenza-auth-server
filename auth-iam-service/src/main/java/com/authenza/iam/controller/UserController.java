@@ -224,6 +224,23 @@ public class UserController {
         }
 
         /**
+         * Completes a forced password change (e.g. after admin assigned a temporary password).
+         */
+        @PostMapping("/{userId}/force-change-password")
+        public ResponseEntity<ApiResponse<String>> forceChangePassword(
+                        @PathVariable Long userId,
+                        @RequestBody Map<String, String> body) {
+                String newPassword = body.get("newPassword");
+                if (newPassword == null || newPassword.isBlank()) {
+                        return ResponseEntity.badRequest()
+                                        .body(ApiResponse.error(400, "New password is required."));
+                }
+                userService.forceChangePassword(userId, newPassword);
+                return ResponseEntity.ok(
+                                ApiResponse.success("Password changed successfully."));
+        }
+
+        /**
          * Permanently deletes a user's account and all associated data.
          * This is the self-service deletion flow for GDPR/CCPA compliance.
          */

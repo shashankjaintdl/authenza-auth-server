@@ -64,6 +64,10 @@ Elevate platform security by protecting endpoints and validating identities.
 ## Phase 3: Deepening OAuth2 & OpenID Connect (OIDC) Integration
 Expand upon the Spring Authorization Server framework standardizing the token issuing processes.
 
+- **OpenID Connect (OIDF) Certification Base:**
+  - Run the platform against the official OpenID Foundation Conformance Test Suite.
+  - Target formal certification under the "Basic Provider", "Implicit", "Hybrid", and "Config" OpenID profiles.
+  - *Strategic differentiator:* Achieving official OIDF Certification definitively proves to Enterprise InfoSec teams that Authenza strictly adheres to global identity standards, immediately removing any "homegrown security" stigma.
 - **JWT Customization & Tenant Claims Context:**
   - Implement `OAuth2TokenCustomizer` to enrich Token claims.
   - Map the user's `tenant_id`, `roles`, and profile data directly into Access Tokens and ID Tokens.
@@ -112,18 +116,24 @@ Enable complex B2B scenarios and tenant-specific configuration.
   - **Tenant Portal UI & Backend Endpoint Segregation (In Progress):**
     - Enable Spring Security `oauth2ResourceServer` in `auth-iam-service` to validate JWTs.
     - Add `@PreAuthorize("hasRole('TENANT_ADMIN')")` restrictions on `UserController`, `TenantSettingsController`, etc.
-    - Implement an Angular Route Guard (`admin.guard`) on the frontend to dynamically hide Dashboard/Users/Settings views from normal users.
+    - Implement an Angular Route Guard (admin.guard) on the frontend to dynamically hide Dashboard/Users/Settings views from normal users.
+    - **Auth Server Client Access Control:** Implement a backend interceptor in `SecurityConfig` to strictly block token issuance for the `authenza-tenant-portal` client if the user lacks the `TENANT_ADMIN` role, redirecting back with an `error=access_denied` parameter for a clean UX.
   - **Master Service Network Isolation (Do some validation before proceed):**
     - Explicitly maintain `.permitAll()` in `auth-master-service` core controllers (`GlobalAccountController`, `TenantRegistrationController`).
     - Enforce security natively using VPC Network level isolation (internal routing / ingress blocks) to speed up Phase 4 delivery without M2M overhead.
+- **Enterprise Hierarchy (Sub-departments / Organizations):**
+  - Implement an `organizations` table inside the tenant database to support sub-branches (e.g., Acme NYC, Acme London).
+  - **Reason 1 (RBAC):** Before you have departments, you need a powerful Role-Based Access Control (RBAC) system. You'll want roles like "Department Manager" who can only see users in "Acme NYC" but not "Acme London".
+  - **Reason 2 (Context):** By this phase, your core login flow is rock solid, so adding an optional `org_id` context to the JWT is a simple upgrade.
 - **Dynamic Client Management System:**
   - Wrap the `RegisteredClientRepository` with APIs for tenant administrators.
   - Allow tenants to self-serve dynamic creation of their own OAuth2 clients (M2M tokens, SPAs) and rotate client secrets.
 - **Shared Session Storage (Redis Persistence):**
   - Enable High Availability (HA) by moving Spring Security's `HttpSession` storage from local RAM to a shared Redis cluster. This ensures that users stay logged in even if the backend server instance restarts or if traffic is routed to a different node.
-- **Dynamic Tenant Branding:**
+- **Unrestricted Tenant Branding & Custom Domains:**
   - Store tenant-specific UI Theme objects securely in the database (e.g., a JSON `branding_settings` column holding `logoUrl`, `primaryColor`, and `termsUrl`).
   - **Dynamic Rendering Pipeline:** Intercept the `tenantId` from the request, fetch the specific tenant's branding profile from the database, and dynamically inject the branding variables into the Thymeleaf models so custom logos and themes appear natively on `login.html` and `consent.html`.
+  - **Custom Domains (`auth.theircompany.com`):** Allow tenants to serve their login pages securely from their own fully branded subdomains, completely white-labeling the Authenza engine instead of just swapping a logo.
 - **Hierarchical Feature Toggles (Tenant & Client Level):**
   - Implement a hybrid security toggle system for capabilities like `allow_public_registration`.
   - Dynamically hide or show features like the "Create Account" option on the UI, and restrict the API accordingly based on tenant rules.
@@ -204,8 +214,15 @@ Mature the product to fit into wider enterprise ecosystems.
 ## Phase 6: Developer Experience (DX) & Extensibility
 Empower tenant developers to integrate deeply with the Authenza platform.
 
-- **Event Webhooks:**
-  - Fire asynchronous HTTP callbacks to tenant-configured URLs upon critical lifecycle events (`USER_REGISTERED`, `PASSWORD_CHANGED`, `TENANT_DELETED`).
+- **Seamless Local Development ("Authenza In A Box"):**
+  - Provide a highly polished `docker-compose.yml` and unified CLI experience so a company's developers can spin up the entire Authenza stack (Master DB, Redis, Auth Server, and Portal) locally on their laptop in seconds.
+  - *Strategic differentiator:* Developers cannot test Auth0 or Azure AD effectively without a live internet connection and navigating complex cloud sandbox environments. Authenza must run locally as flawlessly as it runs in production.
+- **Event Webhooks (Asynchronous):**
+  - Fire asynchronous HTTP callbacks to tenant-configured URLs upon critical lifecycle events (`USER_REGISTERED`, `PASSWORD_CHANGED`, `TENANT_DELETED`) for downstream auditing and data synchronization.
+- **Synchronous Logic Webhooks (The "Plugin Killer"):**
+  - Instead of forcing developers to write custom Javascript plugins inside the Auth engine (like Auth0 Actions), Authenza will pause during critical flows (e.g., `pre-login`) and make a synchronous HTTP call to the tenant's own external REST API.
+  - The tenant's API returns `{ "action": "ALLOW" }` or `{ "action": "DENY", "reason": "Invoice unpaid" }`.
+  - *Strategic differentiator:* Completely eliminates proprietary vendor lock-in. Developers can customize login workflows using any programming language hosted on their own infrastructure.
 - **Custom Claims Providers:**
   - Introduce an extensibility mechanism where tenant admins can register HTTP hooks that Authenza invokes during token minting to dynamically inject external claims.
 - **Machine-to-Machine (M2M) API Keys:**
@@ -228,8 +245,10 @@ Empower tenant developers to integrate deeply with the Authenza platform.
 ## Phase 7: Enterprise Compliance & Privacy
 Meet stringent global data privacy requirements (GDPR, CCPA).
 
-- **Data Export & Portability (Takeout):**
-  - Implement self-service APIs allowing users to request a complete JSON export of their profile, metadata, and activity history.
+- **Total Data Portability (The Anti-Lock-in Guarantee):**
+  - Implement self-service APIs allowing a tenant administrator to request a complete 100% database export (users, roles, settings, logs) down to the SQL/JSON level at the click of a button.
+  - Implement user-level "Takeout" APIs for individual data exports.
+  - *Strategic differentiator:* Okta and Auth0 intentionally lock data in to make migrating away extremely difficult. Because Authenza guarantees Physical Isolation (Database-per-tenant), providing a raw, unadulterated data dump is both secure and trivial.
 - **Right to be Forgotten (Account Anonymization):**
   - Build a secure workflow to completely scramble or purge a user's PII across a tenant's database tables rather than simply disabling the account.
 - **Step-Up Authentication:**

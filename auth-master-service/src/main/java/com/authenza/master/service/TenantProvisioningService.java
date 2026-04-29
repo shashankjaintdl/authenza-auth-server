@@ -15,6 +15,7 @@ import liquibase.integration.spring.SpringResourceAccessor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.ResourceLoader;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.datasource.DriverManagerDataSource;
@@ -37,6 +38,18 @@ public class TenantProvisioningService {
     @Autowired
     private ResourceLoader resourceLoader;
 
+    @Value("${app.datasource.url}")
+    private String masterDbUrl;
+
+    @Value("${app.datasource.username}")
+    private String masterDbUsername;
+
+    @Value("${app.datasource.password}")
+    private String masterDbPassword;
+
+    @Value("${app.datasource.driverClassName}")
+    private String masterDbDriver;
+
     public TenantProvisioningService(MasterTenantRepository repository,
             TenantEventPublisher tenantEventPublisher,
             GlobalAccountService globalAccountService,
@@ -48,37 +61,104 @@ public class TenantProvisioningService {
     }
 
     @Transactional
-    public void onboardNewTenant(TenantRequest request) {
-        log.info("Onboarding new tenant: {}", request.tenantId());
+    public void onboardNewTenant(TenantRequest originalRequest) {
+        TenantRequest request = originalRequest;
+        if (request.tenantId() == null || request.tenantId().isBlank()) {
+            String generatedTenantId = "dev_" + java.util.UUID.randomUUID().toString().replace("-", "").substring(0, 12).toLowerCase();
+            request = new TenantRequest(
+                    generatedTenantId,
+                    request.dbType(),
+                    request.jdbcUrl(),
+                    request.username(),
+                    request.password(),
+                    request.driver(),
+                    request.ownerId(),
+                    request.accountType(),
+                    request.orgName(),
+                    request.employeeRange(),
+                    request.isDefault()
+            );
+            log.info("Tenant ID not provided. Auto-generated: {}", generatedTenantId);
+        }
+
+        final TenantRequest finalRequest = request;
+
+        log.info("Onboarding new tenant: {}", finalRequest.tenantId());
+
+        // Guard: COMPANY tenants must supply orgName + employeeRange
+        if ("COMPANY".equalsIgnoreCase(finalRequest.accountType())) {
+            if (finalRequest.orgName() == null || finalRequest.orgName().isBlank()) {
+                throw new IllegalArgumentException("orgName is required for COMPANY account type.");
+            }
+            if (finalRequest.employeeRange() == null || finalRequest.employeeRange().isBlank()) {
+                throw new IllegalArgumentException("employeeRange is required for COMPANY account type.");
+            }
+        }
+
+        String resolvedJdbcUrl = finalRequest.jdbcUrl();
+        String resolvedUsername = finalRequest.username();
+        String resolvedPassword = finalRequest.password();
+        String resolvedDriver = finalRequest.driver();
+        String resolvedDbType = finalRequest.dbType() != null ? finalRequest.dbType().getValue() : com.authenza.common.enums.DBType.MYSQL.getValue();
+
+        if (resolvedJdbcUrl == null || resolvedJdbcUrl.isBlank()) {
+            log.info("No DB credentials provided for tenant '{}'. Falling back to default platform database provisioning.", finalRequest.tenantId());
+            resolvedUsername = masterDbUsername;
+            resolvedPassword = masterDbPassword;
+            resolvedDriver = masterDbDriver;
+            resolvedDbType = com.authenza.common.enums.DBType.MYSQL.getValue();
+            
+            // Extract base url from master database. 
+            // e.g. from jdbc:mysql://localhost:3306/auth-master?createDatabaseIfNotExist=true
+            // to   jdbc:mysql://localhost:3306/my_new_tenant?createDatabaseIfNotExist=true
+            int lastSlash = masterDbUrl.lastIndexOf("/");
+            String base = masterDbUrl.substring(0, lastSlash);
+            int qMark = masterDbUrl.indexOf("?", lastSlash);
+            String options = qMark != -1 ? masterDbUrl.substring(qMark) : "";
+            resolvedJdbcUrl = base + "/" + finalRequest.tenantId() + options;
+        }
 
         // 1. Create the Tenant Domain Object
         Tenant tenant = Tenant.create(
-                request.tenantId(),
-                request.dbType().getValue(),
-                request.jdbcUrl(),
-                request.username(),
-                request.password(),
-                request.driver(),
+                finalRequest.tenantId(),
+                resolvedDbType,
+                resolvedJdbcUrl,
+                resolvedUsername,
+                resolvedPassword,
+                resolvedDriver,
                 TenantStaus.ACTIVE.name(),
-                request.ownerId());
+                finalRequest.ownerId(),
+                finalRequest.accountType(),
+                finalRequest.orgName(),
+                finalRequest.employeeRange(),
+                finalRequest.isDefault());
+
+        // 1b. Check if this is the user's first tenant. If so, force it to be default.
+        if (finalRequest.ownerId() != null && !finalRequest.ownerId().isBlank()) {
+            boolean hasOtherTenants = repository.findByOwnerId(finalRequest.ownerId()).iterator().hasNext();
+            if (!hasOtherTenants) {
+                log.info("First tenant for owner '{}'. Setting as default.", finalRequest.ownerId());
+                tenant.setDefault(true);
+            }
+        }
 
         // 2. Save metadata to Master Registry
         repository.save(tenant);
 
         // 3. Build a temporary DataSource for the new tenant's DB
-        DriverManagerDataSource tenantDs = buildTenantDataSource(request);
+        DriverManagerDataSource tenantDs = buildTenantDataSource(finalRequest, resolvedJdbcUrl, resolvedUsername, resolvedPassword, resolvedDriver);
 
         // 4. Run Liquibase Schema Migration against the Tenant's Database
-        runLiquibaseMigration(request, tenantDs);
+        runLiquibaseMigration(finalRequest, tenantDs);
 
         // 5. Strategy 3 — Global Identity auto-provisioning:
         //    If an ownerId (email) is provided and a global account exists,
         //    create the tenant membership and seed a passwordless shadow user.
-        if (request.ownerId() != null && !request.ownerId().isBlank()) {
-            globalAccountRepository.findByEmail(request.ownerId()).ifPresentOrElse(
+        if (finalRequest.ownerId() != null && !finalRequest.ownerId().isBlank()) {
+            globalAccountRepository.findByEmail(finalRequest.ownerId()).ifPresentOrElse(
                 account -> {
                     // 5a. Register membership in master DB (idempotent)
-                    globalAccountService.addMembership(account.getId(), request.tenantId(), "OWNER");
+                    globalAccountService.addMembership(account.getId(), finalRequest.tenantId(), "OWNER");
 
                     // 5b. Seed a passwordless shadow user in the new tenant DB
                     seedLocalAdminShadow(tenantDs, account);
@@ -86,19 +166,19 @@ public class TenantProvisioningService {
                 () -> log.warn(
                     "ownerId '{}' has no global_accounts record. " +
                     "Shadow user not seeded for tenant '{}'. " +
-                    "Register a global account first.", request.ownerId(), request.tenantId())
+                    "Register a global account first.", finalRequest.ownerId(), finalRequest.tenantId())
             );
         }
 
         // 6. Notify auth-server-core via Redis to register the new DataSource
         tenantEventPublisher.publishTenantProvisioned(new TenantProvisionedEvent(
-                request.tenantId(),
-                request.jdbcUrl(),
-                request.username(),
-                request.password(),
-                request.driver()));
+                finalRequest.tenantId(),
+                resolvedJdbcUrl,
+                resolvedUsername,
+                resolvedPassword,
+                resolvedDriver));
 
-        log.info("Successfully provisioned database for tenant: {}", request.tenantId());
+        log.info("Successfully provisioned database for tenant: {}", finalRequest.tenantId());
     }
 
     public Iterable<Tenant> getTenantsByOwner(String ownerId) {
@@ -108,6 +188,42 @@ public class TenantProvisioningService {
     // ─────────────────────────────────────────────
     // Shadow User Seeding (Option B — Passwordless)
     // ─────────────────────────────────────────────
+
+    /**
+     * Finds the existing system-admin tenant and seeds a newly registered global account
+     * directly into the system-admin database as a passwordless shadow user.
+     * This allows new global admins to instantly log into the Tenant Portal to provision
+     * their first tenant workspace.
+     *
+     * @param account the newly registered global account
+     */
+    public void seedShadowUserInSystemAdmin(GlobalAccount account) {
+        Tenant systemAdmin = repository.findByTenantId("system-admin").orElse(null);
+        if (systemAdmin == null) {
+            log.warn("Cannot seed shadow user into system-admin because the tenant does not exist yet.");
+            return;
+        }
+
+        // Add explicit membership to system-admin so they have portal rights
+        globalAccountService.addMembership(account.getId(), systemAdmin.getTenantId(), "OWNER");
+
+        TenantRequest request = new TenantRequest(
+                systemAdmin.getTenantId(),
+                null,
+                systemAdmin.getJdbcUrl(),
+                systemAdmin.getUsername(),
+                systemAdmin.getEncryptedPassword(),
+                systemAdmin.getDriverClassName(),
+                account.getEmail(),
+                "PERSONAL", // system-admin is a platform-internal tenant
+                null,
+                null,
+                true);
+
+        log.info("Automatically seeding shadow admin '{}' into system-admin database...", account.getEmail());
+        DataSource systemDs = buildTenantDataSource(request, request.jdbcUrl(), request.username(), request.password(), request.driver());
+        seedLocalAdminShadow(systemDs, account);
+    }
 
     /**
      * Seeds a passwordless "shadow" admin user into a newly provisioned tenant database.
@@ -175,12 +291,12 @@ public class TenantProvisioningService {
     // Internal Helpers
     // ─────────────────────────────────────────────
 
-    private DriverManagerDataSource buildTenantDataSource(TenantRequest request) {
+    private DriverManagerDataSource buildTenantDataSource(TenantRequest request, String resolvedJdbcUrl, String resolvedUsername, String resolvedPassword, String resolvedDriver) {
         DriverManagerDataSource ds = new DriverManagerDataSource();
-        ds.setDriverClassName(request.driver());
-        ds.setUrl(request.jdbcUrl());
-        ds.setUsername(request.username());
-        ds.setPassword(request.password());
+        ds.setDriverClassName(resolvedDriver);
+        ds.setUrl(resolvedJdbcUrl);
+        ds.setUsername(resolvedUsername);
+        ds.setPassword(resolvedPassword);
         return ds;
     }
 
@@ -203,5 +319,13 @@ public class TenantProvisioningService {
             log.error("Migration failed for tenant: {}", request.tenantId(), e);
             throw new RuntimeException("Database provisioning failed: " + e.getMessage());
         }
+    }
+
+    @Transactional
+    public void updateLastAccessed(String tenantId) {
+        repository.findByTenantId(tenantId).ifPresent(tenant -> {
+            tenant.setLastAccessedAt(java.time.Instant.now());
+            repository.save(tenant);
+        });
     }
 }

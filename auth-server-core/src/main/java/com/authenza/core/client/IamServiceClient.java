@@ -182,6 +182,23 @@ public class IamServiceClient {
     }
 
     /**
+     * Proxies the forced password change request to auth-iam-service.
+     */
+    public ApiResponse<?> forceChangePassword(String tenantId, Long userId, String newPassword) {
+        try {
+            return restClient.post()
+                    .uri("/api/v1/users/" + userId + "/force-change-password")
+                    .header(TENANT_HEADER, tenantId)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .body(java.util.Map.of("newPassword", newPassword))
+                    .retrieve()
+                    .body(new ParameterizedTypeReference<ApiResponse<?>>() {});
+        } catch (Exception ex) {
+            return extractErrorOrFallback(ex, "Failed to change password. Please try again.");
+        }
+    }
+
+    /**
      * Extracts the "available" boolean from the ApiResponse data map.
      */
     @SuppressWarnings("unchecked")

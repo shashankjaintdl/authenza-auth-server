@@ -224,6 +224,18 @@ public class JdbcTenantUserDetailsService implements UserDetailsService {
     }
 
     /**
+     * Determines whether the user is required to change their password
+     * before login can be completed.
+     */
+    public boolean isPasswordChangeRequired(String username) {
+        List<Boolean> result = jdbcTemplate.query(
+                "SELECT requires_password_change FROM application_user WHERE preferred_username = ? OR email = ? LIMIT 1",
+                (rs, rowNum) -> rs.getBoolean("requires_password_change"),
+                username, username);
+        return !result.isEmpty() && Boolean.TRUE.equals(result.get(0));
+    }
+
+    /**
      * Reads the tenant-wide MFA enforcement setting from the cache.
      * Returns {@code false} safely if the row is missing (e.g. before V0.0.7
      * migration).
