@@ -8,7 +8,12 @@ server:
 spring:
   application:
     name: auth-iam-service
-  
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: http://localhost:8081/system-admin
+
   data:
     redis:
       host: localhost
@@ -25,6 +30,8 @@ app:
       username: root
       password: sjain@123
       driver-class-name: com.mysql.cj.jdbc.Driver
+      maximum-pool-size: 10
+      minimum-idle: 2
 
   mfa:
     # AES-256-GCM key — MUST match the key in auth-server-core/application.yaml

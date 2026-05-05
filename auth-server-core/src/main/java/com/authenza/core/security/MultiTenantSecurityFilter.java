@@ -17,6 +17,25 @@ import java.io.IOException;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 
+/**
+ * A core security filter responsible for intercepting all incoming requests to the Authorization Server 
+ * and establishing the tenant-specific context for the duration of the request.
+ * 
+ * <p>This filter performs three critical operations:</p>
+ * <ol>
+ *   <li><b>Tenant Resolution & Validation:</b> Extracts the {@code tenantId} from the request URI 
+ *       and verifies its existence against the active routing data source.</li>
+ *   <li><b>Database Routing:</b> Populates the {@link com.authenza.adapter.context.TenantContextHolder} 
+ *       so that all subsequent database operations (like user lookups or token persistence) 
+ *       are automatically routed to the tenant's physically isolated database.</li>
+ *   <li><b>Dynamic OAuth2 Issuer Context:</b> Constructs and sets the Spring Security 
+ *       {@link org.springframework.security.oauth2.server.authorization.context.AuthorizationServerContext}. 
+ *       This ensures that tokens are minted with the correct tenant-specific {@code iss} claim 
+ *       (e.g., {@code http://auth.server/acme-corp}) and OIDC discovery endpoints return the correct URLs.</li>
+ * </ol>
+ * 
+ * <p>It explicitly skips static resources and error endpoints to prevent redirect loops.</p>
+ */
 @Component
 public class MultiTenantSecurityFilter extends OncePerRequestFilter {
 

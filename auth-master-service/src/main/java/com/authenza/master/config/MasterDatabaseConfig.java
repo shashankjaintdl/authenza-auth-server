@@ -68,16 +68,19 @@ public class MasterDatabaseConfig {
     }
 
     /**
-     * auth-master-service is an internal API — security is enforced at the
-     * network/gateway level.
-     * Disables Spring Security's default login page and CSRF for REST APIs.
+     * Secures the Master Service APIs so the frontend can safely query it.
+     * Enforces JWT validation against the auth-server-core.
      */
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http
                 .cors(Customizer.withDefaults())
                 .csrf(AbstractHttpConfigurer::disable)
-                .authorizeHttpRequests(auth -> auth.anyRequest().permitAll());
+                .authorizeHttpRequests(auth -> auth
+                        .requestMatchers("/actuator/**").permitAll() // Health checks
+                        .anyRequest().authenticated()
+                )
+                .oauth2ResourceServer(oauth2 -> oauth2.jwt(Customizer.withDefaults()));
         return http.build();
     }
 

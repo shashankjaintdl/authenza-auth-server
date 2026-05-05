@@ -20,6 +20,27 @@ import org.springframework.util.StringUtils;
 
 import java.util.*;
 
+/**
+ * A tenant-aware implementation of Spring Security's {@link RegisteredClientRepository}.
+ * 
+ * <p>Unlike the standard in-memory or single-database JDBC implementations, this repository 
+ * relies on {@link com.authenza.adapter.context.TenantContextHolder} (populated by the 
+ * {@link com.authenza.core.security.MultiTenantSecurityFilter}) to dynamically route queries 
+ * to the currently active tenant's isolated database.</p>
+ * 
+ * <p>Key Responsibilities:</p>
+ * <ul>
+ *   <li><b>Tenant Data Isolation:</b> Ensures that OAuth2 clients (e.g., SPAs, Mobile Apps, 
+ *       M2M integrations) belonging to Tenant A cannot be queried or used by Tenant B.</li>
+ *   <li><b>JSON Serialization:</b> Utilizes Jackson modules tailored for Spring Security 
+ *       to seamlessly serialize and deserialize complex OAuth2 configuration objects 
+ *       (like {@code ClientSettings} and {@code TokenSettings}) into the database.</li>
+ * </ul>
+ * 
+ * <p>This repository is the backbone for allowing individual tenants to dynamically 
+ * manage their own OAuth2 clients (e.g., in a developer portal) without polluting a 
+ * central master database.</p>
+ */
 public final class TenantAwareRegisteredClientRepository implements RegisteredClientRepository {
 
     private final JdbcTenantClientRepository tenantClientRepository;

@@ -6,12 +6,12 @@
     http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd"
         logicalFilePath="db/changelog/tenant/V0.0.10/ddl.xml">
 
-    <changeSet id="V0.0.10-add-password-change-flag" author="authenza">
-        <addColumn tableName="application_user">
-            <column name="requires_password_change" type="BOOLEAN" defaultValueBoolean="false">
-                <constraints nullable="false"/>
-            </column>
-        </addColumn>
-    </changeSet>
+<!--    <changeSet id="V0.0.10-add-password-change-flag" author="authenza">-->
+<!--        <addColumn tableName="application_user">-->
+<!--            <column name="requires_password_change" type="BOOLEAN" defaultValueBoolean="false">-->
+<!--                <constraints nullable="false"/>-->
+<!--            </column>-->
+<!--        </addColumn>-->
+<!--    </changeSet>-->
 
 </databaseChangeLog>

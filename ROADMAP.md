@@ -47,9 +47,6 @@ Elevate platform security by protecting endpoints and validating identities.
 - **Active Session Management:**
   - Track active user sessions globally (e.g., via Redis or a `sessions` database table) instead of solely relying on stateless tokens.
   - Add capabilities for users to view "Active Devices" and revoke (logout) specific remote sessions.
-- **Adaptive / Risk-Based Authentication:**
-  - Detect anomalous login attempts (e.g., impossible travel, unknown devices, or new IP addresses).
-  - Automatically challenge the user with progressive MFA or send a "New Device Detected" security alert email.
 - **FIDO2 / WebAuthn (Passwordless):**
   - Allow users to authenticate using physical device biometrics (Apple FaceID, TouchID, Windows Hello, YubiKeys).
 - **Tenant-Level Rate Limiting:**
@@ -58,6 +55,9 @@ Elevate platform security by protecting endpoints and validating identities.
   - Prevent "Tenant Session Hopping" by tightly coupling the `tenantId` into the active authenticated `UserPrincipal`.
   - Enforce strict validation in the security filter to ensure a user authenticated in Tenant A cannot mistakenly (or maliciously) mint OAuth2 tokens from Tenant B's authorization endpoints.
   - *Reference:* See [CROSS_TENANT_SESSION_BLEED.md](CROSS_TENANT_SESSION_BLEED.md) for architectural implementation details.
+- **Adaptive / Risk-Based Authentication:**
+  - Detect anomalous login attempts (e.g., impossible travel, unknown devices, or new IP addresses).
+  - Automatically challenge the user with progressive MFA or send a "New Device Detected" security alert email.
 
 ---
 
@@ -118,6 +118,10 @@ Enable complex B2B scenarios and tenant-specific configuration.
     - Add `@PreAuthorize("hasRole('TENANT_ADMIN')")` restrictions on `UserController`, `TenantSettingsController`, etc.
     - Implement an Angular Route Guard (admin.guard) on the frontend to dynamically hide Dashboard/Users/Settings views from normal users.
     - **Auth Server Client Access Control:** Implement a backend interceptor in `SecurityConfig` to strictly block token issuance for the `authenza-tenant-portal` client if the user lacks the `TENANT_ADMIN` role, redirecting back with an `error=access_denied` parameter for a clean UX.
+- **Tenant Environment Tagging (Dev/Prod):**
+  - Add an `environment` classification (Enum: `DEVELOPMENT`, `STAGING`, `PRODUCTION`) to the tenant model in the master database.
+  - Implement "Production Safety Rails" in the Tenant Portal (e.g., confirmation modals for destructive actions in PROD).
+  - Enable environment-specific logic, such as prepending "[DEV]" to system emails and applying stricter rate limits on non-production tenants.
   - **Master Service Network Isolation (Do some validation before proceed):**
     - Explicitly maintain `.permitAll()` in `auth-master-service` core controllers (`GlobalAccountController`, `TenantRegistrationController`).
     - Enforce security natively using VPC Network level isolation (internal routing / ingress blocks) to speed up Phase 4 delivery without M2M overhead.
@@ -253,6 +257,14 @@ Meet stringent global data privacy requirements (GDPR, CCPA).
   - Build a secure workflow to completely scramble or purge a user's PII across a tenant's database tables rather than simply disabling the account.
 - **Step-Up Authentication:**
   - Require re-authentication or progressive MFA prompts only when users attempt high-risk actions (e.g., updating billing, changing passwords).
+- **Production Readiness Checklist:**
+  - Implement an automated "Pre-Flight" validation dashboard in the Tenant Portal.
+  - Require/Validate critical production settings before allowing a tenant to toggle to `PRODUCTION` mode:
+    - Custom SMTP configuration (BYO-SMTP).
+    - Custom Domain verification.
+    - Strong Password Policy enforcement.
+    - MFA enrollment for all administrative accounts.
+    - Production-grade JWT signing (RS256).
 
 ---
 
@@ -266,6 +278,9 @@ Implement the logic to map identity functionality directly to business revenue t
     - **`ENTERPRISE` (The Big Whales):** Secure massive contracts by unlocking critical B2B compliance features (SCIM 2.0 Directory Sync, SLAs, Admin Impersonation) demanded by corporate security teams.
 - **Premium Feature Enforcement:**
   - Implement Spring Security filters/aspects to dynamically intercept REST calls. Return `403 Forbidden` if a tenant attempts to access APIs restricted by their active `ServicePlan` (e.g., blocking a FREE user from accessing the Phase 6 Webhook APIs).
+  - **API Tiering Strategy (Invite vs. Create):**
+    - **Free / Standard Tier:** Tenants only have access to the UI-friendly `POST /api/v1/users/invite` flow. Admins supply an email, and the system securely manages password creation via a user-facing link.
+    - **Enterprise Tier:** Unlock the `POST /api/v1/users/create` "Direct Provisioning" API. This allows corporate IT departments to automate account creation by directly passing temporary passwords, bypassing the email invitation step completely.
 - **Usage-Based Metering (Base + Overage):**
   - Track Monthly Active Users (MAUs) and aggregate authentication events per tenant.
   - Report usage metrics to external payment gateways (like Stripe) to automatically invoice customers who exceed their base user quotas.

@@ -1,11 +1,15 @@
 package com.authenza.core.web;
 
 import com.authenza.core.config.SuperAdminClientProperties;
-import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.*;
 import org.springframework.security.web.savedrequest.HttpSessionRequestCache;
 import org.springframework.security.web.savedrequest.SavedRequest;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
+import org.springframework.security.authentication.AnonymousAuthenticationToken;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.oauth2.server.authorization.client.RegisteredClient;
+import org.springframework.security.oauth2.server.authorization.client.RegisteredClientRepository;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -17,9 +21,12 @@ import java.util.Set;
 public class LoginController {
 
     private final SuperAdminClientProperties superAdminClientProperties;
+    private final RegisteredClientRepository registeredClientRepository;
 
-    public LoginController(SuperAdminClientProperties superAdminClientProperties) {
+    public LoginController(SuperAdminClientProperties superAdminClientProperties,
+            RegisteredClientRepository registeredClientRepository) {
         this.superAdminClientProperties = superAdminClientProperties;
+        this.registeredClientRepository = registeredClientRepository;
     }
 
     /**
@@ -59,7 +66,17 @@ public class LoginController {
             @RequestParam(name = "error", required = false) String error,
             @RequestParam(name = "logout", required = false) String logout,
             HttpServletRequest request,
+            HttpServletResponse response,
+            Authentication authentication,
             Model model) {
+
+        // If user is already authenticated and not an anonymous user,
+        // redirect them away from the login form to prevent them from seeing it
+        // after hitting the 'Back' button from the dashboard.
+        if (authentication != null && authentication.isAuthenticated() &&
+                !(authentication instanceof AnonymousAuthenticationToken)) {
+            return getAuthenticatedUserRedirect(tenantId, request, response);
+        }
 
         // Allow ?error and ?logout — these mean the user already went through
         // the OAuth2 authorize flow and is returning after a failed attempt or logout
@@ -82,6 +99,45 @@ public class LoginController {
 
         model.addAttribute("tenantId", tenantId);
         return "login";
+    }
+
+    private String getAuthenticatedUserRedirect(String tenantId, jakarta.servlet.http.HttpServletRequest request,
+            jakarta.servlet.http.HttpServletResponse response) {
+        // 1. Try to find the client_id from the original OAuth2 request in the session
+        HttpSessionRequestCache requestCache = new HttpSessionRequestCache();
+        SavedRequest savedRequest = requestCache.getRequest(request, response);
+
+        if (savedRequest != null) {
+            String[] clientIds = savedRequest.getParameterValues("client_id");
+            if (clientIds != null && clientIds.length > 0) {
+                RegisteredClient client = registeredClientRepository.findByClientId(clientIds[0]);
+                if (client != null && !client.getRedirectUris().isEmpty()) {
+                    // Dynamically use the FIRST registered redirect URI as the base (stripping
+                    // path/query)
+                    String redirectUri = client.getRedirectUris().iterator().next();
+                    String baseUrl = UriComponentsBuilder.fromUriString(redirectUri)
+                            .replacePath(null)
+                            .replaceQuery(null)
+                            .build()
+                            .toUriString();
+
+                    return "redirect:" + baseUrl + "/" + tenantId;
+                }
+            }
+        }
+
+        // 2. Fallback: If no client context found, default to system admin behavior
+        if ("system-admin".equals(tenantId)) {
+            return "redirect:/";
+        }
+
+        // 3. Last Resort: Use Referer header (where the user just clicked "Back" from)
+        String referer = request.getHeader("Referer");
+        if (referer != null && !referer.contains("/login")) {
+            return "redirect:" + referer;
+        }
+
+        return "redirect:/";
     }
 
     @GetMapping("/error/invalid-tenant")

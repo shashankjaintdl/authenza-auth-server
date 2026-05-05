@@ -125,19 +125,19 @@ public class JdbcTenantUserDetailsService implements UserDetailsService {
         boolean credentialsNonExpired = true;
 
         // ── Option B: Passwordless Shadow Admin Login Fallback ──────────────────
-        // If the shadow user's password is the sentinel [GLOBAL_ACCOUNT], this is a global admin whose
+        // If the shadow user's password is the sentinel [GLOBAL_ACCOUNT], this is a
+        // global admin whose
         // credential is stored exclusively in global_accounts (master DB).
         // We resolve it here so Spring Security can verify it normally.
         String resolvedPassword = base.password;
         if ("[GLOBAL_ACCOUNT]".equals(resolvedPassword)) {
             List<String> globalPwd = masterJdbcTemplate.query(
-                "SELECT password_hash FROM global_accounts WHERE email = ? LIMIT 1",
-                (rs, i) -> rs.getString("password_hash"),
-                username
-            );
+                    "SELECT password_hash FROM global_accounts WHERE email = ? LIMIT 1",
+                    (rs, i) -> rs.getString("password_hash"),
+                    username);
             if (globalPwd.isEmpty()) {
                 throw new UsernameNotFoundException(
-                    "Shadow admin '" + username + "' has no password and no global_accounts record.");
+                        "Shadow admin '" + username + "' has no password and no global_accounts record.");
             }
             resolvedPassword = globalPwd.get(0);
             log.debug("Option B fallback: resolved BCrypt hash from global_accounts for '{}'", username);

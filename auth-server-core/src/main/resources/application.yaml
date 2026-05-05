@@ -4,9 +4,11 @@ server:
 
 logging:
   level:
-    root: INFO # Sets the default level for all loggers to INFO
-    org.springframework.security: DEBUG # Sets the level for your application's package to DEBUG
-    org.springframework: DEBUG # Sets Spring framework logs to WARN
+    root: INFO
+    org.springframework.security: DEBUG
+    org.springframework: DEBUG
+    org.springframework.security.oauth2.server.authorization.oidc: TRACE
+    org.springframework.security.oauth2.server.authorization.authentication: TRACE
 
 spring:
   data:
@@ -21,8 +23,8 @@ app:
       username: root
       password: sjain@123
       driver-class-name: com.mysql.cj.jdbc.Driver
-      maximum-pool-size: 2
-      minimum-idle: 1
+      maximum-pool-size: 10
+      minimum-idle: 2
   super-admin-client:
     enabled: true
     client-id: super-admin-client
@@ -56,6 +58,7 @@ app:
   services:
     iam:
       base-url: http://localhost:8082
+    tenant-portal-url: http://127.0.0.1:4200
   # Ensure standard auto-config doesn't interfere
 #  jdbc:
 #    template:
