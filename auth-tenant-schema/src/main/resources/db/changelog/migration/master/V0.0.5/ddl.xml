@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+    http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd"
+        logicalFilePath="db/changelog/master/V0.0.5/ddl.xml">
+
+    <!--
+        V0.0.5 — Tenant Organization Metadata
+        ══════════════════════════════════════════════════════════════════
+
+        Purpose:
+          Extends the tenants table with three new columns to capture B2B
+          customer attributes collected during onboarding:
+
+          - account_type   : PERSONAL or COMPANY (mandatory at registration)
+          - org_name       : Company display name (required for COMPANY accounts)
+          - employee_range : Company size band, e.g. "1-10", "11-50", "51-200", "200+"
+                            (required for COMPANY accounts)
+
+        Design decision:
+          Stored on tenants (not a separate table) because each tenant is a
+          direct 1-to-1 organisational boundary. No JOIN required for billing
+          or admin dashboards.
+        ══════════════════════════════════════════════════════════════════
+    -->
+
+    <changeSet id="0105-add-tenant-org-metadata" author="authenza">
+        <preConditions onFail="MARK_RAN">
+            <not><columnExists tableName="tenants" columnName="account_type"/></not>
+        </preConditions>
+
+        <addColumn tableName="tenants">
+            <!-- PERSONAL | COMPANY — defaults to PERSONAL for backwards compatibility -->
+            <column name="account_type" type="VARCHAR(50)" defaultValue="PERSONAL">
+                <constraints nullable="false"/>
+            </column>
+        </addColumn>
+
+        <addColumn tableName="tenants">
+            <!-- Null is valid for PERSONAL accounts -->
+            <column name="org_name" type="VARCHAR(255)"/>
+        </addColumn>
+
+        <addColumn tableName="tenants">
+            <!-- Null is valid for PERSONAL accounts. Values: "1-10","11-50","51-200","200+" -->
+            <column name="employee_range" type="VARCHAR(100)"/>
+        </addColumn>
+    </changeSet>
+
+</databaseChangeLog>

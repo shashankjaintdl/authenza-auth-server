@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+    http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <!--
+        ROOT INITIALIZATION CHANGELOG — Phase 5 placeholder
+        ══════════════════════════════════════════════════════════════════
+
+        Umbrella changelog — includes both master and tenant initialization.
+        In practice, master and tenant are provisioned independently:
+
+          master/  — auth-master DB (tenant registry)
+            Called by: spring.liquibase.change-log in auth-master-service/application.yaml
+            File:      initialization/master/db.changelog-initialization-master.xml
+
+          tenant/  — each individual tenant DB
+            Called by: TenantProvisioningService.runLiquibaseMigration()
+            File:      initialization/tenant/db.changelog-initialization-tenant.xml
+
+        Folder structure (mirrors migration/):
+          initialization/
+          ├── master/
+          │     ├── db.changelog-initialization-master.xml
+          │     └── ddl.xml   ← CREATE TABLE tenant (registry)
+          └── tenant/
+                ├── db.changelog-initialization-tenant.xml
+                ├── ddl.xml   ← CREATE TABLE application_user, roles, oauth2_*, etc.
+                └── dml.xml   ← INSERT default roles, permissions, tenant_settings
+
+        Status: NOT ACTIVE. All placeholders — activate in Phase 5.
+        ══════════════════════════════════════════════════════════════════
+    -->
+
+    <!-- Uncomment in Phase 5 if a single entry point is ever needed -->
+    <!-- <include file="master/db.changelog-initialization-master.xml" relativeToChangelogFile="true"/> -->
+    <!-- <include file="tenant/db.changelog-initialization-tenant.xml" relativeToChangelogFile="true"/> -->
+
+</databaseChangeLog>

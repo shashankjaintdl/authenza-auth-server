@@ -13,17 +13,31 @@ import org.springframework.core.annotation.Order;
 import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
+import org.springframework.security.oauth2.jwt.JwtEncoder;
+import org.springframework.security.oauth2.jwt.NimbusJwtEncoder;
+import org.springframework.security.oauth2.server.authorization.token.JwtGenerator;
+import org.springframework.security.oauth2.server.authorization.token.OAuth2AccessTokenGenerator;
+import org.springframework.security.oauth2.server.authorization.token.OAuth2RefreshTokenGenerator;
+import org.springframework.security.oauth2.server.authorization.token.DelegatingOAuth2TokenGenerator;
+import org.springframework.security.oauth2.server.authorization.token.OAuth2TokenGenerator;
+import org.springframework.security.oauth2.core.OAuth2Token;
+import org.springframework.security.oauth2.core.OAuth2RefreshToken;
+import org.springframework.security.oauth2.server.authorization.JdbcOAuth2AuthorizationConsentService;
+import org.springframework.security.oauth2.server.authorization.JdbcOAuth2AuthorizationService;
+import org.springframework.security.oauth2.server.authorization.OAuth2AuthorizationConsentService;
+import org.springframework.security.oauth2.server.authorization.OAuth2AuthorizationService;
 import org.springframework.security.oauth2.server.authorization.client.RegisteredClientRepository;
 import org.springframework.security.oauth2.server.authorization.config.annotation.web.configuration.OAuth2AuthorizationServerConfiguration;
 import org.springframework.security.oauth2.server.authorization.config.annotation.web.configurers.OAuth2AuthorizationServerConfigurer;
 import org.springframework.security.oauth2.server.authorization.settings.AuthorizationServerSettings;
 import org.springframework.security.web.SecurityFilterChain;
-import org.springframework.security.web.authentication.LoginUrlAuthenticationEntryPoint;
 import org.springframework.security.web.session.DisableEncodeUrlFilter;
-import org.springframework.security.web.util.matcher.AntPathRequestMatcher;
+import org.springframework.security.web.servlet.util.matcher.PathPatternRequestMatcher;
 import org.springframework.security.web.util.matcher.OrRequestMatcher;
 import org.springframework.security.web.util.matcher.RequestMatcher;
+import org.springframework.jdbc.core.JdbcTemplate;
 
+import javax.sql.DataSource;
 import java.security.KeyPair;
 import java.security.KeyPairGenerator;
 import java.security.interfaces.RSAPrivateKey;
@@ -42,31 +56,53 @@ import org.springframework.security.oauth2.server.authorization.token.OAuth2Toke
 @Configuration
 public class AuthorizationServerConfig {
 
+        private final JdbcTenantClientRepository tenantClientRepository;
+        private final DataSource dataSource;
+        // Pre-built JdbcTemplate backed by the tenant RoutingDataSource.
+        // Stored as a field to avoid creating a new object on every token issuance.
+        private final org.springframework.jdbc.core.JdbcTemplate jdbcTemplate;
 
-    private final JdbcTenantClientRepository tenantClientRepository;
+        public AuthorizationServerConfig(JdbcTenantClientRepository tenantClientRepository,
+                        DataSource dataSource) {
+                this.tenantClientRepository = tenantClientRepository;
+                this.dataSource = dataSource;
+                this.jdbcTemplate = new org.springframework.jdbc.core.JdbcTemplate(dataSource);
+        }
 
-    public AuthorizationServerConfig(JdbcTenantClientRepository tenantClientRepository) {
-        this.tenantClientRepository = tenantClientRepository;
-    }
+        @Bean
+        @Order(1)
+        public SecurityFilterChain authorizationServerSecurityFilterChain(HttpSecurity http,
+                        MultiTenantSecurityFilter tenantSecurityFilter)
+                        throws Exception {
+                OAuth2AuthorizationServerConfigurer authorizationServerConfigurer = OAuth2AuthorizationServerConfigurer
+                                .authorizationServer();
 
-    @Bean
-    @Order(1)
-    public SecurityFilterChain authorizationServerSecurityFilterChain(HttpSecurity http,
-                                                                      MultiTenantSecurityFilter tenantSecurityFilter)
-            throws Exception {
-        OAuth2AuthorizationServerConfigurer authorizationServerConfigurer =
-                OAuth2AuthorizationServerConfigurer.authorizationServer();
-
-        RequestMatcher tenantEndpointsMatcher = new OrRequestMatcher(
-                new AntPathRequestMatcher("/{tenantId}/oauth2/**"),
-                new AntPathRequestMatcher("/{tenantId}/.well-known/openid-configuration")
-        );
+                RequestMatcher tenantEndpointsMatcher = new OrRequestMatcher(
+                                PathPatternRequestMatcher.withDefaults().matcher("/{tenantId}/userinfo"),
+                                PathPatternRequestMatcher.withDefaults().matcher("/{tenantId}/oauth2/**"),
+                                PathPatternRequestMatcher.withDefaults().matcher("/{tenantId}/connect/**"),
+                                PathPatternRequestMatcher.withDefaults()
+                                                .matcher("/{tenantId}/.well-known/openid-configuration"));
 
         // @formatter:off
         http
                 .with(authorizationServerConfigurer, (authorizationServer) ->
                         authorizationServer
-                                .oidc(Customizer.withDefaults())	// Enable OpenID Connect 1.0
+                                .oidc(oidc -> oidc
+                                        .logoutEndpoint(logout -> logout
+                                                .logoutResponseHandler((request, response, authentication) -> {
+                                                    // SUCCESS CASE: Hint was valid.
+                                                    performManualLogout(request);
+                                                    performManualRedirect(request, response);
+                                                })
+                                                .errorResponseHandler((request, response, exception) -> {
+                                                    // FAILURE CASE: Hint was missing or expired (OidcLogoutAuthenticationConverter failed).
+                                                    // We still want to log them out and redirect for a good user experience.
+                                                    performManualLogout(request);
+                                                    performManualRedirect(request, response);
+                                                })
+                                        )
+                                )
                 )
                 .securityMatcher(tenantEndpointsMatcher)
                 .addFilterBefore(tenantSecurityFilter, DisableEncodeUrlFilter.class)
@@ -80,107 +116,264 @@ public class AuthorizationServerConfig {
                                 .anyRequest().authenticated()
                 )
                 .csrf(csrf -> csrf.ignoringRequestMatchers(tenantEndpointsMatcher))
-                // Redirect to the login page when not authenticated from the
-                // authorization endpoint
+                // ──────────────────────────────────────────────────────────────────
+                // EXCEPTION HANDLING: 302 REDIRECT vs 401 UNAUTHORIZED
+                // ──────────────────────────────────────────────────────────────────
+                // We use defaultAuthenticationEntryPointFor() with an AntPathRequestMatcher
+                // to explicitly restrict our custom 302 Login Redirect to the browser-based
+                // OAuth2 authorization flow (/{tenantId}/oauth2/authorize).
+                // 
+                // If we applied this entry point globally, background XHR/API requests
+                // (like hitting /userinfo with an expired token) would receive a 302
+                // instead of a 401. Browsers silently follow 302s, returning the HTML of
+                // the login page as a 200 OK, completely breaking frontend auto-logout logic.
+                // 
+                // By filtering to /oauth2/authorize, all other API endpoints naturally 
+                // fall back to Spring's default behavior: returning a 401 Unauthorized.
                 .exceptionHandling((exceptions) -> exceptions
-                        .authenticationEntryPoint(
-                                new TenantAwareAuthenticationEntryPoint("/{tenantId}/login")
+                        .defaultAuthenticationEntryPointFor(
+                                new TenantAwareAuthenticationEntryPoint("/{tenantId}/login"),
+                                PathPatternRequestMatcher.withDefaults().matcher("/{tenantId}/oauth2/authorize")
                         )
                 );
         // @formatter:on
 
-        return http.build();
-    }
+                return http.build();
+        }
 
-    /**
-     * Returns a tenant-aware RegisteredClientRepository.
-     * IMPORTANT: Do NOT save/register clients here at startup — there is no tenant
-     * context during bean creation, so the RoutingDataSource would fall back to
-     * the master DB, which does not have the oauth2_registered_client table.
-     *
-     * OAuth2 clients should be registered per-tenant during the tenant onboarding
-     * process (via the master-service API).
-     */
-    @Bean
-    public RegisteredClientRepository registeredClientRepository() {
-        return new TenantAwareRegisteredClientRepository(this.tenantClientRepository);
-    }
+        /**
+         * Returns a tenant-aware RegisteredClientRepository.
+         * IMPORTANT: Do NOT save/register clients here at startup — there is no tenant
+         * context during bean creation, so the RoutingDataSource would fall back to
+         * the master DB, which does not have the oauth2_registered_client table.
+         *
+         * OAuth2 clients should be registered per-tenant during the tenant onboarding
+         * process (via the master-service API).
+         */
+        @Bean
+        public RegisteredClientRepository registeredClientRepository() {
+                return new TenantAwareRegisteredClientRepository(this.tenantClientRepository);
+        }
 
-    @Bean // <5>
-    public JWKSource<SecurityContext> jwkSource() {
-        KeyPair keyPair = generateRsaKey();
-        RSAPublicKey publicKey = (RSAPublicKey) keyPair.getPublic();
-        RSAPrivateKey privateKey = (RSAPrivateKey) keyPair.getPrivate();
+        /**
+         * Replaces the default {@code InMemoryOAuth2AuthorizationService} with a
+         * tenant-aware JDBC implementation backed by the {@code RoutingDataSource}.
+         *
+         * <p>
+         * Each tenant's authorization records (auth codes, access tokens, refresh
+         * tokens) are stored in their own isolated database, preventing cross-tenant
+         * token leakage. Tokens survive server restarts and support horizontal scaling.
+         */
+        @Bean
+        public OAuth2AuthorizationService authorizationService(
+                        RegisteredClientRepository registeredClientRepository) {
+                return new JdbcOAuth2AuthorizationService(
+                                new JdbcTemplate(this.dataSource),
+                                registeredClientRepository);
+        }
+
+        /**
+         * Persists OAuth2 consent decisions per user per client in the tenant DB.
+         * Replaces the default in-memory consent service.
+         */
+        @Bean
+        public OAuth2AuthorizationConsentService authorizationConsentService(
+                        RegisteredClientRepository registeredClientRepository) {
+                return new JdbcOAuth2AuthorizationConsentService(
+                                new JdbcTemplate(this.dataSource),
+                                registeredClientRepository);
+        }
+
+        @Bean // <5>
+        public JWKSource<SecurityContext> jwkSource() {
+                KeyPair keyPair = generateRsaKey();
+                RSAPublicKey publicKey = (RSAPublicKey) keyPair.getPublic();
+                RSAPrivateKey privateKey = (RSAPrivateKey) keyPair.getPrivate();
         // @formatter:off
         RSAKey rsaKey = new RSAKey.Builder(publicKey)
                 .privateKey(privateKey)
                 .keyID(UUID.randomUUID().toString())
                 .build();
         // @formatter:on
-        JWKSet jwkSet = new JWKSet(rsaKey);
-        return new ImmutableJWKSet<>(jwkSet);
-    }
-
-    private static KeyPair generateRsaKey() { // <6>
-        KeyPair keyPair;
-        try {
-            KeyPairGenerator keyPairGenerator = KeyPairGenerator.getInstance("RSA");
-            keyPairGenerator.initialize(2048);
-            keyPair = keyPairGenerator.generateKeyPair();
+                JWKSet jwkSet = new JWKSet(rsaKey);
+                return new ImmutableJWKSet<>(jwkSet);
         }
-        catch (Exception ex) {
-            throw new IllegalStateException(ex);
-        }
-        return keyPair;
-    }
 
-    @Bean // <7>
-    public JwtDecoder jwtDecoder(JWKSource<SecurityContext> jwkSource) {
-        return OAuth2AuthorizationServerConfiguration.jwtDecoder(jwkSource);
-    }
-
-    @Bean // <8>
-    public AuthorizationServerSettings authorizationServerSettings() {
-        return AuthorizationServerSettings.builder()
-                .multipleIssuersAllowed(true)
-                .build();
-    }
-
-    @Bean
-    public OAuth2TokenCustomizer<JwtEncodingContext> jwtTokenCustomizer() {
-        return (context) -> {
-            // Customize Access Token and OIDC ID Token
-            if (OAuth2TokenType.ACCESS_TOKEN.equals(context.getTokenType()) ||
-                    context.getTokenType().getValue().equals("id_token")) {
-
-                Authentication principal = context.getPrincipal();
-
-                // Extract all granted authorities mapping to role/permission strings
-                Set<String> authorities = principal.getAuthorities().stream()
-                        .map(GrantedAuthority::getAuthority)
-                        .collect(Collectors.toSet());
-
-                // Split into Roles (Start with ROLE_) and Permissions
-                Set<String> roles = authorities.stream()
-                        .filter(a -> a.startsWith("ROLE_"))
-                        .map(a -> a.replaceFirst("ROLE_", ""))
-                        .collect(Collectors.toSet());
-
-                Set<String> permissions = authorities.stream()
-                        .filter(a -> !a.startsWith("ROLE_"))
-                        .collect(Collectors.toSet());
-
-                // Bake into the JWT payload
-                context.getClaims().claim("roles", roles);
-                context.getClaims().claim("permissions", permissions);
-
-                // Bake the Tenant ID into the JWT to prevent Cross-Tenant bleed
-                String tenantId = TenantContextHolder.getTenantId();
-                if (tenantId != null) {
-                    context.getClaims().claim("tenant_id", tenantId);
+        private static KeyPair generateRsaKey() { // <6>
+                KeyPair keyPair;
+                try {
+                        KeyPairGenerator keyPairGenerator = KeyPairGenerator.getInstance("RSA");
+                        keyPairGenerator.initialize(2048);
+                        keyPair = keyPairGenerator.generateKeyPair();
+                } catch (Exception ex) {
+                        throw new IllegalStateException(ex);
                 }
-            }
-        };
-    }
+                return keyPair;
+        }
 
+        @Bean
+        public JwtEncoder jwtEncoder(JWKSource<SecurityContext> jwkSource) {
+                return new NimbusJwtEncoder(jwkSource);
+        }
+
+        @Bean
+        public OAuth2TokenGenerator<?> tokenGenerator(JwtEncoder jwtEncoder,
+                        OAuth2TokenCustomizer<JwtEncodingContext> jwtTokenCustomizer) {
+                JwtGenerator jwtGenerator = new JwtGenerator(jwtEncoder);
+                jwtGenerator.setJwtCustomizer(jwtTokenCustomizer);
+                OAuth2AccessTokenGenerator accessTokenGenerator = new OAuth2AccessTokenGenerator();
+                OAuth2RefreshTokenGenerator refreshTokenGenerator = new OAuth2RefreshTokenGenerator();
+                return (context) -> {
+                        String tokenType = context.getTokenType().getValue();
+                        OAuth2Token generated = new DelegatingOAuth2TokenGenerator(
+                                        jwtGenerator, accessTokenGenerator, refreshTokenGenerator).generate(context);
+
+                        // FALLBACK: If Spring's default generator refused to issue a refresh token
+                        // but we have 'offline_access' authorized, we force one.
+                        if (generated == null && OAuth2TokenType.REFRESH_TOKEN.equals(context.getTokenType())
+                                        && context.getAuthorizedScopes().contains("offline_access")) {
+
+                                System.out.println("DEBUG: Spring refused refresh_token, FORCING generation...");
+                                java.time.Instant issuedAt = java.time.Instant.now();
+                                java.time.Instant expiresAt = issuedAt.plus(registeredClientRepository()
+                                                .findByClientId(context.getRegisteredClient().getClientId())
+                                                .getTokenSettings().getRefreshTokenTimeToLive());
+
+                                return new OAuth2RefreshToken(UUID.randomUUID().toString(), issuedAt, expiresAt);
+                        }
+
+                        return generated;
+                };
+        }
+
+        @Bean // <7>
+        public JwtDecoder jwtDecoder(JWKSource<SecurityContext> jwkSource) {
+                return OAuth2AuthorizationServerConfiguration.jwtDecoder(jwkSource);
+        }
+
+        @Bean // <8>
+        public AuthorizationServerSettings authorizationServerSettings() {
+                return AuthorizationServerSettings.builder()
+                                .multipleIssuersAllowed(true)
+                                .oidcLogoutEndpoint("/connect/logout")
+                                .build();
+        }
+
+        @Bean
+        public OAuth2TokenCustomizer<JwtEncodingContext> jwtTokenCustomizer() {
+                return (context) -> {
+                        // Customize Access Token and OIDC ID Token
+                        if (OAuth2TokenType.ACCESS_TOKEN.equals(context.getTokenType()) ||
+                                        context.getTokenType().getValue().equals("id_token")) {
+
+                                System.out.println(
+                                                "DEBUG: Authorized Scopes for token: " + context.getAuthorizedScopes());
+                                Authentication principal = context.getPrincipal();
+
+                                // Extract all granted authorities mapping to role/permission strings
+                                Set<String> authorities = principal.getAuthorities().stream()
+                                                .map(GrantedAuthority::getAuthority)
+                                                .collect(Collectors.toSet());
+
+                                // Split into Roles (Start with ROLE_) and Permissions
+                                Set<String> roles = authorities.stream()
+                                                .filter(a -> a.startsWith("ROLE_"))
+                                                .map(a -> a.replaceFirst("ROLE_", ""))
+                                                .collect(Collectors.toSet());
+
+                                Set<String> permissions = authorities.stream()
+                                                .filter(a -> !a.startsWith("ROLE_"))
+                                                .collect(Collectors.toSet());
+
+                                // Bake into the JWT payload
+                                context.getClaims().claim("roles", roles);
+                                context.getClaims().claim("permissions", permissions);
+
+                                // Bake the Tenant ID into the JWT to prevent Cross-Tenant bleed
+                                String tenantId = TenantContextHolder.getTenantId();
+                                if (tenantId != null) {
+                                        context.getClaims().claim("tenant_id", tenantId);
+                                }
+
+                                // ── Resolve User ID and Add to Claims ───────────────────────
+                                String username = principal.getName();
+                                java.util.List<Long> userIds = jdbcTemplate.queryForList(
+                                                "SELECT id FROM application_user WHERE preferred_username = ? OR email = ?",
+                                                Long.class, username, username);
+
+                                if (!userIds.isEmpty()) {
+                                        Long userId = userIds.get(0);
+                                        context.getClaims().claim("user_id", userId.toString());
+
+                                        // ── Link OAuth2 Authorization to Active Session ──────────────
+                                        try {
+                                                if (context.getAuthorization() != null
+                                                                && context.getAuthorization().getId() != null) {
+                                                        String authId = context.getAuthorization().getId();
+                                                        // Link to the most recent un-linked session for this user
+                                                        jdbcTemplate.update(
+                                                                        "UPDATE user_session SET authorization_id = ? "
+                                                                                        +
+                                                                                        "WHERE user_id = ? AND authorization_id IS NULL "
+                                                                                        +
+                                                                                        "ORDER BY created_at DESC LIMIT 1",
+                                                                        authId, userId);
+                                                }
+                                        } catch (Exception e) {
+                                                // Non-fatal session linking failure
+                                        }
+                                }
+                        }
+                };
+        }
+
+        private void performManualLogout(jakarta.servlet.http.HttpServletRequest request) {
+                // 1. Manually clear the SecurityContext
+                org.springframework.security.core.context.SecurityContextHolder.clearContext();
+
+                // 2. Invalidate the HTTP Session explicitly
+                jakarta.servlet.http.HttpSession session = request.getSession(false);
+                if (session != null) {
+                        session.invalidate();
+                }
+        }
+
+        private void performManualRedirect(jakarta.servlet.http.HttpServletRequest request,
+                        jakarta.servlet.http.HttpServletResponse response) throws java.io.IOException {
+                String redirectUri = request.getParameter("post_logout_redirect_uri");
+                String clientId = request.getParameter("client_id");
+
+                // If clientId is missing, try to extract it from the id_token_hint JWT
+                if (clientId == null) {
+                        String idTokenHint = request.getParameter("id_token_hint");
+                        if (idTokenHint != null && idTokenHint.contains(".")) {
+                                try {
+                                        String[] parts = idTokenHint.split("\\.");
+                                        String payload = new String(java.util.Base64.getUrlDecoder().decode(parts[1]));
+                                        if (payload.contains("\"aud\":")) {
+                                                int start = payload.indexOf("\"aud\":\"") + 7;
+                                                int end = payload.indexOf("\"", start);
+                                                clientId = payload.substring(start, end);
+                                        }
+                                } catch (Exception e) {
+                                        // Ignore parsing errors
+                                }
+                        }
+                }
+
+                boolean isValidRedirect = false;
+                if (redirectUri != null && clientId != null) {
+                        org.springframework.security.oauth2.server.authorization.client.RegisteredClient client = registeredClientRepository()
+                                        .findByClientId(clientId);
+
+                        if (client != null && client.getPostLogoutRedirectUris().contains(redirectUri)) {
+                                isValidRedirect = true;
+                        }
+                }
+
+                if (!isValidRedirect) {
+                        redirectUri = "/";
+                }
+                response.sendRedirect(redirectUri);
+        }
 }

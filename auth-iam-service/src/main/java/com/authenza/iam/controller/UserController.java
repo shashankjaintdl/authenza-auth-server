@@ -7,15 +7,19 @@ import com.authenza.common.model.iam.User;
 import com.authenza.iam.dto.AcceptInviteRequest;
 import com.authenza.iam.dto.ChangePasswordRequest;
 import com.authenza.iam.dto.InviteUserRequest;
+import com.authenza.iam.dto.MfaSetupResponse;
 import com.authenza.iam.dto.PasswordResetRequest;
 import com.authenza.iam.dto.UpdateProfileRequest;
 import com.authenza.iam.dto.UserRegistrationRequest;
+import com.authenza.iam.dto.AdminUserCreateRequest;
 import com.authenza.iam.dto.UserResponse;
+import com.authenza.iam.service.MfaService;
 import com.authenza.iam.service.UserService;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import jakarta.validation.Valid;
 import org.springframework.data.domain.Page;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -28,9 +32,11 @@ public class UserController {
         public static final String ENDPOINT = AuthenzaConstant.API_VERSION + "/users";
 
         private final UserService userService;
+        private final MfaService mfaService;
 
-        public UserController(UserService userService) {
+        public UserController(UserService userService, MfaService mfaService) {
                 this.userService = userService;
+                this.mfaService = mfaService;
         }
 
         @PostMapping("/register")
@@ -43,7 +49,20 @@ public class UserController {
                                 .body(apiResponse);
         }
 
+        @PostMapping("/create")
+        // @PreAuthorize("hasAuthority('user:create')")
+        public ResponseEntity<ApiResponse<UserResponse>> createUser(
+                        @Valid @RequestBody AdminUserCreateRequest request) throws JsonProcessingException {
+                UserResponse response = userService.createUser(request);
+                ApiResponse<UserResponse> apiResponse = ApiResponse.created(response,
+                                "User created successfully by administrator.");
+                return ResponseEntity
+                                .status(apiResponse.getStatus())
+                                .body(apiResponse);
+        }
+
         @GetMapping
+        // @PreAuthorize("hasAuthority('audit:read')")
         public ResponseEntity<ApiResponse<List<UserResponse>>> getUsers(
                         @RequestParam(name = "currentPage", defaultValue = "0", required = false) int currentPage,
                         @RequestParam(name = "itemsPerPage", defaultValue = "10", required = false) int itemsPerPage,
@@ -51,7 +70,8 @@ public class UserController {
                         @RequestParam(name = "sortBy", defaultValue = "createdAt", required = false) String sortBy) {
                 DatabaseHelper databaseHelper = new DatabaseHelper(currentPage, itemsPerPage, sortBy, sortOrder);
                 Page<UserResponse> users = userService.getUsers(databaseHelper);
-                ApiResponse<List<UserResponse>> apiResponse = ApiResponse.paginated(users, "Users retrieved successfully.");
+                ApiResponse<List<UserResponse>> apiResponse = ApiResponse.paginated(users,
+                                "Users retrieved successfully.");
                 return ResponseEntity.ok(apiResponse);
         }
 
@@ -137,6 +157,7 @@ public class UserController {
          * Creates a user in INVITED status and sends a one-time invitation email.
          */
         @PostMapping("/invite")
+        // @PreAuthorize("hasAuthority('user:create')")
         public ResponseEntity<ApiResponse<UserResponse>> inviteUser(
                         @Valid @RequestBody InviteUserRequest request,
                         @RequestHeader(value = "X-Inviter-Name", defaultValue = "Admin") String inviterName)
@@ -203,14 +224,121 @@ public class UserController {
         }
 
         /**
+         * Completes a forced password change (e.g. after admin assigned a temporary password).
+         */
+        @PostMapping("/{userId}/force-change-password")
+        public ResponseEntity<ApiResponse<String>> forceChangePassword(
+                        @PathVariable Long userId,
+                        @RequestBody Map<String, String> body) {
+                String newPassword = body.get("newPassword");
+                if (newPassword == null || newPassword.isBlank()) {
+                        return ResponseEntity.badRequest()
+                                        .body(ApiResponse.error(400, "New password is required."));
+                }
+                userService.forceChangePassword(userId, newPassword);
+                return ResponseEntity.ok(
+                                ApiResponse.success("Password changed successfully."));
+        }
+
+        /**
          * Permanently deletes a user's account and all associated data.
          * This is the self-service deletion flow for GDPR/CCPA compliance.
          */
         @DeleteMapping("/{userId}")
+        // @PreAuthorize("hasAuthority('user:delete') or principal.id == #userId")
         public ResponseEntity<ApiResponse<String>> deleteAccount(@PathVariable Long userId) {
                 userService.deleteAccount(userId);
                 return ResponseEntity.ok(
                                 ApiResponse.noContent("Account deleted successfully."));
+        }
+
+        // ─────────────────────────────────────────────
+        // Account Lockout Management
+        // ─────────────────────────────────────────────
+
+        /**
+         * Manually unlocks a user account locked by brute-force protection.
+         * Intended for tenant admins to restore access without waiting for the
+         * automatic lockout window to expire.
+         */
+        @PostMapping("/{userId}/unlock")
+        // @PreAuthorize("hasAuthority('user:create')")
+        public ResponseEntity<ApiResponse<String>> unlockUser(@PathVariable Long userId) {
+                userService.unlockUser(userId);
+                return ResponseEntity.ok(
+                                ApiResponse.success("User account has been successfully unlocked."));
+        }
+
+        /**
+         * Admin-only: Updates a user's email address directly.
+         * Checks uniqueness within the tenant and resets email_verified to false.
+         *
+         * @param userId the user's database ID
+         * @param body   JSON body: {@code { "email": "new@acme.com" }}
+         */
+        @PatchMapping("/{userId}/email")
+        // @PreAuthorize("hasAuthority('user:create')")
+        public ResponseEntity<ApiResponse<UserResponse>> updateEmail(
+                        @PathVariable Long userId,
+                        @RequestBody Map<String, String> body) {
+                String newEmail = body.get("email");
+                if (newEmail == null || newEmail.isBlank()) {
+                        return ResponseEntity.badRequest()
+                                        .body(ApiResponse.error(400, "Email is required."));
+                }
+                UserResponse updated = userService.updateEmail(userId, newEmail.trim());
+                return ResponseEntity.ok(
+                                ApiResponse.success(updated, "User email updated successfully."));
+        }
+
+        // ─────────────────────────────────────────────
+        // MFA (TOTP) Management
+        // ─────────────────────────────────────────────
+
+        /**
+         * Initiates TOTP MFA setup for a user.
+         * Returns a QR code data URI (for Google Authenticator / Authy scanning)
+         * and the raw base32 secret (for manual entry).
+         * The MFA is NOT active until {@code /mfa/confirm} is called.
+         */
+        @PostMapping("/{userId}/mfa/setup")
+        public ResponseEntity<ApiResponse<MfaSetupResponse>> setupMfa(@PathVariable Long userId) {
+                MfaSetupResponse setupResponse = mfaService.setupMfa(userId);
+                return ResponseEntity.ok(
+                                ApiResponse.success(setupResponse,
+                                                "MFA setup initiated. Scan the QR code and confirm with a valid code."));
+        }
+
+        /**
+         * Confirms MFA enrollment by verifying the first TOTP code.
+         * Activates MFA on the account ({@code mfa_enabled=true}) if the code is valid.
+         *
+         * @param body JSON body: {@code { "code": "123456" }}
+         */
+        @PostMapping("/{userId}/mfa/confirm")
+        public ResponseEntity<ApiResponse<String>> confirmMfa(
+                        @PathVariable Long userId,
+                        @RequestBody Map<String, String> body) {
+                String code = body.get("code");
+                mfaService.confirmMfa(userId, code);
+                return ResponseEntity.ok(
+                                ApiResponse.success("MFA has been successfully enabled on your account."));
+        }
+
+        /**
+         * Disables MFA after verifying the current TOTP code.
+         * Clears the secret and sets {@code mfa_enabled=false}.
+         *
+         * @param body JSON body: {@code { "code": "123456" }}
+         */
+        @PostMapping("/{userId}/mfa/disable")
+        public ResponseEntity<ApiResponse<String>> disableMfa(
+                        @PathVariable Long userId,
+                        @RequestBody Map<String, String> body) {
+                String code = body.get("code");
+                mfaService.disableMfa(userId, code);
+                return ResponseEntity.ok(
+                                ApiResponse.success("MFA has been successfully disabled."));
         }
 
 }

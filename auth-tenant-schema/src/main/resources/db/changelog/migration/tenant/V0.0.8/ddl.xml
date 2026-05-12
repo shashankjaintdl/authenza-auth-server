@@ -1,0 +1,155 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+    http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd"
+        logicalFilePath="db/changelog/tenant/V0.0.8/ddl.xml">
+
+    <!--
+        V0.0.8 — Persistent OAuth2 Authorization & Active Session Management
+
+        Adds three tables required for:
+          1. JdbcOAuth2AuthorizationService  — replaces InMemoryOAuth2AuthorizationService
+          2. JdbcOAuth2AuthorizationConsentService — persists user consent decisions
+          3. user_session                    — custom tracker for Active Devices feature
+
+        All changesets are idempotent (preConditions onFail="MARK_RAN").
+    -->
+
+    <!-- ── Table 1: oauth2_authorization ─────────────────────────────────────
+         Spring Authorization Server's standard table for storing authorization
+         records (auth codes, access tokens, refresh tokens, OIDC ID tokens).
+         Column names and types must match JdbcOAuth2AuthorizationService's RowMapper.
+    ─────────────────────────────────────────────────────────────────────────── -->
+    <changeSet id="V0.0.8-1-create-oauth2-authorization" author="authenza">
+        <preConditions onFail="MARK_RAN">
+            <not>
+                <tableExists tableName="oauth2_authorization"/>
+            </not>
+        </preConditions>
+        <createTable tableName="oauth2_authorization">
+            <column name="id" type="VARCHAR(100)">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="registered_client_id" type="VARCHAR(100)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="principal_name" type="VARCHAR(200)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="authorization_grant_type" type="VARCHAR(100)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="authorized_scopes" type="VARCHAR(1000)"/>
+            <column name="attributes" type="BLOB"/>
+            <column name="state" type="VARCHAR(500)"/>
+            <!-- Authorization Code -->
+            <column name="authorization_code_value" type="BLOB"/>
+            <column name="authorization_code_issued_at" type="TIMESTAMP"/>
+            <column name="authorization_code_expires_at" type="TIMESTAMP"/>
+            <column name="authorization_code_metadata" type="BLOB"/>
+            <!-- Access Token -->
+            <column name="access_token_value" type="BLOB"/>
+            <column name="access_token_issued_at" type="TIMESTAMP"/>
+            <column name="access_token_expires_at" type="TIMESTAMP"/>
+            <column name="access_token_metadata" type="BLOB"/>
+            <column name="access_token_type" type="VARCHAR(100)"/>
+            <column name="access_token_scopes" type="VARCHAR(1000)"/>
+            <!-- OIDC ID Token -->
+            <column name="oidc_id_token_value" type="BLOB"/>
+            <column name="oidc_id_token_issued_at" type="TIMESTAMP"/>
+            <column name="oidc_id_token_expires_at" type="TIMESTAMP"/>
+            <column name="oidc_id_token_metadata" type="BLOB"/>
+            <column name="oidc_id_token_claims" type="BLOB"/>
+            <!-- Refresh Token -->
+            <column name="refresh_token_value" type="BLOB"/>
+            <column name="refresh_token_issued_at" type="TIMESTAMP"/>
+            <column name="refresh_token_expires_at" type="TIMESTAMP"/>
+            <column name="refresh_token_metadata" type="BLOB"/>
+            <!-- Device Code (RFC 8628) -->
+            <column name="user_code_value" type="BLOB"/>
+            <column name="user_code_issued_at" type="TIMESTAMP"/>
+            <column name="user_code_expires_at" type="TIMESTAMP"/>
+            <column name="user_code_metadata" type="BLOB"/>
+            <column name="device_code_value" type="BLOB"/>
+            <column name="device_code_issued_at" type="TIMESTAMP"/>
+            <column name="device_code_expires_at" type="TIMESTAMP"/>
+            <column name="device_code_metadata" type="BLOB"/>
+        </createTable>
+    </changeSet>
+
+    <!-- ── Table 2: oauth2_authorization_consent ──────────────────────────────
+         Stores consent decisions made by users when approving OAuth2 clients,
+         required by JdbcOAuth2AuthorizationConsentService.
+    ─────────────────────────────────────────────────────────────────────────── -->
+    <changeSet id="V0.0.8-2-create-oauth2-authorization-consent" author="authenza">
+        <preConditions onFail="MARK_RAN">
+            <not>
+                <tableExists tableName="oauth2_authorization_consent"/>
+            </not>
+        </preConditions>
+        <createTable tableName="oauth2_authorization_consent">
+            <column name="registered_client_id" type="VARCHAR(100)">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="principal_name" type="VARCHAR(200)">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="authorities" type="VARCHAR(1000)">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+    </changeSet>
+
+    <!-- ── Table 3: user_session ──────────────────────────────────────────────
+         Custom session tracker — records device name, IP, and user-agent on
+         each successful login. Used by the "Active Devices" management API.
+         Links to oauth2_authorization via authorization_id for revocation.
+    ─────────────────────────────────────────────────────────────────────────── -->
+    <changeSet id="V0.0.8-3-create-user-session" author="authenza">
+        <preConditions onFail="MARK_RAN">
+            <not>
+                <tableExists tableName="user_session"/>
+            </not>
+        </preConditions>
+        <createTable tableName="user_session">
+            <column name="id" type="BIGINT" autoIncrement="true">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="user_id" type="BIGINT">
+                <constraints nullable="false"/>
+            </column>
+            <!-- Soft-link to oauth2_authorization.id — nullable because the
+                 OAuth2 record may not exist yet when the session row is created -->
+            <column name="authorization_id" type="VARCHAR(100)"/>
+            <column name="session_token" type="VARCHAR(200)">
+                <constraints nullable="false" unique="true"/>
+            </column>
+            <column name="ip_address" type="VARCHAR(45)"/>
+            <column name="user_agent" type="VARCHAR(500)"/>
+            <!-- Human-readable device label parsed from the User-Agent header -->
+            <column name="device_name" type="VARCHAR(200)"/>
+            <column name="created_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+            <column name="last_active_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+            <column name="expires_at" type="TIMESTAMP"/>
+            <column name="revoked" type="BOOLEAN" defaultValueBoolean="false">
+                <constraints nullable="false"/>
+            </column>
+            <column name="revoked_at" type="TIMESTAMP"/>
+        </createTable>
+
+        <addForeignKeyConstraint
+                baseTableName="user_session"
+                baseColumnNames="user_id"
+                constraintName="fk_user_session_user"
+                referencedTableName="application_user"
+                referencedColumnNames="id"
+                onDelete="CASCADE"/>
+    </changeSet>
+
+</databaseChangeLog>

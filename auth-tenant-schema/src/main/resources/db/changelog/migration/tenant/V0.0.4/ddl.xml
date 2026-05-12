@@ -1,0 +1,87 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+    http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd"
+        logicalFilePath="db/changelog/tenant/V0.0.4/ddl.xml">
+
+    <changeSet id="010-create-tenant-smtp-settings" author="admin">
+        <preConditions onFail="MARK_RAN">
+            <not><tableExists tableName="tenant_smtp_settings"/></not>
+        </preConditions>
+        <createTable tableName="tenant_smtp_settings">
+            <column name="id" type="BIGINT" autoIncrement="true">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="host" type="VARCHAR(255)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="port" type="INT">
+                <constraints nullable="false"/>
+            </column>
+            <column name="username" type="VARCHAR(255)"/>
+            <column name="password" type="VARCHAR(255)"/>
+            <column name="protocol" type="VARCHAR(50)" defaultValue="smtp"/>
+            <column name="auth_enabled" type="BOOLEAN" defaultValueBoolean="true"/>
+            <column name="starttls_enabled" type="BOOLEAN" defaultValueBoolean="true"/>
+            <column name="sender_email" type="VARCHAR(255)"/>
+            <column name="sender_name" type="VARCHAR(255)"/>
+            <column name="created_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP"/>
+            <column name="updated_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP"/>
+        </createTable>
+    </changeSet>
+
+    <changeSet id="011-create-tenant-branding-settings" author="admin">
+        <preConditions onFail="MARK_RAN">
+            <not><tableExists tableName="tenant_branding_settings"/></not>
+        </preConditions>
+        <createTable tableName="tenant_branding_settings">
+            <column name="id" type="BIGINT" autoIncrement="true">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="logo_url" type="VARCHAR(1024)"/>
+            <column name="primary_color" type="VARCHAR(50)" defaultValue="#0F172A"/>
+            <column name="secondary_color" type="VARCHAR(50)" defaultValue="#38BDF8"/>
+            <column name="company_name" type="VARCHAR(255)"/>
+            <column name="support_email" type="VARCHAR(255)"/>
+            <column name="created_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP"/>
+            <column name="updated_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP"/>
+        </createTable>
+    </changeSet>
+
+    <changeSet id="010-create-email-verification-token" author="admin">
+        <preConditions onFail="MARK_RAN">
+            <not><tableExists tableName="email_verification_token"/></not>
+        </preConditions>
+        <createTable tableName="email_verification_token">
+            <column name="id" type="BIGINT" autoIncrement="true">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="user_id" type="BIGINT">
+                <constraints nullable="false"/>
+            </column>
+            <column name="token" type="VARCHAR(255)">
+                <constraints nullable="false" unique="true"/>
+            </column>
+            <column name="token_type" type="VARCHAR(30)" defaultValue="EMAIL_VERIFICATION">
+                <constraints nullable="false"/>
+            </column>
+            <column name="expires_at" type="TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+            <column name="created_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+
+        <addForeignKeyConstraint
+                baseTableName="email_verification_token"
+                baseColumnNames="user_id"
+                referencedTableName="application_user"
+                referencedColumnNames="id"
+                constraintName="fk_verification_token_user"
+                onDelete="CASCADE"/>
+    </changeSet>
+
+</databaseChangeLog>

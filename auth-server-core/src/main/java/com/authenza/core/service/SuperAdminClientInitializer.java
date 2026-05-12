@@ -1,6 +1,7 @@
 package com.authenza.core.service;
 
 import com.authenza.adapter.context.TenantContextHolder;
+import com.authenza.adapter.routing.TenantRoutingDataSource;
 import com.authenza.core.config.SuperAdminClientProperties;
 import com.fasterxml.jackson.databind.Module;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -28,37 +29,42 @@ import java.util.UUID;
  * TENANT database on application startup. Uses the TenantRoutingDataSource
  * with TenantContextHolder set to the super-admin tenant ID.
  *
- * <p>The master database (auth_master) only contains the tenants registry.
- * All OAuth2 client data lives in tenant-specific schemas.</p>
+ * <p>
+ * The master database (auth_master) only contains the tenants registry.
+ * All OAuth2 client data lives in tenant-specific schemas.
+ * </p>
  *
- * <p>This initializer is idempotent — it deletes and re-creates the client
- * on every startup to ensure settings are always up-to-date.</p>
+ * <p>
+ * This initializer is idempotent — it deletes and re-creates the client
+ * on every startup to ensure settings are always up-to-date.
+ * </p>
  */
 @Component
 public class SuperAdminClientInitializer {
 
     private static final Logger log = LoggerFactory.getLogger(SuperAdminClientInitializer.class);
 
-    private static final String CHECK_SQL =
-            "SELECT COUNT(*) FROM oauth2_registered_client WHERE client_id = ?";
+    private static final String CHECK_SQL = "SELECT COUNT(*) FROM oauth2_registered_client WHERE client_id = ?";
 
-    private static final String INSERT_SQL =
-            "INSERT INTO oauth2_registered_client " +
+    private static final String INSERT_SQL = "INSERT INTO oauth2_registered_client " +
             "(id, client_id, client_id_issued_at, client_secret, client_secret_expires_at, " +
             "client_name, client_authentication_methods, authorization_grant_types, " +
             "redirect_uris, post_logout_redirect_uris, scopes, client_settings, token_settings) " +
             "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
 
     private final DataSource dataSource;
+    private final TenantRoutingDataSource tenantRoutingDataSource;
     private final PasswordEncoder passwordEncoder;
     private final SuperAdminClientProperties properties;
     private final ObjectMapper objectMapper;
 
     public SuperAdminClientInitializer(
             DataSource dataSource,
+            TenantRoutingDataSource tenantRoutingDataSource,
             PasswordEncoder passwordEncoder,
             SuperAdminClientProperties properties) {
         this.dataSource = dataSource;
+        this.tenantRoutingDataSource = tenantRoutingDataSource;
         this.passwordEncoder = passwordEncoder;
         this.properties = properties;
 
@@ -79,6 +85,15 @@ public class SuperAdminClientInitializer {
         }
 
         try {
+            if (!tenantRoutingDataSource.isKnownTenant(properties.getTenantId())) {
+                log.warn(
+                        "Super admin tenant '{}' is not yet provisioned or loaded by adapter. Skipping client registration. "
+                                +
+                                "Please ensure auth-master-service has fully initialized the system-admin tenant.",
+                        properties.getTenantId());
+                return;
+            }
+
             // Set the tenant context so the TenantRoutingDataSource routes
             // to the super-admin's dedicated database (e.g., auth_super_admin)
             TenantContextHolder.setTenantId(properties.getTenantId());
@@ -124,8 +139,7 @@ public class SuperAdminClientInitializer {
                     postLogoutUris,
                     scopes,
                     clientSettingsJson,
-                    tokenSettingsJson
-            );
+                    tokenSettingsJson);
 
             log.info("Super admin client '{}' registered successfully in tenant database '{}'.",
                     properties.getClientId(), properties.getTenantId());
@@ -167,4 +181,3 @@ public class SuperAdminClientInitializer {
         }
     }
 }
-

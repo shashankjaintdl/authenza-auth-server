@@ -31,7 +31,7 @@ public class CorsConfig {
 
         // Allow common headers and all standard methods
         config.setAllowedHeaders(Arrays.asList("Origin", "Content-Type", "Accept", "Authorization","X-TENANT-ID"));
-        config.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS"));
+        config.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS","PATCH"));
 
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", config);

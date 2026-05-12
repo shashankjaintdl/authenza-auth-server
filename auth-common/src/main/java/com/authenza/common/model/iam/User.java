@@ -41,7 +41,14 @@ public class User{
     private Integer failedLoginAttempts;
     private Instant lockedUntil;
     private Instant passwordChangedAt;
+    private Boolean requiresPasswordChange;
     private Boolean mfaEnabled;
+    /**
+     * AES-256 encrypted, base32-encoded TOTP secret.
+     * NULL until the user initiates MFA setup.
+     * Present but {@code mfaEnabled=false} means setup was started but never confirmed.
+     */
+    private String mfaSecret;
 
     // ══════════════════════════════════════════
     // Audit
@@ -225,12 +232,28 @@ public class User{
         this.passwordChangedAt = passwordChangedAt;
     }
 
+    public Boolean getRequiresPasswordChange() {
+        return requiresPasswordChange;
+    }
+
+    public void setRequiresPasswordChange(Boolean requiresPasswordChange) {
+        this.requiresPasswordChange = requiresPasswordChange;
+    }
+
     public Boolean getMfaEnabled() {
         return mfaEnabled;
     }
 
     public void setMfaEnabled(Boolean mfaEnabled) {
         this.mfaEnabled = mfaEnabled;
+    }
+
+    public String getMfaSecret() {
+        return mfaSecret;
+    }
+
+    public void setMfaSecret(String mfaSecret) {
+        this.mfaSecret = mfaSecret;
     }
 
     public Instant getCreatedAt() {

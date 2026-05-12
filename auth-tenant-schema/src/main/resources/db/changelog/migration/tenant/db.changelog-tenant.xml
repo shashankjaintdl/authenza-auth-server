@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+    http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd"
+        logicalFilePath="db/changelog/tenant/db.changelog-tenant.xml">
+
+    <!-- Your changesets go here -->
+    <include file="V0.0.1/ddl.xml" relativeToChangelogFile="true"/>
+    <include file="V0.0.2/ddl.xml" relativeToChangelogFile="true"/>
+    <include file="V0.0.3/ddl.xml" relativeToChangelogFile="true"/>
+    <include file="V0.0.4/ddl.xml" relativeToChangelogFile="true"/>
+    <include file="V0.0.5/dml.xml" relativeToChangelogFile="true"/>
+    <include file="V0.0.6/ddl.xml" relativeToChangelogFile="true"/>
+    <include file="V0.0.7/ddl.xml" relativeToChangelogFile="true"/>
+    <include file="V0.0.8/ddl.xml" relativeToChangelogFile="true"/>
+    <include file="V0.0.9/ddl.xml" relativeToChangelogFile="true"/>
+    <include file="V0.0.10/ddl.xml" relativeToChangelogFile="true"/>
+    <include file="V0.0.11/ddl.xml" relativeToChangelogFile="true"/>
+
+</databaseChangeLog>

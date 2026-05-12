@@ -13,10 +13,13 @@ import com.authenza.iam.dto.ChangePasswordRequest;
 import com.authenza.iam.dto.InviteUserRequest;
 import com.authenza.iam.dto.UpdateProfileRequest;
 import com.authenza.iam.dto.UserRegistrationRequest;
+import com.authenza.iam.dto.AdminUserCreateRequest;
 import com.authenza.iam.dto.UserResponse;
 import com.authenza.iam.model.EmailVerificationToken;
-import com.authenza.iam.repository.EmailVerificationTokenRepository;
 import com.authenza.iam.repository.UserRepository;
+import com.authenza.iam.repository.RoleRepository;
+import com.authenza.iam.repository.EmailVerificationTokenRepository;
+import com.authenza.common.model.iam.Role;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -40,13 +43,16 @@ public class UserService {
 
     private final UserRepository userRepository;
     private final EmailVerificationTokenRepository verificationTokenRepository;
+    private final RoleRepository roleRepository;
     private final PasswordEncoder passwordEncoder;
     private final NotificationEventPublisher notificationEventPublisher;
 
     public UserService(UserRepository userRepository, EmailVerificationTokenRepository verificationTokenRepository,
-            PasswordEncoder passwordEncoder, NotificationEventPublisher notificationEventPublisher) {
+            RoleRepository roleRepository, PasswordEncoder passwordEncoder,
+            NotificationEventPublisher notificationEventPublisher) {
         this.userRepository = userRepository;
         this.verificationTokenRepository = verificationTokenRepository;
+        this.roleRepository = roleRepository;
         this.passwordEncoder = passwordEncoder;
         this.notificationEventPublisher = notificationEventPublisher;
     }
@@ -82,9 +88,75 @@ public class UserService {
         user.setFailedLoginAttempts(0);
         user.setMfaEnabled(false);
         user.setCreatedAt(Instant.now());
+
+        // Assign correct Role based on the Tenant Context
+        // String targetRoleName = tenantId.equals("system-admin") ? "ROLE_SYSTEM_ADMIN"
+        // : "ROLE_TENANT_ADMIN";
+        // Role targetRole = roleRepository.findByName(targetRoleName)
+        // .orElseThrow(() -> new IllegalStateException(
+        // "Required system role " + targetRoleName + " is missing from the
+        // database."));
+
+        // User.UserRoleRef roleRef = new User.UserRoleRef();
+        // roleRef.setRoleId(targetRole.getId());
+        // user.getRoles().add(roleRef);
+
         User savedUser = userRepository.save(user);
         generateAndSendEmailVerificationToken(savedUser);
         return new UserResponse();
+    }
+
+    @Transactional
+    public UserResponse createUser(AdminUserCreateRequest request) throws JsonProcessingException {
+        String tenantId = TenantContextHolder.getTenantId();
+        log.info("Admin creating user '{}' in tenant '{}'", request.getEmail(), tenantId);
+
+        userRepository.findByEmail(request.getEmail())
+                .ifPresent(u -> {
+                    throw new ResourceAlreadyExistsException("A user with this email already exists.");
+                });
+
+        if (request.getPreferredUsername() != null && !request.getPreferredUsername().isBlank()) {
+            userRepository.findByPreferredUsername(request.getPreferredUsername())
+                    .ifPresent(u -> {
+                        throw new ResourceAlreadyExistsException("Username is already in use.");
+                    });
+        }
+
+        User user = new User();
+        user.setEmail(request.getEmail());
+        user.setPreferredUsername(request.getPreferredUsername() != null && !request.getPreferredUsername().isBlank() 
+            ? request.getPreferredUsername() 
+            : request.getEmail());
+        user.setGivenName(request.getGivenName());
+        user.setFamilyName(request.getFamilyName());
+        user.setName(request.getGivenName() + " " + request.getFamilyName());
+        
+        // Enforce password policies
+        PasswordPolicyValidator.validate(request.getPassword());
+        user.setPassword(passwordEncoder.encode(request.getPassword()));
+        user.setRequiresPasswordChange(true);
+
+        user.setEmailVerified(true); // Admin-created users are trusted by default in this flow
+        user.setPhoneNumberVerified(false);
+        user.setStatus(UserStatus.PENDING_VERIFICATION);
+        user.setFailedLoginAttempts(0);
+        user.setMfaEnabled(false);
+        user.setCreatedAt(Instant.now());
+
+        // Assign roles if provided
+        if (request.getRoleIds() != null && !request.getRoleIds().isEmpty()) {
+            for (Long roleId : request.getRoleIds()) {
+                User.UserRoleRef roleRef = new User.UserRoleRef();
+                roleRef.setRoleId(roleId);
+                user.getRoles().add(roleRef);
+            }
+        }
+
+        User savedUser = userRepository.save(user);
+        log.info("User '{}' created by admin in tenant '{}'", savedUser.getEmail(), tenantId);
+
+        return toUserResponse(savedUser);
     }
 
     private void generateAndSendEmailVerificationToken(final User user) throws JsonProcessingException {
@@ -137,8 +209,9 @@ public class UserService {
                     .of(databaseHelper.getCurrentPage(), databaseHelper.getItemPerPage())
                     .withSort(Sort.Direction.fromString(databaseHelper.getSortOrder()), databaseHelper.getSortBy());
         }
-        // Map the secure User entity safely to the UserResponse DTO
-        return userRepository.findAll(pageable).map(this::toUserResponse);
+        // Map the secure User entity safely to the UserResponse DTO.
+        // We filter out shadow admins by excluding users with the sentinel password [GLOBAL_ACCOUNT].
+        return userRepository.findByPasswordNot("[GLOBAL_ACCOUNT]", pageable).map(this::toUserResponse);
     }
 
     // ─────────────────────────────────────────────
@@ -237,6 +310,7 @@ public class UserService {
 
         // Update the password
         user.setPassword(passwordEncoder.encode(newPassword));
+        user.setRequiresPasswordChange(false);
         user.setPasswordChangedAt(Instant.now());
         user.setUpdatedAt(Instant.now());
         userRepository.save(user);
@@ -463,8 +537,17 @@ public class UserService {
                 .orElseThrow(() -> new ResourceNotFoundException("User not found."));
 
         // Verify the current password before allowing the change
-        if (!passwordEncoder.matches(request.getCurrentPassword(), user.getPassword())) {
-            throw new IllegalArgumentException("Current password is incorrect.");
+        try {
+            if (!passwordEncoder.matches(request.getCurrentPassword(), user.getPassword())) {
+                throw new IllegalArgumentException("Incorrect current password.");
+            }
+        } catch (IllegalArgumentException ex) {
+            if (ex.getMessage() != null && ex.getMessage().contains("password encoding prefix")) {
+                // If it lacks a prefix, it's an old legacy format and definitely won't match 
+                // the new delegating encoder logic. We treat it as incorrect.
+                throw new IllegalArgumentException("Incorrect current password.");
+            }
+            throw ex;
         }
 
         // Prevent setting the same password
@@ -476,12 +559,127 @@ public class UserService {
         PasswordPolicyValidator.validate(request.getNewPassword());
 
         user.setPassword(passwordEncoder.encode(request.getNewPassword()));
+        user.setRequiresPasswordChange(false);
         user.setPasswordChangedAt(Instant.now());
         user.setUpdatedAt(Instant.now());
         userRepository.save(user);
 
         log.info("Password changed for user '{}' in tenant '{}'",
                 user.getEmail(), TenantContextHolder.getTenantId());
+    }
+
+    /**
+     * Forces a password change for a user (e.g. after admin assigned a temporary password).
+     * Bypasses current password verification, but requires the requires_password_change flag to be true.
+     *
+     * @param userId      the user's database ID
+     * @param newPassword the new plaintext password
+     */
+    @Transactional
+    public void forceChangePassword(Long userId, String newPassword) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found."));
+
+        if (user.getRequiresPasswordChange() == null || !user.getRequiresPasswordChange()) {
+            throw new IllegalStateException("Password change is not currently forced for this user.");
+        }
+
+        // Prevent setting the same password
+        try {
+            if (user.getPassword() != null && passwordEncoder.matches(newPassword, user.getPassword())) {
+                throw new IllegalArgumentException("New password must be different from the temporary password.");
+            }
+        } catch (IllegalArgumentException ex) {
+            // DelegatingPasswordEncoder throws this if the current DB password lacks a {prefix}.
+            // If it lacks a prefix (like [GLOBAL_ACCOUNT] or legacy text), we safely assume 
+            // the new password is "different" and allow the change to proceed.
+            if (!ex.getMessage().contains("password encoding prefix")) {
+                throw ex;
+            }
+        }
+
+        // Enforce strict password policies
+        PasswordPolicyValidator.validate(newPassword);
+
+        user.setPassword(passwordEncoder.encode(newPassword));
+        user.setRequiresPasswordChange(false);
+        user.setPasswordChangedAt(Instant.now());
+        user.setUpdatedAt(Instant.now());
+        userRepository.save(user);
+
+        log.info("Forced password change completed for user '{}' in tenant '{}'",
+                user.getEmail(), TenantContextHolder.getTenantId());
+    }
+
+    /**
+     * Manually unlocks a user account that was locked due to excessive failed login
+     * attempts.
+     * Resets the failed attempt counter and clears the temporary lock window.
+     *
+     * <p>
+     * This method is intended for call by tenant admins via the management API.
+     *
+     * @param userId the user's database ID
+     * @throws ResourceNotFoundException if the user does not exist
+     * @throws IllegalStateException     if the user account is not currently locked
+     */
+    @Transactional
+    public void unlockUser(Long userId) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found."));
+
+        if (user.getStatus() != com.authenza.common.enums.UserStatus.LOCKED) {
+            throw new IllegalStateException("User account is not currently locked.");
+        }
+
+        user.setStatus(com.authenza.common.enums.UserStatus.ACTIVE);
+        user.setFailedLoginAttempts(0);
+        user.setLockedUntil(null);
+        user.setUpdatedAt(Instant.now());
+        userRepository.save(user);
+
+        log.info("Account manually unlocked for user ID '{}' in tenant '{}'",
+                userId, TenantContextHolder.getTenantId());
+    }
+
+    /**
+     * Admin-only: Updates a user's email address directly.
+     * Since this is an admin action, no re-verification flow is required.
+     * The new email is checked for uniqueness within the tenant, and
+     * {@code email_verified} is reset to {@code false}.
+     *
+     * @param userId   the user's database ID
+     * @param newEmail the new email address
+     * @return the updated UserResponse DTO
+     * @throws ResourceNotFoundException      if the user does not exist
+     * @throws ResourceAlreadyExistsException if the email is already taken
+     */
+    @Transactional
+    public UserResponse updateEmail(Long userId, String newEmail) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found."));
+
+        // Skip if the email hasn't actually changed
+        if (newEmail.equalsIgnoreCase(user.getEmail())) {
+            return toUserResponse(user);
+        }
+
+        // Ensure the new email isn't already registered in this tenant
+        userRepository.findByEmail(newEmail)
+                .ifPresent(u -> {
+                    throw new ResourceAlreadyExistsException(
+                            "A user with email '" + newEmail + "' already exists in this tenant.");
+                });
+
+        user.setEmail(newEmail);
+        user.setEmailVerified(false); // New email has not been verified yet
+        user.setUpdatedAt(Instant.now());
+        User saved = userRepository.save(user);
+
+        log.info("Email updated by admin for user ID '{}' to '{}' in tenant '{}'",
+                userId, newEmail, TenantContextHolder.getTenantId());
+
+        return toUserResponse(saved);
     }
 
     /**

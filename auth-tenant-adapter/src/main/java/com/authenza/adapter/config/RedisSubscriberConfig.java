@@ -18,7 +18,8 @@ public class RedisSubscriberConfig {
     @Bean
     RedisMessageListenerContainer tenantProvisionedListenerContainer(
             RedisConnectionFactory connectionFactory,
-            TenantProvisionedListener tenantProvisionedListener) {
+            TenantProvisionedListener tenantProvisionedListener,
+            TenantSettingsInvalidatedListener settingsInvalidatedListener) {
 
         RedisMessageListenerContainer container = new RedisMessageListenerContainer();
         container.setConnectionFactory(connectionFactory);
@@ -28,6 +29,11 @@ public class RedisSubscriberConfig {
         container.addMessageListener(
                 tenantProvisionedListener,
                 new ChannelTopic(RedisChannels.TENANT_PROVISIONED)
+        );
+
+        container.addMessageListener(
+                settingsInvalidatedListener,
+                new ChannelTopic(RedisChannels.TENANT_SETTINGS_INVALIDATED)
         );
 
         return container;

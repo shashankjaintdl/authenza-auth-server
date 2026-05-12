@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+                        http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <changeSet id="add-brute-force-protection-enabled-setting" author="authenza">
+        <!-- Only insert if it doesn't already exist -->
+        <preConditions onFail="MARK_RAN">
+            <sqlCheck expectedResult="0">
+                SELECT COUNT(*) FROM tenant_settings WHERE setting_key = 'brute_force_protection_enabled'
+            </sqlCheck>
+        </preConditions>
+        <insert tableName="tenant_settings">
+            <column name="setting_key" value="brute_force_protection_enabled"/>
+            <column name="setting_value" value="true"/>
+        </insert>
+    </changeSet>
+
+    <changeSet id="add-brute-force-max-attempts-setting" author="authenza">
+        <!-- Only insert if it doesn't already exist -->
+        <preConditions onFail="MARK_RAN">
+            <sqlCheck expectedResult="0">
+                SELECT COUNT(*) FROM tenant_settings WHERE setting_key = 'brute_force_max_attempts'
+            </sqlCheck>
+        </preConditions>
+        <insert tableName="tenant_settings">
+            <column name="setting_key" value="brute_force_max_attempts"/>
+            <column name="setting_value" value="5"/>
+        </insert>
+    </changeSet>
+
+       <changeSet id="add-brute-force-max-attempts-setting1" author="authenza">
+        <!-- Only insert if it doesn't already exist -->
+        <preConditions onFail="MARK_RAN">
+            <sqlCheck expectedResult="0">
+                SELECT COUNT(*) FROM tenant_settings WHERE setting_key = 'brute_force_max_attempts1'
+            </sqlCheck>
+        </preConditions>
+        <insert tableName="tenant_settings">
+            <column name="setting_key" value="brute_force_max_attempts1"/>
+            <column name="setting_value" value="5"/>
+        </insert>
+    </changeSet>
+</databaseChangeLog>

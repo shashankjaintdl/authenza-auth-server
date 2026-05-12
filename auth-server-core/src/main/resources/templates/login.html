@@ -67,7 +67,7 @@
             font-weight: 500;
         }
 
-        .error-msg, .logout-msg {
+        .error-msg, .logout-msg, .locked-msg {
             padding: .75rem 1rem;
             border-radius: 8px;
             font-size: .875rem;
@@ -76,8 +76,9 @@
             animation: shakeFade .5s cubic-bezier(.36,.07,.19,.97) both;
         }
 
-        .error-msg { background: rgba(239, 68, 68, .1); border-left: 3px solid #ef4444; color: #fca5a5; }
-        .logout-msg { background: rgba(34, 197, 94, .1); border-left: 3px solid #22c55e; color: #86efac; }
+        .error-msg  { background: rgba(239, 68, 68, .1);  border-left: 3px solid #ef4444; color: #fca5a5; }
+        .logout-msg { background: rgba(34, 197, 94, .1);  border-left: 3px solid #22c55e; color: #86efac; }
+        .locked-msg { background: rgba(251, 191, 36, .1); border-left: 3px solid #fbbf24; color: #fde68a; }
 
         @keyframes shakeFade {
             0%, 100% { transform: translateX(0); opacity: 1; }
@@ -283,6 +284,62 @@
             .hero-section { display: none; }
             .form-section { padding: 1.5rem; }
         }
+
+        /* ─── Passkey Button ─── */
+        .divider {
+            display: flex;
+            align-items: center;
+            gap: .75rem;
+            margin: 1.5rem 0;
+            color: #52525b;
+            font-size: .8rem;
+            font-weight: 500;
+            letter-spacing: .05em;
+            text-transform: uppercase;
+        }
+        .divider::before, .divider::after {
+            content: '';
+            flex: 1;
+            height: 1px;
+            background: #3f3f46;
+        }
+
+        button.btn-passkey {
+            width: 100%;
+            padding: .75rem;
+            border: 1px solid #3f3f46;
+            border-radius: 8px;
+            background: transparent;
+            color: #d4d4d8;
+            font-size: .95rem;
+            font-weight: 500;
+            font-family: inherit;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: .6rem;
+            transition: all 0.25s ease;
+        }
+        button.btn-passkey:hover:not(:disabled) {
+            border-color: #8b5cf6;
+            color: #c4b5fd;
+            background: rgba(139, 92, 246, 0.06);
+        }
+        button.btn-passkey:disabled {
+            opacity: 0.4;
+            cursor: not-allowed;
+        }
+
+        .passkey-status {
+            margin-top: .75rem;
+            font-size: .82rem;
+            text-align: center;
+            min-height: 1.2rem;
+            color: #a1a1aa;
+        }
+        .passkey-status.error { color: #f87171; }
+        .passkey-status.success { color: #4ade80; }
     </style>
 </head>
 <body>
@@ -294,9 +351,17 @@
                 <h1>Login</h1>
                 <p class="subtitle">Enter your account details to securely access your workspace.</p>
 
+                <!-- Generic failed-credentials error -->
                 <div class="error-msg" th:if="${param.error}">
                     Invalid username or password.
                 </div>
+
+                <!-- Account locked due to too many failed attempts -->
+                <div class="locked-msg" th:if="${param.locked}">
+                    🔒 Your account has been temporarily locked due to too many failed login attempts.
+                    Please try again later or contact your administrator.
+                </div>
+
                 <div class="logout-msg" th:if="${param.logout}">
                     You have been signed out.
                 </div>
@@ -330,6 +395,30 @@
                     Don't have an account? 
                     <a th:href="@{'/' + ${tenantId} + '/register'}">Sign up</a>
                 </p>
+
+                <!-- ─── WebAuthn Passkey Login ─── -->
+                <!-- Only shown when the browser supports the WebAuthn API -->
+                <div id="passkeySection" style="display:none">
+                    <div class="divider">or</div>
+                    <button type="button" id="passkeyBtn" class="btn-passkey">
+                        <!-- Fingerprint icon -->
+                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24"
+                             fill="none" stroke="currentColor" stroke-width="1.8"
+                             stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M12 10a2 2 0 0 0-2 2c0 1.02-.1 2.51-.26 4"/>
+                            <path d="M14 13.12c0 2.38 0 6.38-1 8.88"/>
+                            <path d="M17.29 21.02c.12-.6.43-2.3.5-3.02"/>
+                            <path d="M2 12a10 10 0 0 1 18-6"/>
+                            <path d="M2 16h.01"/>
+                            <path d="M21.8 16c.2-2 .131-5.354 0-6"/>
+                            <path d="M5 19.5C5.5 18 6 15 6 12a6 6 0 0 1 .34-2"/>
+                            <path d="M8.65 22c.21-.66.45-1.32.57-2"/>
+                            <path d="M9 6.8a6 6 0 0 1 9 5.2v2"/>
+                        </svg>
+                        Sign in with Passkey
+                    </button>
+                    <div id="passkeyStatus" class="passkey-status"></div>
+                </div>
             </div>
         </div>
 
@@ -347,9 +436,14 @@
         (function () {
             'use strict';
 
-            const usernameInput = document.getElementById('username');
-            const passwordInput = document.getElementById('password');
-            const submitBtn = document.getElementById('submitBtn');
+            // ── Thymeleaf model values baked into JS ──
+            const TENANT_ID    = /*[[${tenantId}]]*/ 'system-admin';
+            const IAM_BASE_URL = /*[[${@environment.getProperty('app.services.iam.base-url')}]]*/ 'http://localhost:8082';
+
+            // ── Form validation ──────────────────────────────────────────────
+            const usernameInput   = document.getElementById('username');
+            const passwordInput   = document.getElementById('password');
+            const submitBtn       = document.getElementById('submitBtn');
             const usernameFeedback = document.getElementById('usernameFeedback');
             const passwordFeedback = document.getElementById('passwordFeedback');
 
@@ -387,15 +481,164 @@
                 checkFormState();
             });
 
-            usernameInput.addEventListener('blur', function () {
-                validateField(usernameInput, usernameFeedback);
-            });
-
-            passwordInput.addEventListener('blur', function () {
-                validateField(passwordInput, passwordFeedback);
-            });
+            usernameInput.addEventListener('blur', function () { validateField(usernameInput, usernameFeedback); });
+            passwordInput.addEventListener('blur', function () { validateField(passwordInput, passwordFeedback); });
 
             setTimeout(checkFormState, 100);
+
+            // ── WebAuthn Passkey Flow ────────────────────────────────────────
+
+            // Show the passkey button only if the browser supports WebAuthn
+            if (window.PublicKeyCredential) {
+                document.getElementById('passkeySection').style.display = 'block';
+            }
+
+            const passkeyBtn    = document.getElementById('passkeyBtn');
+            const passkeyStatus = document.getElementById('passkeyStatus');
+
+            function setPasskeyStatus(msg, type) {
+                passkeyStatus.textContent = msg;
+                passkeyStatus.className = 'passkey-status' + (type ? ' ' + type : '');
+            }
+
+            // Decodes a base64url string into a Uint8Array (required by the WebAuthn API)
+            function base64urlToUint8Array(b64url) {
+                const pad = b64url.length % 4;
+                const b64 = b64url.replace(/-/g, '+').replace(/_/g, '/') +
+                            (pad === 2 ? '==' : pad === 3 ? '=' : '');
+                const bin = atob(b64);
+                const buf = new Uint8Array(bin.length);
+                for (let i = 0; i < bin.length; i++) buf[i] = bin.charCodeAt(i);
+                return buf;
+            }
+
+            // Converts a credential response value (ArrayBuffer or Uint8Array) to base64url
+            function uint8ArrayToBase64url(buffer) {
+                const bytes = new Uint8Array(buffer);
+                let bin = '';
+                for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
+                return btoa(bin).replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '');
+            }
+
+            // Serializes a PublicKeyCredential (assertion) to a plain JSON-safe object
+            // so it can be sent as a request body to the server.
+            function credentialToJson(cred) {
+                return {
+                    id: cred.id,
+                    rawId: uint8ArrayToBase64url(cred.rawId),
+                    type: cred.type,
+                    response: {
+                        authenticatorData: uint8ArrayToBase64url(cred.response.authenticatorData),
+                        clientDataJSON:    uint8ArrayToBase64url(cred.response.clientDataJSON),
+                        signature:         uint8ArrayToBase64url(cred.response.signature),
+                        userHandle:        cred.response.userHandle
+                                            ? uint8ArrayToBase64url(cred.response.userHandle)
+                                            : null
+                    }
+                };
+            }
+
+            passkeyBtn.addEventListener('click', async function () {
+                const username = usernameInput.value.trim();
+                if (!username) {
+                    setPasskeyStatus('Please enter your username or email first.', 'error');
+                    usernameInput.focus();
+                    return;
+                }
+
+                passkeyBtn.disabled = true;
+                setPasskeyStatus('Starting passkey authentication…');
+
+                try {
+                    // ── Step 1: Get assertion challenge from auth-iam-service ────
+                    const startResp = await fetch(IAM_BASE_URL + '/webauthn/authenticate/start', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-Tenant-ID': TENANT_ID
+                        },
+                        body: JSON.stringify({ username })
+                    });
+                    if (!startResp.ok) {
+                        const err = await startResp.json().catch(() => ({}));
+                        throw new Error(err.message || 'Could not start passkey authentication.');
+                    }
+                    const startData = await startResp.json();
+                    // assertionRequest.toJson() wraps options inside publicKeyCredentialRequestOptions.
+                    // navigator.credentials.get() needs the inner object directly.
+                    const assertionReq = JSON.parse(startData.data.credentialCreationOptions);
+                    const options      = assertionReq.publicKeyCredentialRequestOptions;
+                    const requestId    = startData.data.requestId;
+
+                    if (!options || !options.challenge) {
+                        throw new Error('No passkey registered for this account. Please sign in with your password first and register a passkey from Security settings.');
+                    }
+
+                    // Decode base64url fields required by the browser WebAuthn API
+                    options.challenge = base64urlToUint8Array(options.challenge);
+                    if (options.allowCredentials && options.allowCredentials.length > 0) {
+                        options.allowCredentials = options.allowCredentials.map(c => ({
+                            ...c, id: base64urlToUint8Array(c.id)
+                        }));
+                    } else {
+                        // No specific credentials — remove the field so the browser
+                        // shows all available passkeys (discoverable credential mode)
+                        delete options.allowCredentials;
+                    }
+
+                    // ── Step 2: Prompt biometric / hardware key ──────────────────
+                    setPasskeyStatus('Waiting for your device biometric…');
+                    const assertion = await navigator.credentials.get({ publicKey: options });
+
+                    // ── Step 3: Verify assertion in auth-iam-service ─────────────
+                    setPasskeyStatus('Verifying passkey…');
+                    const finishResp = await fetch(
+                        IAM_BASE_URL + '/webauthn/authenticate/finish', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'X-Tenant-ID': TENANT_ID
+                            },
+                            body: JSON.stringify({
+                                requestId,
+                                credentialJson: JSON.stringify(credentialToJson(assertion))
+                            })
+                        });
+                    if (!finishResp.ok) {
+                        const err = await finishResp.json().catch(() => ({}));
+                        throw new Error(err.message || 'Passkey verification failed.');
+                    }
+                    const finishData   = await finishResp.json();
+                    const bridgeToken  = finishData.data.bridgeToken;
+
+                    // ── Step 4: Hand off to auth-server-core via bridge form POST ─
+                    // We use a hidden form submit (not fetch) so auth-server-core's
+                    // redirect response properly sets the session cookie in the browser.
+                    setPasskeyStatus('Signing you in…', 'success');
+                    const form = document.createElement('form');
+                    form.method = 'POST';
+                    form.action = '/' + TENANT_ID + '/webauthn/bridge';
+
+                    const tokenInput = document.createElement('input');
+                    tokenInput.type  = 'hidden';
+                    tokenInput.name  = 'bridgeToken';
+                    tokenInput.value = bridgeToken;
+                    form.appendChild(tokenInput);
+
+                    document.body.appendChild(form);
+                    form.submit();
+
+                } catch (err) {
+                    console.error('[WebAuthn] Error:', err);
+                    if (err.name === 'NotAllowedError') {
+                        setPasskeyStatus('Passkey authentication was cancelled.', 'error');
+                    } else {
+                        setPasskeyStatus(err.message || 'Passkey sign-in failed. Please use your password.', 'error');
+                    }
+                    passkeyBtn.disabled = false;
+                }
+            });
+
         })();
     </script>
 </body>

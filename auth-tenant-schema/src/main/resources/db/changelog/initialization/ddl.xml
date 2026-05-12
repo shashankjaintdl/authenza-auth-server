@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+    http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <!--
+        INITIALIZATION DDL — Consolidated structural baseline
+        ══════════════════════════════════════════════════════════════════
+        Contains ALL CREATE TABLE, ADD COLUMN, ADD FK, CREATE INDEX
+        statements for a brand-new tenant database.
+
+        Sources: V0.0.1, V0.0.3, V0.0.4, V0.0.6, V0.0.7, V0.0.8
+
+        This is used by TenantProvisioningService.runLiquibaseMigration()
+        for fresh-tenant bootstrap in Phase 5+.
+        ══════════════════════════════════════════════════════════════════
+    -->
+
+    <!-- delegate to initialization/tenant/ddl.xml which holds the full content -->
+    <include file="tenant/ddl.xml" relativeToChangelogFile="true"/>
+
+</databaseChangeLog>

@@ -26,8 +26,11 @@ public class TenantLoaderService {
 
     /**
      * Executes automatically after the application context is ready.
+     * Guaranteed to execute FIRST so that connection pools are ready
+     * for any other initializers (like SuperAdminClientInitializer).
      */
     @EventListener(ApplicationReadyEvent.class)
+    @org.springframework.core.annotation.Order(org.springframework.core.Ordered.HIGHEST_PRECEDENCE)
     public void loadAllTenantsOnStartup() {
         JdbcTemplate jdbcTemplate = new JdbcTemplate(masterDataSource);
         String sql = "SELECT tenant_id, jdbc_url, username, encrypted_password, driver_class_name FROM tenants";
@@ -59,11 +62,9 @@ public class TenantLoaderService {
         hikariConfig.setPassword(config.password());
         hikariConfig.setDriverClassName(config.driverClassName());
 
-        // Pool sizing optimized for local development.
-        // With 4 services × N tenants, keep pools small to avoid
-        // exhausting MySQL's max_connections limit (default: 151).
-        hikariConfig.setMaximumPoolSize(2);
-        hikariConfig.setMinimumIdle(1);
+        // Pool sizing optimized for normal operation.
+        hikariConfig.setMaximumPoolSize(10);
+        hikariConfig.setMinimumIdle(2);
         hikariConfig.setPoolName("Pool-" + config.tenantId());
 
         HikariDataSource ds = new HikariDataSource(hikariConfig);

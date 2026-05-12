@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+    http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd"
+        logicalFilePath="db/changelog/master/V0.0.1/ddl.xml">
+
+    <!--
+        logicalFilePath: tells Liquibase to record this file's changesets under
+        'db/changelog/master/V0.0.1/ddl.xml' in DATABASECHANGELOG, preserving
+        the original tracking path even though the physical file lives under
+        migration/master/. Moving this file never breaks DATABASECHANGELOG history.
+
+        preConditions: belt-and-suspenders guard in case DATABASECHANGELOG is
+        ever reset or the file path tracking fails — skip safely if table exists.
+    -->
+
+    <changeSet id="0101-create-tenants-table" author="root">
+        <preConditions onFail="MARK_RAN">
+            <not>
+                <tableExists tableName="tenants"/>
+            </not>
+        </preConditions>
+        <createTable tableName="tenants">
+            <column name="id" type="BIGINT" autoIncrement="true">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="tenant_id" type="VARCHAR(100)">
+                <constraints unique="true" nullable="false"/>
+            </column>
+            <column name="db_type" type="VARCHAR(20)"/>
+            <column name="jdbc_url" type="VARCHAR(255)"/>
+            <column name="username" type="VARCHAR(100)"/>
+            <column name="encrypted_password" type="VARCHAR(255)"/>
+            <column name="driver_class_name" type="VARCHAR(100)"/>
+            <column name="active" type="VARCHAR(20)"/>
+        </createTable>
+    </changeSet>
+
+</databaseChangeLog>

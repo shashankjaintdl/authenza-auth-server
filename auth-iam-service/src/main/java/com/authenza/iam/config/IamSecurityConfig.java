@@ -5,6 +5,7 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
+import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.crypto.factory.PasswordEncoderFactories;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
@@ -22,27 +23,26 @@ public class IamSecurityConfig {
     public SecurityFilterChain iamSecurityFilterChain(HttpSecurity http) throws Exception {
         http
                 .cors(Customizer.withDefaults())
-                .csrf(csrf -> csrf.disable())
+                .csrf(AbstractHttpConfigurer::disable)
                 .authorizeHttpRequests(authorize -> authorize
                         // Health check endpoints (for load balancers / Kubernetes probes)
                         .requestMatchers("/actuator/**").permitAll()
-                        // All IAM admin APIs require authentication
-                        .anyRequest().permitAll()
-                );
-//                .oauth2ResourceServer(oauth2 -> oauth2
-//                        .jwt(jwt -> {
-//
-//                            jwt.jwkSetUri("http://localhost:8081/jwks");
-//                            // Spring auto-discovers the JWKS endpoint from the issuer-uri
-//                            // configured in application.yml
-//                        })
-//                );
+                        // ── WebAuthn Passwordless Login ───────────────────────────────────
+                        // These two endpoints are called from the login page BEFORE the user
+                        // is authenticated (that is the entire point of passwordless auth).
+                        // Requiring a JWT here would create a chicken-and-egg loop.
+                        .requestMatchers("/webauthn/authenticate/start").permitAll()
+                        .requestMatchers("/webauthn/authenticate/finish").permitAll()
+                        // All other IAM admin APIs require a valid JWT Bearer token
+                        .anyRequest().authenticated())
+                .oauth2ResourceServer(oauth2 -> oauth2
+                        .jwt(Customizer.withDefaults()));
 
         return http.build();
     }
 
     @Bean
-    public PasswordEncoder passwordEncoder(){
+    public PasswordEncoder passwordEncoder() {
         return PasswordEncoderFactories.createDelegatingPasswordEncoder();
     }
 }

@@ -1,9 +1,11 @@
 package com.authenza.core.security;
 
 import com.authenza.adapter.context.TenantContextHolder;
+import com.authenza.core.service.SessionRecordingService;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import jakarta.servlet.http.HttpSession;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.config.Customizer;
@@ -12,15 +14,15 @@ import org.springframework.security.config.annotation.method.configuration.Enabl
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.AuthenticationException;
-import org.springframework.security.core.userdetails.User;
 import org.springframework.security.core.userdetails.UserDetails;
-import org.springframework.security.core.userdetails.UserDetailsService;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.factory.PasswordEncoderFactories;
 import org.springframework.security.crypto.password.PasswordEncoder;
-import org.springframework.security.provisioning.InMemoryUserDetailsManager;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.AuthenticationFailureHandler;
 import org.springframework.security.web.authentication.SavedRequestAwareAuthenticationSuccessHandler;
+import org.springframework.security.web.context.HttpSessionSecurityContextRepository;
+import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.security.web.savedrequest.HttpSessionRequestCache;
 import org.springframework.security.web.savedrequest.SavedRequest;
 import org.springframework.security.web.session.DisableEncodeUrlFilter;
@@ -30,6 +32,21 @@ import java.io.IOException;
 @Configuration
 @EnableMethodSecurity
 public class SecurityConfig {
+
+    private final BruteForceProtectionService bruteForceProtectionService;
+    private final JdbcTenantUserDetailsService userDetailsService;
+    private final MfaAuthenticationFilter mfaAuthenticationFilter;
+    private final SessionRecordingService sessionRecordingService;
+
+    public SecurityConfig(BruteForceProtectionService bruteForceProtectionService,
+            JdbcTenantUserDetailsService userDetailsService,
+            MfaAuthenticationFilter mfaAuthenticationFilter,
+            SessionRecordingService sessionRecordingService) {
+        this.bruteForceProtectionService = bruteForceProtectionService;
+        this.userDetailsService = userDetailsService;
+        this.mfaAuthenticationFilter = mfaAuthenticationFilter;
+        this.sessionRecordingService = sessionRecordingService;
+    }
 
     @Bean
     @Order(2)
@@ -52,6 +69,14 @@ public class SecurityConfig {
                                 .requestMatchers("/{tenantId}/verify-email").permitAll()
                                 .requestMatchers("/{tenantId}/forgot-password").permitAll()
                                 .requestMatchers("/{tenantId}/reset-password").permitAll()
+                                // MFA challenge and setup pages — session-gated by their controllers
+                                .requestMatchers("/{tenantId}/mfa-verify").permitAll()
+                                .requestMatchers("/{tenantId}/mfa-setup").permitAll()
+                                .requestMatchers("/{tenantId}/force-password-change").permitAll()
+                                // WebAuthn bridge — receives the HMAC-signed token from the login page
+                                // after a successful passkey assertion in auth-iam-service.
+                                // Authentication proof is the bridge token itself, not a session.
+                                .requestMatchers("/{tenantId}/webauthn/bridge").permitAll()
                                 .requestMatchers("/{tenantId}/api/**").permitAll()
                                 .requestMatchers("/error/**").permitAll()
                                 .requestMatchers("/images/**", "/css/**", "/js/**", "/favicon.ico").permitAll()
@@ -79,6 +104,11 @@ public class SecurityConfig {
                             // trigger the master tenant OAuth2 flow for non-master tenants
                             form.successHandler(tenantAwareAuthenticationSuccessHandler());
                         }
+                )
+                // Register the MFA TOTP verification filter after password auth
+                .addFilterAfter(mfaAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)
+                .csrf(csrf -> csrf
+                        .ignoringRequestMatchers("/{tenantId}/webauthn/bridge")
                 );
         // @formatter:on
 
@@ -103,6 +133,63 @@ public class SecurityConfig {
                     Authentication authentication)
                     throws IOException, ServletException {
 
+                // Resolve tenant for brute-force counter reset
+                String tenantId = TenantContextHolder.getTenantId();
+                if (tenantId == null || tenantId.isBlank()) {
+                    tenantId = resolveTenantFromUri(request.getRequestURI());
+                }
+
+                String username = authentication.getName();
+
+                // ── Force Password Change gate: if admin set a temporary password ──
+                if (userDetailsService.isPasswordChangeRequired(username)) {
+                    SecurityContextHolder.clearContext();
+                    HttpSession forceChangeSession = request.getSession(true);
+                    forceChangeSession
+                            .removeAttribute(HttpSessionSecurityContextRepository.SPRING_SECURITY_CONTEXT_KEY);
+                    forceChangeSession.setAttribute("PENDING_PASSWORD_CHANGE_USERNAME", username);
+                    forceChangeSession.setAttribute("PENDING_PASSWORD_CHANGE_TENANT", tenantId);
+                    Long userId = userDetailsService.loadUserId(username);
+                    forceChangeSession.setAttribute("PENDING_PASSWORD_CHANGE_USER_ID", userId);
+
+                    response.sendRedirect("/" + tenantId + "/force-password-change");
+                    return;
+                }
+
+                // ── MFA gate: if MFA is enabled for this user, do NOT complete auth yet ──
+                // Store the pending state in session and redirect to the TOTP challenge page.
+                // The SecurityContext is NOT set here — MfaAuthenticationFilter will do it
+                // after the TOTP code is verified.
+                if (userDetailsService.isMfaRequired(username)) {
+                    // Invalidate the Spring Security authentication produced by form login
+                    // so the user is not treated as logged-in yet
+                    SecurityContextHolder.clearContext();
+                    HttpSession mfaSession = request.getSession(true);
+                    mfaSession.removeAttribute(HttpSessionSecurityContextRepository.SPRING_SECURITY_CONTEXT_KEY);
+                    mfaSession.setAttribute(MfaAuthenticationFilter.PENDING_MFA_USERNAME, username);
+                    mfaSession.setAttribute(MfaAuthenticationFilter.PENDING_MFA_TENANT, tenantId);
+                    // Also store userId for the setup flow (needed to call IAM API)
+                    Long userId = userDetailsService.loadUserId(username);
+                    mfaSession.setAttribute(MfaAuthenticationFilter.PENDING_MFA_USER_ID, userId);
+
+                    // Routing decision: only send to /mfa-verify if the user has
+                    // FULLY enrolled (mfa_enabled=true AND secret confirmed).
+                    // If they visited /mfa-setup but closed without confirming, they
+                    // have a secret in the DB but mfa_enabled=false — send back to setup.
+                    String mfaTarget = userDetailsService.isMfaFullyEnrolled(username)
+                            ? "/" + tenantId + "/mfa-verify"
+                            : "/" + tenantId + "/mfa-setup";
+                    response.sendRedirect(mfaTarget);
+                    return;
+                }
+
+                // ── No MFA — reset brute-force counter and complete login as normal ──
+                bruteForceProtectionService.resetFailedAttempts(username, tenantId);
+
+                // Record the session for Active Devices tracking
+                Long userId = userDetailsService.loadUserId(username);
+                sessionRecordingService.recordSession(userId, request);
+
                 // Check if there's a saved request (from OAuth2 authorize redirect)
                 HttpSessionRequestCache requestCache = new HttpSessionRequestCache();
                 SavedRequest savedRequest = requestCache.getRequest(request, response);
@@ -116,11 +203,6 @@ public class SecurityConfig {
 
                 // No saved request — user logged in directly at /{tenantId}/login.
                 // Redirect to /{tenantId}/ instead of "/" to stay in their tenant.
-                String tenantId = TenantContextHolder.getTenantId();
-                if (tenantId == null || tenantId.isBlank()) {
-                    tenantId = resolveTenantFromUri(request.getRequestURI());
-                }
-
                 if (tenantId != null && !tenantId.isBlank()) {
                     getRedirectStrategy().sendRedirect(request, response, "/" + tenantId + "/");
                 } else {
@@ -131,9 +213,14 @@ public class SecurityConfig {
     }
 
     /**
-     * Custom failure handler that redirects to /{tenantId}/login?error
-     * on bad credentials, keeping the user on the login page with an
-     * inline error message instead of redirecting to a generic error page.
+     * Custom failure handler that:
+     * <ol>
+     * <li>Records the failed attempt via {@link BruteForceProtectionService}.</li>
+     * <li>Redirects to {@code /{tenantId}/login?locked} if the account was just
+     * locked.</li>
+     * <li>Redirects to {@code /{tenantId}/login?error} for an ordinary
+     * bad-credential failure.</li>
+     * </ol>
      */
     @Bean
     public AuthenticationFailureHandler tenantAwareAuthenticationFailureHandler() {
@@ -152,10 +239,22 @@ public class SecurityConfig {
                     tenantId = resolveTenantFromUri(request.getRequestURI());
                 }
 
-                if (tenantId != null && !tenantId.isBlank()) {
-                    response.sendRedirect("/" + tenantId + "/login?error");
-                } else {
+                if (tenantId == null || tenantId.isBlank()) {
                     response.sendRedirect("/error/invalid-tenant");
+                    return;
+                }
+
+                // Extract the attempted username from the form submission
+                String username = request.getParameter("username");
+
+                // Track the failed attempt and check if the account was just locked
+                boolean accountJustLocked = (username != null && !username.isBlank())
+                        && bruteForceProtectionService.recordFailedAttempt(username, tenantId);
+
+                if (accountJustLocked) {
+                    response.sendRedirect("/" + tenantId + "/login?locked");
+                } else {
+                    response.sendRedirect("/" + tenantId + "/login?error");
                 }
             }
         };
@@ -172,11 +271,9 @@ public class SecurityConfig {
         return null;
     }
 
-
     @Bean
     public PasswordEncoder passwordEncoder() {
         return PasswordEncoderFactories.createDelegatingPasswordEncoder();
     }
-
 
 }

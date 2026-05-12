@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+    http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <!--
+        MASTER INITIALIZATION DDL — Phase 5 placeholder
+        ══════════════════════════════════════════════════════════════════
+
+        Purpose:
+          Creates the one-time baseline schema for auth-master DB (the tenant registry).
+          Runs via Spring Liquibase auto-config in auth-master-service/application.yaml.
+
+        Tables to move here from migration/master/V0.0.1/ddl.xml in Phase 5:
+          - tenant  ← the central registry of all tenant connection details
+
+        Called by:
+          spring.liquibase.change-log → initialization/master/db.changelog-initialization-master.xml
+          (replacing the current reference to migration/master/db.changelog-master.xml)
+
+        ⚠️  Do NOT add changesets here until Phase 5.
+            Moving changesets requires updating DATABASECHANGELOG checksums.
+        ══════════════════════════════════════════════════════════════════
+    -->
+
+    <!-- Uncomment in Phase 5 after migrating from migration/master/V0.0.1/ddl.xml -->
+    <!--
+    <changeSet id="master-init-1-tenant-registry" author="authenza">
+        <createTable tableName="tenant">
+            <column name="id" type="BIGINT" autoIncrement="true">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="tenant_id" type="VARCHAR(100)">
+                <constraints nullable="false" unique="true"/>
+            </column>
+            <column name="db_type" type="VARCHAR(50)"/>
+            <column name="jdbc_url" type="VARCHAR(500)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="username" type="VARCHAR(255)"/>
+            <column name="encrypted_password" type="VARCHAR(500)"/>
+            <column name="driver_class_name" type="VARCHAR(255)"/>
+            <column name="status" type="VARCHAR(50)" defaultValue="ACTIVE"/>
+        </createTable>
+    </changeSet>
+    -->
+
+</databaseChangeLog>

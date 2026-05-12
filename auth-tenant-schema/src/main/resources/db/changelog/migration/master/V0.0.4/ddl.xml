@@ -1,0 +1,117 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+    http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd"
+        logicalFilePath="db/changelog/master/V0.0.4/ddl.xml">
+
+    <!--
+        V0.0.4 — Global Identity Registry (Strategy 3)
+        ══════════════════════════════════════════════════════════════════
+
+        Purpose:
+          Introduces two tables into the MASTER database that together form
+          the foundation for "one admin, multiple tenants" identity management:
+
+          1. global_accounts  — Stores the admin's canonical identity and the
+                                SINGLE authoritative BCrypt password hash.
+                                Admins never have a password in their per-tenant
+                                shadow records (Option B: Passwordless Shadow Login).
+
+          2. tenant_memberships — A bridge table that links a global_account to
+                                  one or more tenants with a specific platform role
+                                  (OWNER or COLLABORATOR). This powers the
+                                  Tenant Switcher UI and the "Tenant Members" list.
+
+        Related Phase: Phase 1 (Onboarding Bridge) + Phase 9 foundation (Multi-Account)
+        ══════════════════════════════════════════════════════════════════
+    -->
+
+    <!-- 1. global_accounts -->
+    <changeSet id="0104-create-global-accounts" author="authenza">
+        <preConditions onFail="MARK_RAN">
+            <not><tableExists tableName="global_accounts"/></not>
+        </preConditions>
+
+        <createTable tableName="global_accounts">
+            <column name="id" type="BIGINT" autoIncrement="true">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="email" type="VARCHAR(255)">
+                <constraints nullable="false" unique="true"/>
+            </column>
+            <!-- Single source of truth for admin passwords.
+                 Per-tenant shadow users have password = NULL on purpose. -->
+            <column name="password_hash" type="VARCHAR(255)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="given_name" type="VARCHAR(100)"/>
+            <column name="family_name" type="VARCHAR(100)"/>
+            <column name="status" type="VARCHAR(30)" defaultValue="ACTIVE">
+                <constraints nullable="false"/>
+            </column>
+            <column name="created_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+            <column name="updated_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP"/>
+            <column name="last_login_at" type="TIMESTAMP"/>
+        </createTable>
+
+        <createIndex tableName="global_accounts" indexName="idx_global_accounts_email">
+            <column name="email"/>
+        </createIndex>
+    </changeSet>
+
+    <!-- 2. tenant_memberships -->
+    <changeSet id="0104-create-tenant-memberships" author="authenza">
+        <preConditions onFail="MARK_RAN">
+            <not><tableExists tableName="tenant_memberships"/></not>
+        </preConditions>
+
+        <createTable tableName="tenant_memberships">
+            <column name="id" type="BIGINT" autoIncrement="true">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <!-- FK to global_accounts.id -->
+            <column name="account_id" type="BIGINT">
+                <constraints nullable="false"/>
+            </column>
+            <!-- Logical FK to tenants.tenant_id (string key, not numeric PK) -->
+            <column name="tenant_id" type="VARCHAR(100)">
+                <constraints nullable="false"/>
+            </column>
+            <!-- OWNER | COLLABORATOR -->
+            <column name="platform_role" type="VARCHAR(50)">
+                <constraints nullable="false"/>
+            </column>
+            <!-- Nullable: null means self-provisioned (first admin/owner) -->
+            <column name="invited_by_account_id" type="BIGINT"/>
+            <column name="created_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+
+        <!-- One admin can only have one role per tenant -->
+        <addUniqueConstraint
+            tableName="tenant_memberships"
+            columnNames="account_id, tenant_id"
+            constraintName="uq_membership_account_tenant"/>
+
+        <addForeignKeyConstraint
+            baseTableName="tenant_memberships"
+            baseColumnNames="account_id"
+            referencedTableName="global_accounts"
+            referencedColumnNames="id"
+            constraintName="fk_membership_account"
+            onDelete="CASCADE"/>
+
+        <createIndex tableName="tenant_memberships" indexName="idx_membership_account_id">
+            <column name="account_id"/>
+        </createIndex>
+        <createIndex tableName="tenant_memberships" indexName="idx_membership_tenant_id">
+            <column name="tenant_id"/>
+        </createIndex>
+    </changeSet>
+
+</databaseChangeLog>
