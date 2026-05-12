@@ -27,7 +27,13 @@ public class IamSecurityConfig {
                 .authorizeHttpRequests(authorize -> authorize
                         // Health check endpoints (for load balancers / Kubernetes probes)
                         .requestMatchers("/actuator/**").permitAll()
-                        // All IAM admin APIs require authentication
+                        // ── WebAuthn Passwordless Login ───────────────────────────────────
+                        // These two endpoints are called from the login page BEFORE the user
+                        // is authenticated (that is the entire point of passwordless auth).
+                        // Requiring a JWT here would create a chicken-and-egg loop.
+                        .requestMatchers("/webauthn/authenticate/start").permitAll()
+                        .requestMatchers("/webauthn/authenticate/finish").permitAll()
+                        // All other IAM admin APIs require a valid JWT Bearer token
                         .anyRequest().authenticated())
                 .oauth2ResourceServer(oauth2 -> oauth2
                         .jwt(Customizer.withDefaults()));

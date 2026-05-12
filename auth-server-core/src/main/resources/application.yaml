@@ -9,6 +9,8 @@ logging:
     org.springframework: DEBUG
     org.springframework.security.oauth2.server.authorization.oidc: TRACE
     org.springframework.security.oauth2.server.authorization.authentication: TRACE
+    org.springframework.security.oauth2.server.authorization.JdbcOAuth2AuthorizationService: TRACE
+    org.springframework.jdbc.core.JdbcTemplate: DEBUG
 
 spring:
   data:
@@ -55,10 +57,17 @@ app:
     # WARNING: This dev key is insecure — rotate before deploying to production!
     encryption-key: "bQT4Q2jU7KEI4Z3DjRUCnkWPwkDmkgoZLwk8ydbGYXc="
 
+  webauthn:
+    # Shared HMAC-SHA256 secret used to sign/verify the short-lived bridge tokens
+    # that auth-iam-service issues after a successful passkey verification.
+    # MUST be identical in both auth-server-core and auth-iam-service.
+    # Generate with: openssl rand -hex 32
+    bridge-secret: "a3f8e1d2c4b5a6f7e8d9c0b1a2f3e4d5c6b7a8f9e0d1c2b3a4f5e6d7c8b9a0f1"
+
   services:
     iam:
       base-url: http://localhost:8082
-    tenant-portal-url: http://127.0.0.1:4200
+    tenant-portal-url: http://localhost:4200
   # Ensure standard auto-config doesn't interfere
 #  jdbc:
 #    template:

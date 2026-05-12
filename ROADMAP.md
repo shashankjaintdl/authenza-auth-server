@@ -47,8 +47,14 @@ Elevate platform security by protecting endpoints and validating identities.
 - **Active Session Management:**
   - Track active user sessions globally (e.g., via Redis or a `sessions` database table) instead of solely relying on stateless tokens.
   - Add capabilities for users to view "Active Devices" and revoke (logout) specific remote sessions.
-- **FIDO2 / WebAuthn (Passwordless):**
+- **FIDO2 / WebAuthn (Passwordless):** ✅ *Implemented (Phase 2)*
   - Allow users to authenticate using physical device biometrics (Apple FaceID, TouchID, Windows Hello, YubiKeys).
+  - Library: Yubico `webauthn-server-core` (`com.yubico:webauthn-server-core:2.5.4`).
+  - Database: `webauthn_credential` table (V0.0.11 Liquibase migration) stores credential ID, COSE public key, and sign counter per user.
+  - **Registration flow** (`/users/{userId}/passkeys/register/start` → `/finish`): Generates a challenge, verifies the browser's attestation, persists the public key credential.
+  - **Authentication flow** (`/webauthn/authenticate/start` → `/finish`): Generates an assertion challenge, verifies the signed assertion, increments the sign-count for replay-attack protection.
+  - **Passkey management** (`GET/DELETE /users/{userId}/passkeys`): Lets users view and remove their registered keys from the Security settings tab.
+  - **TODO (Next Steps):** Integrate the `/webauthn/authenticate/finish` success response into the `auth-server-core` OIDC flow so a successful passkey assertion can complete an OAuth2 authorization code grant without a password form submission.
 - **Tenant-Level Rate Limiting:**
   - Protect infrastructure from noisy-neighbor DDoS attacks by throttling API requests per `tenant_id` (e.g., max 10,000 auth attempts per hour).
 - **Strict Cross-Tenant Session Isolation:**

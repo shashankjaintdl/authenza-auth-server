@@ -1,0 +1,80 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+    http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd"
+        logicalFilePath="db/changelog/tenant/V0.0.11/ddl.xml">
+
+    <!--
+        FIDO2 / WebAuthn Credential Storage (V0.0.11)
+
+        Stores the public key credentials registered by users via WebAuthn.
+        Each row represents one physical authenticator (a Touch ID device, a
+        YubiKey, a Windows Hello passkey, etc.) registered to a user.
+
+        Key fields:
+          - credential_id   : The raw FIDO2 Credential ID returned by the browser (base64url).
+          - public_key_cose : The COSE-encoded public key bytes. Used to verify future assertions.
+          - sign_count      : A monotonically-increasing counter sent by the device on each
+                              authentication. Prevents replay attacks by detecting cloned keys.
+          - aaguid          : Authenticator Attestation GUID — identifies the authenticator model
+                              (e.g., "Apple Touch ID", "YubiKey 5C NFC") for display and policy.
+          - transports      : JSON array of the physical transport methods the key supports
+                              (e.g., ["internal"], ["usb", "nfc"]).
+    -->
+
+    <changeSet id="V0.0.11-create-webauthn-credential" author="authenza">
+        <createTable tableName="webauthn_credential">
+            <column name="id" type="BIGINT" autoIncrement="true">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <!-- FK to application_user.id -->
+            <column name="user_id" type="BIGINT">
+                <constraints nullable="false"/>
+            </column>
+            <!-- FIDO2 Credential ID — base64url-encoded bytes, globally unique per key.
+                 VARCHAR(512): with utf8mb4 (4 bytes/char) this gives a 2048-byte index —
+                 well under MySQL 8's 3072-byte limit. Practical credential IDs are <100 chars. -->
+            <column name="credential_id" type="VARCHAR(512)">
+                <constraints nullable="false" unique="true"/>
+            </column>
+            <!-- COSE-encoded public key bytes, stored as base64url -->
+            <column name="public_key_cose" type="TEXT">
+                <constraints nullable="false"/>
+            </column>
+            <!-- Monotonic counter sent by authenticator; used to detect cloned keys -->
+            <column name="sign_count" type="BIGINT" defaultValueNumeric="0">
+                <constraints nullable="false"/>
+            </column>
+            <!-- Human-readable display name chosen by the user at registration time -->
+            <column name="display_name" type="VARCHAR(255)">
+                <constraints nullable="true"/>
+            </column>
+            <!-- Authenticator Attestation GUID — identifies the authenticator model -->
+            <column name="aaguid" type="VARCHAR(64)">
+                <constraints nullable="true"/>
+            </column>
+            <!-- JSON array of transport hints: ["internal"], ["usb", "nfc"], etc. -->
+            <column name="transports" type="VARCHAR(255)">
+                <constraints nullable="true"/>
+            </column>
+            <!-- Whether this specific credential has been user-verified (e.g. biometric) -->
+            <column name="user_verified" type="BOOLEAN" defaultValueBoolean="false">
+                <constraints nullable="false"/>
+            </column>
+            <column name="created_at" type="DATETIME">
+                <constraints nullable="false"/>
+            </column>
+            <column name="last_used_at" type="DATETIME">
+                <constraints nullable="true"/>
+            </column>
+        </createTable>
+
+        <!-- Speed up lookups of all passkeys belonging to one user -->
+        <createIndex tableName="webauthn_credential" indexName="idx_webauthn_user_id">
+            <column name="user_id"/>
+        </createIndex>
+    </changeSet>
+
+</databaseChangeLog>

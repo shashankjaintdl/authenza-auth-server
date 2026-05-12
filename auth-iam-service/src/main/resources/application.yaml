@@ -8,16 +8,20 @@ server:
 spring:
   application:
     name: auth-iam-service
-  security:
-    oauth2:
-      resourceserver:
-        jwt:
-          issuer-uri: http://localhost:8081/system-admin
 
   data:
     redis:
       host: localhost
       port: 6379
+
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          # Points to the system-admin (master) issuer on auth-server-core.
+          # Spring uses this to fetch the JWKS and auto-build the JwtDecoder bean.
+          # The issuer must match the 'iss' claim in tokens issued by auth-server-core.
+          issuer-uri: http://localhost:8081/system-admin
 
 # # ──────────────────────────────────────────────
 # # Master Database (for loading tenant connection info)
@@ -37,6 +41,19 @@ app:
     # AES-256-GCM key — MUST match the key in auth-server-core/application.yaml
     # Generate a production key with: openssl rand -base64 32
     encryption-key: "bQT4Q2jU7KEI4Z3DjRUCnkWPwkDmkgoZLwk8ydbGYXc="
+
+  webauthn:
+    # rp-id: The Relying Party ID. MUST be the effective domain (no port, no scheme).
+    rp-id: "localhost"
+    rp-name: "Authenza"
+    origin: "http://localhost:4200"
+    # Shared HMAC-SHA256 secret — MUST match the value in auth-server-core/application.yaml
+    bridge-secret: "a3f8e1d2c4b5a6f7e8d9c0b1a2f3e4d5c6b7a8f9e0d1c2b3a4f5e6d7c8b9a0f1"
+
+  # The base URL of auth-server-core — used to construct the bridge redirect URL
+  # returned to the login page JavaScript after successful passkey verification.
+  auth-server:
+    base-url: "http://localhost:8081"
 
 logging:
   level:

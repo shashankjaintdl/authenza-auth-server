@@ -13,6 +13,15 @@ import org.springframework.core.annotation.Order;
 import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
+import org.springframework.security.oauth2.jwt.JwtEncoder;
+import org.springframework.security.oauth2.jwt.NimbusJwtEncoder;
+import org.springframework.security.oauth2.server.authorization.token.JwtGenerator;
+import org.springframework.security.oauth2.server.authorization.token.OAuth2AccessTokenGenerator;
+import org.springframework.security.oauth2.server.authorization.token.OAuth2RefreshTokenGenerator;
+import org.springframework.security.oauth2.server.authorization.token.DelegatingOAuth2TokenGenerator;
+import org.springframework.security.oauth2.server.authorization.token.OAuth2TokenGenerator;
+import org.springframework.security.oauth2.core.OAuth2Token;
+import org.springframework.security.oauth2.core.OAuth2RefreshToken;
 import org.springframework.security.oauth2.server.authorization.JdbcOAuth2AuthorizationConsentService;
 import org.springframework.security.oauth2.server.authorization.JdbcOAuth2AuthorizationService;
 import org.springframework.security.oauth2.server.authorization.OAuth2AuthorizationConsentService;
@@ -49,11 +58,15 @@ public class AuthorizationServerConfig {
 
         private final JdbcTenantClientRepository tenantClientRepository;
         private final DataSource dataSource;
+        // Pre-built JdbcTemplate backed by the tenant RoutingDataSource.
+        // Stored as a field to avoid creating a new object on every token issuance.
+        private final org.springframework.jdbc.core.JdbcTemplate jdbcTemplate;
 
         public AuthorizationServerConfig(JdbcTenantClientRepository tenantClientRepository,
                         DataSource dataSource) {
                 this.tenantClientRepository = tenantClientRepository;
                 this.dataSource = dataSource;
+                this.jdbcTemplate = new org.springframework.jdbc.core.JdbcTemplate(dataSource);
         }
 
         @Bean
@@ -75,7 +88,21 @@ public class AuthorizationServerConfig {
         http
                 .with(authorizationServerConfigurer, (authorizationServer) ->
                         authorizationServer
-                                .oidc(Customizer.withDefaults())	// Enable OpenID Connect 1.0
+                                .oidc(oidc -> oidc
+                                        .logoutEndpoint(logout -> logout
+                                                .logoutResponseHandler((request, response, authentication) -> {
+                                                    // SUCCESS CASE: Hint was valid.
+                                                    performManualLogout(request);
+                                                    performManualRedirect(request, response);
+                                                })
+                                                .errorResponseHandler((request, response, exception) -> {
+                                                    // FAILURE CASE: Hint was missing or expired (OidcLogoutAuthenticationConverter failed).
+                                                    // We still want to log them out and redirect for a good user experience.
+                                                    performManualLogout(request);
+                                                    performManualRedirect(request, response);
+                                                })
+                                        )
+                                )
                 )
                 .securityMatcher(tenantEndpointsMatcher)
                 .addFilterBefore(tenantSecurityFilter, DisableEncodeUrlFilter.class)
@@ -184,6 +211,41 @@ public class AuthorizationServerConfig {
                 return keyPair;
         }
 
+        @Bean
+        public JwtEncoder jwtEncoder(JWKSource<SecurityContext> jwkSource) {
+                return new NimbusJwtEncoder(jwkSource);
+        }
+
+        @Bean
+        public OAuth2TokenGenerator<?> tokenGenerator(JwtEncoder jwtEncoder,
+                        OAuth2TokenCustomizer<JwtEncodingContext> jwtTokenCustomizer) {
+                JwtGenerator jwtGenerator = new JwtGenerator(jwtEncoder);
+                jwtGenerator.setJwtCustomizer(jwtTokenCustomizer);
+                OAuth2AccessTokenGenerator accessTokenGenerator = new OAuth2AccessTokenGenerator();
+                OAuth2RefreshTokenGenerator refreshTokenGenerator = new OAuth2RefreshTokenGenerator();
+                return (context) -> {
+                        String tokenType = context.getTokenType().getValue();
+                        OAuth2Token generated = new DelegatingOAuth2TokenGenerator(
+                                        jwtGenerator, accessTokenGenerator, refreshTokenGenerator).generate(context);
+
+                        // FALLBACK: If Spring's default generator refused to issue a refresh token
+                        // but we have 'offline_access' authorized, we force one.
+                        if (generated == null && OAuth2TokenType.REFRESH_TOKEN.equals(context.getTokenType())
+                                        && context.getAuthorizedScopes().contains("offline_access")) {
+
+                                System.out.println("DEBUG: Spring refused refresh_token, FORCING generation...");
+                                java.time.Instant issuedAt = java.time.Instant.now();
+                                java.time.Instant expiresAt = issuedAt.plus(registeredClientRepository()
+                                                .findByClientId(context.getRegisteredClient().getClientId())
+                                                .getTokenSettings().getRefreshTokenTimeToLive());
+
+                                return new OAuth2RefreshToken(UUID.randomUUID().toString(), issuedAt, expiresAt);
+                        }
+
+                        return generated;
+                };
+        }
+
         @Bean // <7>
         public JwtDecoder jwtDecoder(JWKSource<SecurityContext> jwkSource) {
                 return OAuth2AuthorizationServerConfiguration.jwtDecoder(jwkSource);
@@ -204,6 +266,8 @@ public class AuthorizationServerConfig {
                         if (OAuth2TokenType.ACCESS_TOKEN.equals(context.getTokenType()) ||
                                         context.getTokenType().getValue().equals("id_token")) {
 
+                                System.out.println(
+                                                "DEBUG: Authorized Scopes for token: " + context.getAuthorizedScopes());
                                 Authentication principal = context.getPrincipal();
 
                                 // Extract all granted authorities mapping to role/permission strings
@@ -231,23 +295,21 @@ public class AuthorizationServerConfig {
                                         context.getClaims().claim("tenant_id", tenantId);
                                 }
 
-                                // ── Link OAuth2 Authorization to Active Session ──────────────
-                                // This connects the session recorded heavily at login time
-                                // to the cryptographic token we are minting now.
-                                try {
-                                        if (context.getAuthorization() != null
-                                                        && context.getAuthorization().getId() != null) {
-                                                String authId = context.getAuthorization().getId();
-                                                String username = principal.getName();
-                                                org.springframework.jdbc.core.JdbcTemplate jdbcTemplate = new org.springframework.jdbc.core.JdbcTemplate(
-                                                                AuthorizationServerConfig.this.dataSource);
+                                // ── Resolve User ID and Add to Claims ───────────────────────
+                                String username = principal.getName();
+                                java.util.List<Long> userIds = jdbcTemplate.queryForList(
+                                                "SELECT id FROM application_user WHERE preferred_username = ? OR email = ?",
+                                                Long.class, username, username);
 
-                                                java.util.List<Long> userIds = jdbcTemplate.queryForList(
-                                                                "SELECT id FROM application_user WHERE preferred_username = ? OR email = ? LIMIT 1",
-                                                                Long.class, username, username);
+                                if (!userIds.isEmpty()) {
+                                        Long userId = userIds.get(0);
+                                        context.getClaims().claim("user_id", userId.toString());
 
-                                                if (!userIds.isEmpty()) {
-                                                        Long userId = userIds.get(0);
+                                        // ── Link OAuth2 Authorization to Active Session ──────────────
+                                        try {
+                                                if (context.getAuthorization() != null
+                                                                && context.getAuthorization().getId() != null) {
+                                                        String authId = context.getAuthorization().getId();
                                                         // Link to the most recent un-linked session for this user
                                                         jdbcTemplate.update(
                                                                         "UPDATE user_session SET authorization_id = ? "
@@ -257,12 +319,61 @@ public class AuthorizationServerConfig {
                                                                                         "ORDER BY created_at DESC LIMIT 1",
                                                                         authId, userId);
                                                 }
+                                        } catch (Exception e) {
+                                                // Non-fatal session linking failure
                                         }
-                                } catch (Exception e) {
-                                        // Non-fatal, swallow so we don't break the token exchange
                                 }
                         }
                 };
         }
 
+        private void performManualLogout(jakarta.servlet.http.HttpServletRequest request) {
+                // 1. Manually clear the SecurityContext
+                org.springframework.security.core.context.SecurityContextHolder.clearContext();
+
+                // 2. Invalidate the HTTP Session explicitly
+                jakarta.servlet.http.HttpSession session = request.getSession(false);
+                if (session != null) {
+                        session.invalidate();
+                }
+        }
+
+        private void performManualRedirect(jakarta.servlet.http.HttpServletRequest request,
+                        jakarta.servlet.http.HttpServletResponse response) throws java.io.IOException {
+                String redirectUri = request.getParameter("post_logout_redirect_uri");
+                String clientId = request.getParameter("client_id");
+
+                // If clientId is missing, try to extract it from the id_token_hint JWT
+                if (clientId == null) {
+                        String idTokenHint = request.getParameter("id_token_hint");
+                        if (idTokenHint != null && idTokenHint.contains(".")) {
+                                try {
+                                        String[] parts = idTokenHint.split("\\.");
+                                        String payload = new String(java.util.Base64.getUrlDecoder().decode(parts[1]));
+                                        if (payload.contains("\"aud\":")) {
+                                                int start = payload.indexOf("\"aud\":\"") + 7;
+                                                int end = payload.indexOf("\"", start);
+                                                clientId = payload.substring(start, end);
+                                        }
+                                } catch (Exception e) {
+                                        // Ignore parsing errors
+                                }
+                        }
+                }
+
+                boolean isValidRedirect = false;
+                if (redirectUri != null && clientId != null) {
+                        org.springframework.security.oauth2.server.authorization.client.RegisteredClient client = registeredClientRepository()
+                                        .findByClientId(clientId);
+
+                        if (client != null && client.getPostLogoutRedirectUris().contains(redirectUri)) {
+                                isValidRedirect = true;
+                        }
+                }
+
+                if (!isValidRedirect) {
+                        redirectUri = "/";
+                }
+                response.sendRedirect(redirectUri);
+        }
 }

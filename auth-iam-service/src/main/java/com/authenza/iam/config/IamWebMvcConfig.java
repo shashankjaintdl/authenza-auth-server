@@ -26,7 +26,12 @@ public class IamWebMvcConfig implements WebMvcConfigurer {
     @Override
     public void addInterceptors(InterceptorRegistry registry) {
         registry.addInterceptor(tenantValidationInterceptor)
+                // Authenticated API endpoints — require X-Tenant-ID header
                 .addPathPatterns("/api/**")
+                // Unauthenticated WebAuthn endpoints — also require X-Tenant-ID
+                // so the RoutingDataSource can route to the correct tenant DB.
+                // The login page JavaScript sends this header on every WebAuthn call.
+                .addPathPatterns("/webauthn/**")
                 .excludePathPatterns("/actuator/**", "/favicon.ico", "/error");
     }
 }

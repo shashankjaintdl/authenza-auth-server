@@ -1,6 +1,5 @@
 package com.authenza.core.repository;
 
-
 import com.authenza.adapter.context.TenantContextHolder;
 import com.authenza.common.model.core.TenantRegisteredClient;
 import com.fasterxml.jackson.core.type.TypeReference;
@@ -21,25 +20,41 @@ import org.springframework.util.StringUtils;
 import java.util.*;
 
 /**
- * A tenant-aware implementation of Spring Security's {@link RegisteredClientRepository}.
+ * A tenant-aware implementation of Spring Security's
+ * {@link RegisteredClientRepository}.
  * 
- * <p>Unlike the standard in-memory or single-database JDBC implementations, this repository 
- * relies on {@link com.authenza.adapter.context.TenantContextHolder} (populated by the 
- * {@link com.authenza.core.security.MultiTenantSecurityFilter}) to dynamically route queries 
- * to the currently active tenant's isolated database.</p>
+ * <p>
+ * Unlike the standard in-memory or single-database JDBC implementations, this
+ * repository
+ * relies on {@link com.authenza.adapter.context.TenantContextHolder} (populated
+ * by the
+ * {@link com.authenza.core.security.MultiTenantSecurityFilter}) to dynamically
+ * route queries
+ * to the currently active tenant's isolated database.
+ * </p>
  * 
- * <p>Key Responsibilities:</p>
+ * <p>
+ * Key Responsibilities:
+ * </p>
  * <ul>
- *   <li><b>Tenant Data Isolation:</b> Ensures that OAuth2 clients (e.g., SPAs, Mobile Apps, 
- *       M2M integrations) belonging to Tenant A cannot be queried or used by Tenant B.</li>
- *   <li><b>JSON Serialization:</b> Utilizes Jackson modules tailored for Spring Security 
- *       to seamlessly serialize and deserialize complex OAuth2 configuration objects 
- *       (like {@code ClientSettings} and {@code TokenSettings}) into the database.</li>
+ * <li><b>Tenant Data Isolation:</b> Ensures that OAuth2 clients (e.g., SPAs,
+ * Mobile Apps,
+ * M2M integrations) belonging to Tenant A cannot be queried or used by Tenant
+ * B.</li>
+ * <li><b>JSON Serialization:</b> Utilizes Jackson modules tailored for Spring
+ * Security
+ * to seamlessly serialize and deserialize complex OAuth2 configuration objects
+ * (like {@code ClientSettings} and {@code TokenSettings}) into the
+ * database.</li>
  * </ul>
  * 
- * <p>This repository is the backbone for allowing individual tenants to dynamically 
- * manage their own OAuth2 clients (e.g., in a developer portal) without polluting a 
- * central master database.</p>
+ * <p>
+ * This repository is the backbone for allowing individual tenants to
+ * dynamically
+ * manage their own OAuth2 clients (e.g., in a developer portal) without
+ * polluting a
+ * central master database.
+ * </p>
  */
 public final class TenantAwareRegisteredClientRepository implements RegisteredClientRepository {
 
@@ -54,7 +69,6 @@ public final class TenantAwareRegisteredClientRepository implements RegisteredCl
         this.objectMapper.registerModules(securityModule);
         this.objectMapper.registerModules(new OAuth2AuthorizationServerJackson2Module());
     }
-
 
     // will use it for like (Github developer)
     @Override
@@ -87,16 +101,23 @@ public final class TenantAwareRegisteredClientRepository implements RegisteredCl
     }
 
     private RegisteredClient getRegisteredClient(TenantRegisteredClient tenantRegisteredClient, String tenantId) {
-        RegisteredClient registeredClient = this.toObject(tenantRegisteredClient);String registeredTenantId = registeredClient.getClientSettings().getSetting("tenant_id");
+        RegisteredClient registeredClient = this.toObject(tenantRegisteredClient);
+        System.out.println("DEBUG: Loaded Client '" + registeredClient.getClientId() + "' with Grant Types: "
+                + registeredClient.getAuthorizationGrantTypes());
+        System.out
+                .println("DEBUG: Access Token TTL: " + registeredClient.getTokenSettings().getAccessTokenTimeToLive());
+        System.out.println(
+                "DEBUG: Refresh Token TTL: " + registeredClient.getTokenSettings().getRefreshTokenTimeToLive());
+        String registeredTenantId = registeredClient.getClientSettings().getSetting("tenant_id");
         if (!StringUtils.hasText(registeredTenantId) || !registeredTenantId.equalsIgnoreCase(tenantId)) {
             throw new AccessDeniedException("");
         }
         return registeredClient;
     }
 
-
     private RegisteredClient toObject(TenantRegisteredClient client) {
-        Set<String> clientAuthenticationMethods = StringUtils.commaDelimitedListToSet(client.getClientAuthenticationMethods());
+        Set<String> clientAuthenticationMethods = StringUtils
+                .commaDelimitedListToSet(client.getClientAuthenticationMethods());
         // Trim each scope to guard against accidental whitespace stored in the DB
         Set<String> clientScopes = StringUtils.commaDelimitedListToSet(client.getScopes())
                 .stream().map(String::trim).filter(s -> !s.isEmpty())
@@ -114,23 +135,23 @@ public final class TenantAwareRegisteredClientRepository implements RegisteredCl
                 .redirectUris(uris -> uris.addAll(redirectUris))
                 .postLogoutRedirectUris(uris -> uris.addAll(postLogoutRedirectUris))
                 .scopes(scopes -> scopes.addAll(clientScopes))
-                .authorizationGrantTypes(grantTypes ->
-                        authorizationGrantTypes.forEach(authorizationGrantType ->
-                                grantTypes.add(resolveAuthorizationGrantType(authorizationGrantType))
-                        )
-                )
-                .clientAuthenticationMethods(authenticationMethod ->
-                        clientAuthenticationMethods.forEach(clientAuthenticationMethod -> authenticationMethod.add(resolveClientAuthenticationMethod(clientAuthenticationMethod)))
-                )
+                .authorizationGrantTypes(
+                        grantTypes -> authorizationGrantTypes.forEach(authorizationGrantType -> grantTypes
+                                .add(resolveAuthorizationGrantType(authorizationGrantType))))
+                .clientAuthenticationMethods(authenticationMethod -> clientAuthenticationMethods
+                        .forEach(clientAuthenticationMethod -> authenticationMethod
+                                .add(resolveClientAuthenticationMethod(clientAuthenticationMethod))))
                 .clientSettings(ClientSettings.withSettings(parseMap(client.getClientSettings())).build())
                 .tokenSettings(TokenSettings.withSettings(parseMap(client.getTokenSettings())).build());
         return registeredClient.build();
     }
 
     private TenantRegisteredClient toEntity(RegisteredClient registeredClient) {
-        List<String> clientAuthenticationMethods = new ArrayList<>(registeredClient.getClientAuthenticationMethods().size());
+        List<String> clientAuthenticationMethods = new ArrayList<>(
+                registeredClient.getClientAuthenticationMethods().size());
         registeredClient.getClientAuthenticationMethods()
-                .forEach(clientAuthenticationMethod -> clientAuthenticationMethods.add(clientAuthenticationMethod.getValue()));
+                .forEach(clientAuthenticationMethod -> clientAuthenticationMethods
+                        .add(clientAuthenticationMethod.getValue()));
 
         List<String> grantTypes = new ArrayList<>(registeredClient.getAuthorizationGrantTypes().size());
         registeredClient.getAuthorizationGrantTypes()
@@ -144,9 +165,11 @@ public final class TenantAwareRegisteredClientRepository implements RegisteredCl
         client.setClientSecret(registeredClient.getClientSecret());
         client.setClientName(registeredClient.getClientName());
         client.setScopes(StringUtils.collectionToCommaDelimitedString(registeredClient.getScopes()));
-        client.setClientAuthenticationMethods(StringUtils.collectionToCommaDelimitedString(clientAuthenticationMethods));
+        client.setClientAuthenticationMethods(
+                StringUtils.collectionToCommaDelimitedString(clientAuthenticationMethods));
         client.setAuthorizationGrantTypes(StringUtils.collectionToCommaDelimitedString(grantTypes));
-        client.setPostLogoutRedirectUris(StringUtils.collectionToCommaDelimitedString(registeredClient.getPostLogoutRedirectUris()));
+        client.setPostLogoutRedirectUris(
+                StringUtils.collectionToCommaDelimitedString(registeredClient.getPostLogoutRedirectUris()));
         client.setRedirectUris(StringUtils.collectionToCommaDelimitedString(registeredClient.getRedirectUris()));
         client.setClientSettings(writeMap(registeredClient.getClientSettings().getSettings()));
         client.setTokenSettings(writeMap(registeredClient.getTokenSettings().getSettings()));

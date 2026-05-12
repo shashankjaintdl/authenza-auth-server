@@ -118,6 +118,12 @@ public class JdbcTenantUserDetailsService implements UserDetailsService {
             }
         }
 
+        // Add standard OIDC scopes as authorities so Spring Authorization Server 
+        // grants them during the token exchange.
+        authorities.add(new SimpleGrantedAuthority("SCOPE_openid"));
+        authorities.add(new SimpleGrantedAuthority("SCOPE_profile"));
+        authorities.add(new SimpleGrantedAuthority("SCOPE_offline_access"));
+
         boolean enabled = "ACTIVE".equalsIgnoreCase(base.status)
                 || "PENDING_VERIFICATION".equalsIgnoreCase(base.status);
         boolean accountNonLocked = !"LOCKED".equalsIgnoreCase(base.status);
@@ -233,6 +239,27 @@ public class JdbcTenantUserDetailsService implements UserDetailsService {
                 (rs, rowNum) -> rs.getBoolean("requires_password_change"),
                 username, username);
         return !result.isEmpty() && Boolean.TRUE.equals(result.get(0));
+    }
+
+    /**
+     * Reverse-lookup: resolves the {@code preferred_username} for a given user
+     * database ID.
+     *
+     * <p>
+     * Used by {@link com.authenza.core.web.WebAuthnBridgeController} to convert the
+     * {@code userId} from the bridge token back into a username so that
+     * {@link #loadUserByUsername(String)} can load the full {@link UserDetails}.
+     * </p>
+     *
+     * @param userId the database primary key of the user
+     * @return the {@code preferred_username}, or {@code null} if no user found
+     */
+    public String loadUsernameById(Long userId) {
+        List<String> result = jdbcTemplate.query(
+                "SELECT preferred_username FROM application_user WHERE id = ?",
+                (rs, rowNum) -> rs.getString("preferred_username"),
+                userId);
+        return result.isEmpty() ? null : result.get(0);
     }
 
     /**

@@ -73,6 +73,10 @@ public class SecurityConfig {
                                 .requestMatchers("/{tenantId}/mfa-verify").permitAll()
                                 .requestMatchers("/{tenantId}/mfa-setup").permitAll()
                                 .requestMatchers("/{tenantId}/force-password-change").permitAll()
+                                // WebAuthn bridge — receives the HMAC-signed token from the login page
+                                // after a successful passkey assertion in auth-iam-service.
+                                // Authentication proof is the bridge token itself, not a session.
+                                .requestMatchers("/{tenantId}/webauthn/bridge").permitAll()
                                 .requestMatchers("/{tenantId}/api/**").permitAll()
                                 .requestMatchers("/error/**").permitAll()
                                 .requestMatchers("/images/**", "/css/**", "/js/**", "/favicon.ico").permitAll()
@@ -102,7 +106,10 @@ public class SecurityConfig {
                         }
                 )
                 // Register the MFA TOTP verification filter after password auth
-                .addFilterAfter(mfaAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
+                .addFilterAfter(mfaAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)
+                .csrf(csrf -> csrf
+                        .ignoringRequestMatchers("/{tenantId}/webauthn/bridge")
+                );
         // @formatter:on
 
         return http.build();
@@ -138,7 +145,8 @@ public class SecurityConfig {
                 if (userDetailsService.isPasswordChangeRequired(username)) {
                     SecurityContextHolder.clearContext();
                     HttpSession forceChangeSession = request.getSession(true);
-                    forceChangeSession.removeAttribute(HttpSessionSecurityContextRepository.SPRING_SECURITY_CONTEXT_KEY);
+                    forceChangeSession
+                            .removeAttribute(HttpSessionSecurityContextRepository.SPRING_SECURITY_CONTEXT_KEY);
                     forceChangeSession.setAttribute("PENDING_PASSWORD_CHANGE_USERNAME", username);
                     forceChangeSession.setAttribute("PENDING_PASSWORD_CHANGE_TENANT", tenantId);
                     Long userId = userDetailsService.loadUserId(username);
