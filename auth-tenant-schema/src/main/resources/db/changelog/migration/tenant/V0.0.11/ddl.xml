@@ -77,4 +77,30 @@
         </createIndex>
     </changeSet>
 
+    <changeSet id="add-webauthn-fingerprint-enabled-setting" author="authenza">
+        <!-- Only insert if it doesn't already exist -->
+        <preConditions onFail="MARK_RAN">
+            <sqlCheck expectedResult="0">
+                SELECT COUNT(*) FROM tenant_settings WHERE setting_key = 'webauthn_fingerprint_enabled'
+            </sqlCheck>
+        </preConditions>
+        <insert tableName="tenant_settings">
+            <column name="setting_key" value="webauthn_fingerprint_enabled"/>
+            <column name="setting_value" value="false"/>
+        </insert>
+    </changeSet>
+
+    <changeSet id="add-mfa-biometrics-customize-rp-setting" author="authenza">
+        <!-- Only insert if it doesn't already exist -->
+        <preConditions onFail="MARK_RAN">
+            <sqlCheck expectedResult="0">
+                SELECT COUNT(*) FROM tenant_settings WHERE setting_key = 'mfa_biometrics_customize_rp'
+            </sqlCheck>
+        </preConditions>
+        <insert tableName="tenant_settings">
+            <column name="setting_key" value="mfa_biometrics_customize_rp"/>
+            <column name="setting_value" value="false"/>
+        </insert>
+    </changeSet>
+
 </databaseChangeLog>

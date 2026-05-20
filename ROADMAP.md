@@ -40,6 +40,16 @@ Elevate platform security by protecting endpoints and validating identities.
   - Enforce multi-step authentication flows within your custom login journey.
   - Two-level policy enforcement: tenant-wide (`mfa_required_for_all`) and per-user (`mfa_enabled`) flags.
   - Admin-initiated enrollment: tenant admin sets `mfa_enabled=true`; user is directed to QR code setup on next login.
+- **MFA Self-Service Disable (Path 1):** *(Phase 2 — Next Sprint)*
+  - Allow logged-in users to remove MFA from their own account via the portal's Security Settings page.
+  - Backend: `POST /api/v1/users/{userId}/mfa/disable` (already implemented) — requires the user to submit their current valid TOTP code to prove device possession before the secret is cleared.
+  - Frontend: Add a **"Disable MFA"** button + OTP confirmation modal in the user profile Security tab (similar to the existing OTP disable pattern in the admin portal's MFA component).
+  - This transitions MFA from "mandatory" to "optional" for that user once the tenant-wide `mfa_required_for_all` is disabled.
+- **Admin MFA Reset (Path 2):** *(Phase 2 — Next Sprint)*
+  - Allow Tenant Admins to forcefully wipe a user's MFA state without needing their TOTP code — for recovery when a user loses their authenticator device and is permanently locked out.
+  - Backend: Add `POST /api/v1/users/{userId}/mfa/reset` endpoint — admin-only, no OTP required, clears `mfa_secret` and sets `mfa_enabled = false` directly.
+  - Frontend: Add a **"Reset MFA"** button in the Admin Portal → User Management → User Detail screen.
+  - *(Full RBAC enforcement — only `ROLE_TENANT_ADMIN` can call this — deferred to Phase 4 when `@PreAuthorize` is fully wired.)*
 - **MFA Endpoint Security Hardening:**
   - Require authentication before calling self-service MFA endpoints (`/mfa/setup`, `/mfa/confirm`, `/mfa/disable`).
   - Enforce user identity scoping: a user can only manage their own MFA secret, not another user's.
@@ -305,6 +315,9 @@ Evolve the platform to support users with multiple independent identities across
   - Develop a secure workflow that allows users to "find" their existing accounts in other tenants during the login process (Privacy-preserving).
 - **Global Logout & Security Events:**
   - Implement a "Sign out of all accounts" protocol that invalidates all active sessions across different tenant databases in a single action.
+- **Cross-Subdomain Passkeys (Customize Relying Party):**
+  - Implement a configurable "Customize Relying Party" feature to allow tenants to set their WebAuthn Relying Party ID to the root domain (e.g., `authenza.com` instead of `tenant.authenza.com`).
+  - Enable Single Sign-On (SSO) passkey usage, allowing a user to seamlessly authenticate across multiple tenant subdomains using a single biometric credential.
 
 --- 
 

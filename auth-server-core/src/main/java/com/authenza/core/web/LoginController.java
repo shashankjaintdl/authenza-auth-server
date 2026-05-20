@@ -22,11 +22,14 @@ public class LoginController {
 
     private final SuperAdminClientProperties superAdminClientProperties;
     private final RegisteredClientRepository registeredClientRepository;
+    private final com.authenza.adapter.cache.TenantSettingsCache settingsCache;
 
     public LoginController(SuperAdminClientProperties superAdminClientProperties,
-            RegisteredClientRepository registeredClientRepository) {
+            RegisteredClientRepository registeredClientRepository,
+            com.authenza.adapter.cache.TenantSettingsCache settingsCache) {
         this.superAdminClientProperties = superAdminClientProperties;
         this.registeredClientRepository = registeredClientRepository;
+        this.settingsCache = settingsCache;
     }
 
     /**
@@ -98,6 +101,10 @@ public class LoginController {
         }
 
         model.addAttribute("tenantId", tenantId);
+
+        String webAuthnEnabled = settingsCache.getSetting(tenantId, "webauthn_fingerprint_enabled");
+        model.addAttribute("webauthnEnabled", "true".equalsIgnoreCase(webAuthnEnabled));
+
         return "login";
     }
 

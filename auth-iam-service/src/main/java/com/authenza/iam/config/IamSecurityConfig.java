@@ -33,6 +33,17 @@ public class IamSecurityConfig {
                         // Requiring a JWT here would create a chicken-and-egg loop.
                         .requestMatchers("/webauthn/authenticate/start").permitAll()
                         .requestMatchers("/webauthn/authenticate/finish").permitAll()
+                        // Public user flows called from auth-server-core UI before login
+                        .requestMatchers("/api/v1/users/register").permitAll()
+                        .requestMatchers("/api/v1/users/check-email").permitAll()
+                        .requestMatchers("/api/v1/users/check-username").permitAll()
+                        .requestMatchers("/api/v1/users/verify-email").permitAll()
+                        .requestMatchers("/api/v1/users/forgot-password").permitAll()
+                        .requestMatchers("/api/v1/users/validate-reset-token").permitAll()
+                        .requestMatchers("/api/v1/users/reset-password").permitAll()
+                        // MFA setup/confirm during the login flow (no JWT available yet)
+                        .requestMatchers("/api/v1/users/*/mfa/setup").permitAll()
+                        .requestMatchers("/api/v1/users/*/mfa/confirm").permitAll()
                         // All other IAM admin APIs require a valid JWT Bearer token
                         .anyRequest().authenticated())
                 .oauth2ResourceServer(oauth2 -> oauth2

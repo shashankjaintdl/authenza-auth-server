@@ -64,6 +64,8 @@ public class SecurityConfig {
                         authorize
                                 // Allow the root URL, login page, and error pages without authentication
                                 .requestMatchers("/").permitAll()
+                                // Tenant root — handles post-login redirect when OAuth2 session expired
+                                .requestMatchers("/{tenantId}/").permitAll()
                                 .requestMatchers("/{tenantId}/login").permitAll()
                                 .requestMatchers("/{tenantId}/register").permitAll()
                                 .requestMatchers("/{tenantId}/verify-email").permitAll()
@@ -185,6 +187,10 @@ public class SecurityConfig {
 
                 // ── No MFA — reset brute-force counter and complete login as normal ──
                 bruteForceProtectionService.resetFailedAttempts(username, tenantId);
+
+                // Clean up any orphan mfa_secret from a previously abandoned setup.
+                // (mfa_enabled=false but secret still present — no longer needed.)
+                userDetailsService.clearOrphanMfaSecret(username);
 
                 // Record the session for Active Devices tracking
                 Long userId = userDetailsService.loadUserId(username);

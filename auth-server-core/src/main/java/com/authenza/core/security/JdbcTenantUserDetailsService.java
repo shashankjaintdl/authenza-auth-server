@@ -179,21 +179,25 @@ public class JdbcTenantUserDetailsService implements UserDetailsService {
      * @return {@code true} if MFA must be completed before login is finalized
      */
     public boolean isMfaRequired(String username) {
-        if (isTenantMfaRequired()) {
+        boolean tenantMfa = isTenantMfaRequired();
+        log.debug("[MFA-DEBUG] isTenantMfaRequired={} for tenant '{}'",
+                tenantMfa, TenantContextHolder.getTenantId());
+        if (tenantMfa) {
+            log.debug("[MFA-DEBUG] MFA required for '{}' via tenant policy", username);
             return true;
         }
-        // MFA is required if EITHER:
-        // (a) mfa_enabled = true → user/admin deliberately opted in, OR
-        // (b) mfa_secret IS NOT NULL → a secret was generated but never confirmed
-        // (user opened /mfa-setup, setupMfa() reset mfa_enabled to false,
-        // then the browser was closed before scanning — we must still force
-        // them back to complete setup on next login)
+        // MFA is required ONLY if mfa_enabled = true (user opted in or admin enabled it).
+        // An orphan secret (mfa_secret IS NOT NULL but mfa_enabled = false) is from an
+        // abandoned setup and must NOT block login — it will be cleaned up on next
+        // successful non-MFA login via clearOrphanMfaSecret().
         List<Boolean> result = jdbcTemplate.query(
-                "SELECT (mfa_enabled = true OR mfa_secret IS NOT NULL) AS required " +
+                "SELECT mfa_enabled AS required " +
                         "FROM application_user WHERE preferred_username = ? OR email = ? LIMIT 1",
                 (rs, rowNum) -> rs.getBoolean("required"),
                 username, username);
-        return !result.isEmpty() && Boolean.TRUE.equals(result.get(0));
+        boolean userMfa = !result.isEmpty() && Boolean.TRUE.equals(result.get(0));
+        log.debug("[MFA-DEBUG] mfa_enabled={} for user '{}'", userMfa, username);
+        return userMfa;
     }
 
     /**
@@ -260,6 +264,26 @@ public class JdbcTenantUserDetailsService implements UserDetailsService {
                 (rs, rowNum) -> rs.getString("preferred_username"),
                 userId);
         return result.isEmpty() ? null : result.get(0);
+    }
+
+    /**
+     * Clears an orphan {@code mfa_secret} left over from an abandoned MFA setup.
+     *
+     * <p>Called after a successful non-MFA login when {@code mfa_enabled = false}
+     * but a stale secret exists in the DB. This keeps the database clean and
+     * prevents ghost secrets from causing confusion in future setups.
+     *
+     * @param username the username or email of the user
+     */
+    public void clearOrphanMfaSecret(String username) {
+        int updated = jdbcTemplate.update(
+                "UPDATE application_user SET mfa_secret = NULL " +
+                "WHERE (preferred_username = ? OR email = ?) " +
+                "AND mfa_enabled = false AND mfa_secret IS NOT NULL",
+                username, username);
+        if (updated > 0) {
+            log.info("[MFA] Cleared orphan mfa_secret for user '{}' on successful non-MFA login", username);
+        }
     }
 
     /**

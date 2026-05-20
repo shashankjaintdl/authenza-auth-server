@@ -418,4 +418,21 @@
         </insert>
     </changeSet>
 
+    <!-- ═══════════════════════════════════════════════════════════════
+         V0.0.12 — WebAuthn FIDO Device Biometrics Setting
+         Source: V0.0.12/ddl.xml
+         ═══════════════════════════════════════════════════════════════ -->
+
+    <changeSet id="add-webauthn-fingerprint-enabled-setting" author="authenza">
+        <preConditions onFail="MARK_RAN">
+            <sqlCheck expectedResult="0">
+                SELECT COUNT(*) FROM tenant_settings WHERE setting_key = 'webauthn_fingerprint_enabled'
+            </sqlCheck>
+        </preConditions>
+        <insert tableName="tenant_settings">
+            <column name="setting_key" value="webauthn_fingerprint_enabled"/>
+            <column name="setting_value" value="false"/>
+        </insert>
+    </changeSet>
+
 </databaseChangeLog>
