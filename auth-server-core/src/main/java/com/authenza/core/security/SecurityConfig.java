@@ -64,6 +64,8 @@ public class SecurityConfig {
                         authorize
                                 // Allow the root URL, login page, and error pages without authentication
                                 .requestMatchers("/").permitAll()
+                                // Tenant root — handles post-login redirect when OAuth2 session expired
+                                .requestMatchers("/{tenantId}/").permitAll()
                                 .requestMatchers("/{tenantId}/login").permitAll()
                                 .requestMatchers("/{tenantId}/register").permitAll()
                                 .requestMatchers("/{tenantId}/verify-email").permitAll()
@@ -82,11 +84,24 @@ public class SecurityConfig {
                                 .requestMatchers("/images/**", "/css/**", "/js/**", "/favicon.ico").permitAll()
                                 .anyRequest().authenticated()
                 )
-                // Use a custom entry point that resolves {tenantId} dynamically
+                // Use a custom entry point that resolves {tenantId} dynamically.
+                // Also set a global accessDeniedHandler so ANY 403 (including ones
+                // from Spring Boot's own ErrorController path) sends the user back
+                // to the login page instead of showing the Whitelabel error page.
                 .exceptionHandling(exceptions -> exceptions
                         .authenticationEntryPoint(
                                 new TenantAwareAuthenticationEntryPoint("/{tenantId}/login")
                         )
+                        .accessDeniedHandler((request, response, accessDeniedException) -> {
+                                String tenantId = TenantContextHolder.getTenantId();
+                                if (tenantId == null || tenantId.isBlank()) {
+                                    tenantId = resolveTenantFromUri(request.getRequestURI());
+                                }
+                                String loginUrl = (tenantId != null && !tenantId.isBlank())
+                                        ? "/" + tenantId + "/login?session_expired"
+                                        : "/login?session_expired";
+                                response.sendRedirect(loginUrl);
+                        })
                 )
                 // Form login handles the redirect to the login page from the
                 // authorization server filter chain
@@ -185,6 +200,10 @@ public class SecurityConfig {
 
                 // ── No MFA — reset brute-force counter and complete login as normal ──
                 bruteForceProtectionService.resetFailedAttempts(username, tenantId);
+
+                // Clean up any orphan mfa_secret from a previously abandoned setup.
+                // (mfa_enabled=false but secret still present — no longer needed.)
+                userDetailsService.clearOrphanMfaSecret(username);
 
                 // Record the session for Active Devices tracking
                 Long userId = userDetailsService.loadUserId(username);

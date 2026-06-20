@@ -11,12 +11,18 @@ logging:
     org.springframework.security.oauth2.server.authorization.authentication: TRACE
     org.springframework.security.oauth2.server.authorization.JdbcOAuth2AuthorizationService: TRACE
     org.springframework.jdbc.core.JdbcTemplate: DEBUG
+    com.authenza.core.security.JdbcTenantUserDetailsService: DEBUG
 
 spring:
   data:
     redis:
       host: localhost
       port: 6379
+  session:
+    # Extend HTTP session timeout to 4 hours.
+    # The default 30-min timeout causes the saved OAuth2 authorize request to
+    # expire if the login page is left open, resulting in a 404 after login.
+    timeout: 4h
 
 app:
   datasource:

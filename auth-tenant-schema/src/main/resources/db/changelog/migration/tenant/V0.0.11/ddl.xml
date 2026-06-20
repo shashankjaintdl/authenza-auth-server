@@ -77,4 +77,55 @@
         </createIndex>
     </changeSet>
 
+    <changeSet id="add-webauthn-fingerprint-enabled-setting" author="authenza">
+        <!-- Only insert if it doesn't already exist -->
+        <preConditions onFail="MARK_RAN">
+            <sqlCheck expectedResult="0">
+                SELECT COUNT(*) FROM tenant_settings WHERE setting_key = 'webauthn_fingerprint_enabled'
+            </sqlCheck>
+        </preConditions>
+        <insert tableName="tenant_settings">
+            <column name="setting_key" value="webauthn_fingerprint_enabled"/>
+            <column name="setting_value" value="false"/>
+        </insert>
+    </changeSet>
+
+    <changeSet id="add-mfa-biometrics-customize-rp-setting" author="authenza">
+        <!-- Only insert if it doesn't already exist -->
+        <preConditions onFail="MARK_RAN">
+            <sqlCheck expectedResult="0">
+                SELECT COUNT(*) FROM tenant_settings WHERE setting_key = 'mfa_biometrics_customize_rp'
+            </sqlCheck>
+        </preConditions>
+        <insert tableName="tenant_settings">
+            <column name="setting_key" value="mfa_biometrics_customize_rp"/>
+            <column name="setting_value" value="false"/>
+        </insert>
+    </changeSet>
+
+    <changeSet id="add-user-session-indexes" author="authenza">
+        <!-- Speed up queries for the "Active Devices" list -->
+        <preConditions onFail="MARK_RAN">
+            <not>
+                <indexExists indexName="idx_user_session_user_revoked" tableName="user_session"/>
+            </not>
+        </preConditions>
+        <createIndex tableName="user_session" indexName="idx_user_session_user_revoked">
+            <column name="user_id"/>
+            <column name="revoked"/>
+        </createIndex>
+    </changeSet>
+
+    <changeSet id="add-user-session-auth-id-index" author="authenza">
+        <!-- Speed up session invalidation when an OAuth2 token is revoked -->
+        <preConditions onFail="MARK_RAN">
+            <not>
+                <indexExists indexName="idx_user_session_auth_id" tableName="user_session"/>
+            </not>
+        </preConditions>
+        <createIndex tableName="user_session" indexName="idx_user_session_auth_id">
+            <column name="authorization_id"/>
+        </createIndex>
+    </changeSet>
+
 </databaseChangeLog>

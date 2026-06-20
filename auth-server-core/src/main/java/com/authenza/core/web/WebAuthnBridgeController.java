@@ -129,6 +129,23 @@ public class WebAuthnBridgeController {
             return "redirect:/" + tenantId + "/login?locked";
         }
 
+        // ── 3.5 Force Password Change Gate ─────────────────────────────────────────
+        // Even if they log in with a passkey, if an admin set a temporary password and
+        // requires it to be changed, we must block full authentication and force the change.
+        if (userDetailsService.isPasswordChangeRequired(username)) {
+            log.info("[WebAuthn Bridge] Passkey user {} needs password change. Redirecting...", username);
+            
+            HttpSession forceChangeSession = request.getSession(true);
+            // Ensure no lingering security context
+            forceChangeSession.removeAttribute(HttpSessionSecurityContextRepository.SPRING_SECURITY_CONTEXT_KEY);
+            
+            forceChangeSession.setAttribute("PENDING_PASSWORD_CHANGE_USERNAME", username);
+            forceChangeSession.setAttribute("PENDING_PASSWORD_CHANGE_TENANT", tenantId);
+            forceChangeSession.setAttribute("PENDING_PASSWORD_CHANGE_USER_ID", claims.userId());
+
+            return "redirect:/" + tenantId + "/force-password-change";
+        }
+
         // ── 4. Establish Spring Security session ────────────────────────────────
         // This is the same as what Spring's form login does after password verification.
         UsernamePasswordAuthenticationToken auth = UsernamePasswordAuthenticationToken

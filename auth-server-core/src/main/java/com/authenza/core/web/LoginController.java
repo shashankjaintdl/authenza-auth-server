@@ -22,11 +22,14 @@ public class LoginController {
 
     private final SuperAdminClientProperties superAdminClientProperties;
     private final RegisteredClientRepository registeredClientRepository;
+    private final com.authenza.adapter.cache.TenantSettingsCache settingsCache;
 
     public LoginController(SuperAdminClientProperties superAdminClientProperties,
-            RegisteredClientRepository registeredClientRepository) {
+            RegisteredClientRepository registeredClientRepository,
+            com.authenza.adapter.cache.TenantSettingsCache settingsCache) {
         this.superAdminClientProperties = superAdminClientProperties;
         this.registeredClientRepository = registeredClientRepository;
+        this.settingsCache = settingsCache;
     }
 
     /**
@@ -59,6 +62,22 @@ public class LoginController {
                 .toUriString();
 
         return "redirect:" + authorizeUrl;
+    }
+
+    @org.springframework.beans.factory.annotation.Value("${app.services.tenant-portal-url:http://localhost:4200}")
+    private String tenantPortalUrl;
+
+    /**
+     * Fallback for lost OAuth2 sessions.
+     * If a user sits on the login page for 5 hours, the HTTP session expires, and
+     * Spring Security loses the original /authorize request. After successful
+     * login,
+     * it redirects to /{tenantId}/. This endpoint catches that redirect and bounces
+     * the user back to the Angular portal.
+     */
+    @GetMapping({"/{tenantId}", "/{tenantId}/"})
+    public String tenantRootRedirect(@PathVariable String tenantId) {
+        return "redirect:" + tenantPortalUrl + "/" + tenantId + "/";
     }
 
     @GetMapping("/{tenantId}/login")
@@ -98,6 +117,10 @@ public class LoginController {
         }
 
         model.addAttribute("tenantId", tenantId);
+
+        String webAuthnEnabled = settingsCache.getSetting(tenantId, "webauthn_fingerprint_enabled");
+        model.addAttribute("webauthnEnabled", "true".equalsIgnoreCase(webAuthnEnabled));
+
         return "login";
     }
 

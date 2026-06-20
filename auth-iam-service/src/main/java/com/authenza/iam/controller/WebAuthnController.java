@@ -172,7 +172,7 @@ public class WebAuthnController {
             @RequestBody Map<String, String> body) {
         String displayName = body.get("displayName");
         if (displayName == null || displayName.isBlank()) {
-            return ResponseEntity.badRequest().body(ApiResponse.error("displayName must not be blank."));
+            return ResponseEntity.badRequest().body(ApiResponse.error(404,"displayName must not be blank."));
         }
         webAuthnService.renamePasskey(userId, passkeyId, displayName.trim());
         return ResponseEntity.ok(ApiResponse.success("Passkey renamed successfully."));

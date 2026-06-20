@@ -15,6 +15,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
@@ -68,6 +69,7 @@ public class WebAuthnService {
     private final WebAuthnCredentialRepository credentialRepository;
     private final ObjectMapper objectMapper;
     private final WebAuthnBridgeTokenService bridgeTokenService;
+    private final TenantSettingsService tenantSettingsService;
 
     /**
      * Pending challenges keyed by a random requestId UUID.
@@ -80,6 +82,7 @@ public class WebAuthnService {
             WebAuthnCredentialRepository credentialRepository,
             ObjectMapper objectMapper,
             WebAuthnBridgeTokenService bridgeTokenService,
+            TenantSettingsService tenantSettingsService,
             @Value("${app.webauthn.rp-id}") String rpId,
             @Value("${app.webauthn.rp-name}") String rpName,
             @Value("${app.webauthn.origin}") String origin) {
@@ -88,6 +91,7 @@ public class WebAuthnService {
         this.credentialRepository = credentialRepository;
         this.objectMapper = objectMapper;
         this.bridgeTokenService = bridgeTokenService;
+        this.tenantSettingsService = tenantSettingsService;
 
         // RelyingParty is the server-side authority that signs and verifies WebAuthn operations.
         // rpId   = the domain name (e.g., "localhost" in dev, "auth.authenza.com" in prod).
@@ -114,6 +118,7 @@ public class WebAuthnService {
      * @return a response containing the options JSON and a requestId
      */
     public WebAuthnRegistrationStartResponse startRegistration(Long userId, String attachment) throws Exception {
+        checkWebAuthnEnabled();
         User user = findUserOrThrow(userId);
 
         UserIdentity userIdentity = UserIdentity.builder()
@@ -164,6 +169,7 @@ public class WebAuthnService {
      */
     @Transactional
     public void finishRegistration(Long userId, WebAuthnRegistrationFinishRequest request) throws Exception {
+        checkWebAuthnEnabled();
         PendingRequest<?> pending = getAndRemovePending(request.requestId());
 
         @SuppressWarnings("unchecked")
@@ -217,6 +223,7 @@ public class WebAuthnService {
      * @return JSON options and requestId to pass to the browser's WebAuthn API
      */
     public WebAuthnRegistrationStartResponse startAuthentication(String username) throws Exception {
+        checkWebAuthnEnabled();
         User user = userRepository.findByEmail(username)
                 .orElseGet(() -> userRepository.findByPreferredUsername(username).orElse(null));
         if (user == null) {
@@ -252,6 +259,7 @@ public class WebAuthnService {
     @Transactional
     public WebAuthnAuthResult finishAuthentication(
             WebAuthnAuthenticationFinishRequest request, String tenantId) throws Exception {
+        checkWebAuthnEnabled();
         PendingRequest<?> pending = getAndRemovePending(request.requestId());
 
         @SuppressWarnings("unchecked")
@@ -382,6 +390,13 @@ public class WebAuthnService {
     private void evictExpiredRequests() {
         long now = System.currentTimeMillis();
         pendingRequests.entrySet().removeIf(e -> (now - e.getValue().createdAt()) > CHALLENGE_TTL_MS);
+    }
+
+    private void checkWebAuthnEnabled() {
+        String isEnabled = tenantSettingsService.getSetting("webauthn_fingerprint_enabled");
+        if (!"true".equalsIgnoreCase(isEnabled)) {
+            throw new AccessDeniedException("WebAuthn / Passkeys are disabled for this tenant.");
+        }
     }
 
     /** Simple wrapper to hold challenge data alongside its creation timestamp for TTL checking. */

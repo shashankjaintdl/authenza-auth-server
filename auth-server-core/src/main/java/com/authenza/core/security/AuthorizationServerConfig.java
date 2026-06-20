@@ -1,5 +1,6 @@
 package com.authenza.core.security;
 
+import com.authenza.adapter.cache.TenantSettingsCache;
 import com.authenza.core.repository.JdbcTenantClientRepository;
 import com.authenza.core.repository.TenantAwareRegisteredClientRepository;
 import com.nimbusds.jose.jwk.JWKSet;
@@ -17,10 +18,8 @@ import org.springframework.security.oauth2.jwt.JwtEncoder;
 import org.springframework.security.oauth2.jwt.NimbusJwtEncoder;
 import org.springframework.security.oauth2.server.authorization.token.JwtGenerator;
 import org.springframework.security.oauth2.server.authorization.token.OAuth2AccessTokenGenerator;
-import org.springframework.security.oauth2.server.authorization.token.OAuth2RefreshTokenGenerator;
 import org.springframework.security.oauth2.server.authorization.token.DelegatingOAuth2TokenGenerator;
 import org.springframework.security.oauth2.server.authorization.token.OAuth2TokenGenerator;
-import org.springframework.security.oauth2.core.OAuth2Token;
 import org.springframework.security.oauth2.core.OAuth2RefreshToken;
 import org.springframework.security.oauth2.server.authorization.JdbcOAuth2AuthorizationConsentService;
 import org.springframework.security.oauth2.server.authorization.JdbcOAuth2AuthorizationService;
@@ -30,7 +29,12 @@ import org.springframework.security.oauth2.server.authorization.client.Registere
 import org.springframework.security.oauth2.server.authorization.config.annotation.web.configuration.OAuth2AuthorizationServerConfiguration;
 import org.springframework.security.oauth2.server.authorization.config.annotation.web.configurers.OAuth2AuthorizationServerConfigurer;
 import org.springframework.security.oauth2.server.authorization.settings.AuthorizationServerSettings;
+import org.springframework.security.oauth2.server.authorization.web.authentication.ClientSecretBasicAuthenticationConverter;
+import org.springframework.security.oauth2.server.authorization.web.authentication.ClientSecretPostAuthenticationConverter;
+import org.springframework.security.oauth2.server.authorization.web.authentication.JwtClientAssertionAuthenticationConverter;
+import org.springframework.security.oauth2.server.authorization.web.authentication.PublicClientAuthenticationConverter;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.authentication.DelegatingAuthenticationConverter;
 import org.springframework.security.web.session.DisableEncodeUrlFilter;
 import org.springframework.security.web.servlet.util.matcher.PathPatternRequestMatcher;
 import org.springframework.security.web.util.matcher.OrRequestMatcher;
@@ -42,6 +46,7 @@ import java.security.KeyPair;
 import java.security.KeyPairGenerator;
 import java.security.interfaces.RSAPrivateKey;
 import java.security.interfaces.RSAPublicKey;
+import java.util.Arrays;
 import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -60,19 +65,29 @@ public class AuthorizationServerConfig {
         private final DataSource dataSource;
         // Pre-built JdbcTemplate backed by the tenant RoutingDataSource.
         // Stored as a field to avoid creating a new object on every token issuance.
-        private final org.springframework.jdbc.core.JdbcTemplate jdbcTemplate;
+        private final JdbcTemplate jdbcTemplate;
+        private final TenantSettingsCache tenantSettingsCache;
+
+        /**
+         * Static fallback — used when no tenant-specific portal_url setting is found.
+         */
+        @org.springframework.beans.factory.annotation.Value("${app.services.tenant-portal-url:http://localhost:4200}")
+        private String defaultPortalUrl;
 
         public AuthorizationServerConfig(JdbcTenantClientRepository tenantClientRepository,
-                        DataSource dataSource) {
+                        DataSource dataSource,
+                        com.authenza.adapter.cache.TenantSettingsCache tenantSettingsCache) {
                 this.tenantClientRepository = tenantClientRepository;
                 this.dataSource = dataSource;
                 this.jdbcTemplate = new org.springframework.jdbc.core.JdbcTemplate(dataSource);
+                this.tenantSettingsCache = tenantSettingsCache;
         }
 
         @Bean
         @Order(1)
         public SecurityFilterChain authorizationServerSecurityFilterChain(HttpSecurity http,
-                        MultiTenantSecurityFilter tenantSecurityFilter)
+                        MultiTenantSecurityFilter tenantSecurityFilter,
+                        RegisteredClientRepository registeredClientRepository)
                         throws Exception {
                 OAuth2AuthorizationServerConfigurer authorizationServerConfigurer = OAuth2AuthorizationServerConfigurer
                                 .authorizationServer();
@@ -88,6 +103,30 @@ public class AuthorizationServerConfig {
         http
                 .with(authorizationServerConfigurer, (authorizationServer) ->
                         authorizationServer
+                                .clientAuthentication(clientAuth -> {
+                                    // Converter: detects public-client refresh_token requests
+                                    // (no code_verifier, no client_secret) and produces an
+                                    // unauthenticated OAuth2ClientAuthenticationToken for the
+                                    // provider below to validate.
+                                   DelegatingAuthenticationConverter converters = new DelegatingAuthenticationConverter(
+                                            Arrays.asList(
+                                                new JwtClientAssertionAuthenticationConverter(),
+                                                new ClientSecretBasicAuthenticationConverter(),
+                                                new ClientSecretPostAuthenticationConverter(),
+                                                new PublicClientAuthenticationConverter(),
+                                                new PublicClientRefreshTokenConverter()
+                                            )
+                                        );
+                                    clientAuth.authenticationConverter(converters);
+
+                                    // Provider: validates the unauthenticated token produced above.
+                                    // Registered at index 0 so it runs before Spring's default
+                                    // PublicClientAuthenticationProvider, which would reject any
+                                    // refresh_token request from a public client outright.
+                                    clientAuth.authenticationProviders(providers ->
+                                        providers.add(0, new PublicClientRefreshTokenAuthenticationProvider(registeredClientRepository))
+                                    );
+                                })
                                 .oidc(oidc -> oidc
                                         .logoutEndpoint(logout -> logout
                                                 .logoutResponseHandler((request, response, authentication) -> {
@@ -222,27 +261,20 @@ public class AuthorizationServerConfig {
                 JwtGenerator jwtGenerator = new JwtGenerator(jwtEncoder);
                 jwtGenerator.setJwtCustomizer(jwtTokenCustomizer);
                 OAuth2AccessTokenGenerator accessTokenGenerator = new OAuth2AccessTokenGenerator();
-                OAuth2RefreshTokenGenerator refreshTokenGenerator = new OAuth2RefreshTokenGenerator();
+
+                org.springframework.security.crypto.keygen.StringKeyGenerator keyGenerator = new org.springframework.security.crypto.keygen.Base64StringKeyGenerator(
+                                java.util.Base64.getUrlEncoder().withoutPadding(), 96);
+
                 return (context) -> {
-                        String tokenType = context.getTokenType().getValue();
-                        OAuth2Token generated = new DelegatingOAuth2TokenGenerator(
-                                        jwtGenerator, accessTokenGenerator, refreshTokenGenerator).generate(context);
-
-                        // FALLBACK: If Spring's default generator refused to issue a refresh token
-                        // but we have 'offline_access' authorized, we force one.
-                        if (generated == null && OAuth2TokenType.REFRESH_TOKEN.equals(context.getTokenType())
-                                        && context.getAuthorizedScopes().contains("offline_access")) {
-
-                                System.out.println("DEBUG: Spring refused refresh_token, FORCING generation...");
+                        if (OAuth2TokenType.REFRESH_TOKEN.equals(context.getTokenType())) {
                                 java.time.Instant issuedAt = java.time.Instant.now();
-                                java.time.Instant expiresAt = issuedAt.plus(registeredClientRepository()
-                                                .findByClientId(context.getRegisteredClient().getClientId())
+                                java.time.Instant expiresAt = issuedAt.plus(context.getRegisteredClient()
                                                 .getTokenSettings().getRefreshTokenTimeToLive());
-
-                                return new OAuth2RefreshToken(UUID.randomUUID().toString(), issuedAt, expiresAt);
+                                return new OAuth2RefreshToken(keyGenerator.generateKey(), issuedAt, expiresAt);
                         }
 
-                        return generated;
+                        return new DelegatingOAuth2TokenGenerator(
+                                        jwtGenerator, accessTokenGenerator).generate(context);
                 };
         }
 
@@ -295,6 +327,17 @@ public class AuthorizationServerConfig {
                                         context.getClaims().claim("tenant_id", tenantId);
                                 }
 
+                                // Bake the requires_password_change flag into the JWT
+                                boolean requiresPasswordChange = false;
+                                java.util.List<Boolean> pwdChangeResult = jdbcTemplate.query(
+                                                "SELECT requires_password_change FROM application_user WHERE preferred_username = ? OR email = ? LIMIT 1",
+                                                (rs, rowNum) -> rs.getBoolean("requires_password_change"),
+                                                principal.getName(), principal.getName());
+                                if (!pwdChangeResult.isEmpty()) {
+                                        requiresPasswordChange = Boolean.TRUE.equals(pwdChangeResult.get(0));
+                                }
+                                context.getClaims().claim("password_change_required", requiresPasswordChange);
+
                                 // ── Resolve User ID and Add to Claims ───────────────────────
                                 String username = principal.getName();
                                 java.util.List<Long> userIds = jdbcTemplate.queryForList(
@@ -310,18 +353,34 @@ public class AuthorizationServerConfig {
                                                 if (context.getAuthorization() != null
                                                                 && context.getAuthorization().getId() != null) {
                                                         String authId = context.getAuthorization().getId();
-                                                        // Link to the most recent un-linked session for this user
+                                                        // Link to the most recent un-linked, non-revoked session for this user.
+                                                        // The revoked = false guard prevents a revoked session from being
+                                                        // re-linked during a silent re-auth, which would embed a blacklisted
+                                                        // session_id into the fresh JWT and cause an immediate 401.
                                                         jdbcTemplate.update(
                                                                         "UPDATE user_session SET authorization_id = ? "
                                                                                         +
-                                                                                        "WHERE user_id = ? AND authorization_id IS NULL "
+                                                                                        "WHERE user_id = ? AND authorization_id IS NULL AND revoked = false "
                                                                                         +
                                                                                         "ORDER BY created_at DESC LIMIT 1",
                                                                         authId, userId);
+
+                                                        // Embed session_id into the JWT so the resource server
+                                                        // can blacklist it on revocation for immediate logout.
+                                                        // Only select non-revoked sessions to ensure the claim
+                                                        // is never set to an already-blacklisted session ID.
+                                                        java.util.List<Long> sessionIds = jdbcTemplate.queryForList(
+                                                                        "SELECT id FROM user_session WHERE authorization_id = ? AND user_id = ? AND revoked = false LIMIT 1",
+                                                                        Long.class, authId, userId);
+                                                        if (!sessionIds.isEmpty()) {
+                                                                context.getClaims().claim("session_id",
+                                                                                sessionIds.get(0).toString());
+                                                        }
                                                 }
                                         } catch (Exception e) {
                                                 // Non-fatal session linking failure
                                         }
+
                                 }
                         }
                 };
@@ -372,8 +431,49 @@ public class AuthorizationServerConfig {
                 }
 
                 if (!isValidRedirect) {
-                        redirectUri = "/";
+                        redirectUri = resolveFallbackPortalUrl(request);
                 }
                 response.sendRedirect(redirectUri);
+        }
+
+        /**
+         * Resolves the portal URL to redirect to after logout when the
+         * {@code post_logout_redirect_uri} is missing or invalid.
+         *
+         * <p>
+         * Resolution order:
+         * <ol>
+         * <li>Extracts the {@code tenantId} from the request path
+         * (e.g. {@code /system-admin/connect/logout} → {@code system-admin}).</li>
+         * <li>Reads the {@code portal_url} setting from {@code TenantSettingsCache}
+         * for that tenant — allows per-tenant portal domains in multi-tenant
+         * deployments.</li>
+         * <li>Falls back to the application-wide {@code app.services.tenant-portal-url}
+         * property if no tenant-specific override is configured.</li>
+         * </ol>
+         *
+         * <p>
+         * This is fully dynamic: no restart needed when a tenant's portal URL changes
+         * — TenantSettingsCache refreshes every 5 minutes and on explicit invalidation.
+         */
+        private String resolveFallbackPortalUrl(jakarta.servlet.http.HttpServletRequest request) {
+                try {
+                        // Extract tenantId from path: /{tenantId}/connect/logout
+                        String path = request.getRequestURI();
+                        java.util.regex.Matcher m = java.util.regex.Pattern
+                                        .compile("^/([^/]+)/")
+                                        .matcher(path);
+
+                        if (m.find()) {
+                                String tenantId = m.group(1);
+                                String tenantPortalUrl = tenantSettingsCache.getSetting(tenantId, "portal_url");
+                                if (tenantPortalUrl != null && !tenantPortalUrl.isBlank()) {
+                                        return tenantPortalUrl;
+                                }
+                        }
+                } catch (Exception e) {
+                        // Non-fatal — fall through to default
+                }
+                return defaultPortalUrl;
         }
 }
