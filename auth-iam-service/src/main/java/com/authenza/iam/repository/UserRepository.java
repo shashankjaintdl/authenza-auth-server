@@ -1,6 +1,7 @@
 package com.authenza.iam.repository;
 
 import com.authenza.common.model.iam.User;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jdbc.repository.query.Query;
 import org.springframework.data.repository.CrudRepository;
 import org.springframework.data.repository.PagingAndSortingRepository;
@@ -18,5 +19,5 @@ public interface UserRepository extends CrudRepository<User, Long>, PagingAndSor
     @Query("SELECT * FROM application_user WHERE preferred_username = :username")
     Optional<User> findByPreferredUsername(String username);
 
-    Page<User> findByPasswordNot(String password, org.springframework.data.domain.Pageable pageable);
+    Page<User> findByPasswordNot(String password, Pageable pageable);
 }

@@ -103,4 +103,29 @@
         </insert>
     </changeSet>
 
+    <changeSet id="add-user-session-indexes" author="authenza">
+        <!-- Speed up queries for the "Active Devices" list -->
+        <preConditions onFail="MARK_RAN">
+            <not>
+                <indexExists indexName="idx_user_session_user_revoked" tableName="user_session"/>
+            </not>
+        </preConditions>
+        <createIndex tableName="user_session" indexName="idx_user_session_user_revoked">
+            <column name="user_id"/>
+            <column name="revoked"/>
+        </createIndex>
+    </changeSet>
+
+    <changeSet id="add-user-session-auth-id-index" author="authenza">
+        <!-- Speed up session invalidation when an OAuth2 token is revoked -->
+        <preConditions onFail="MARK_RAN">
+            <not>
+                <indexExists indexName="idx_user_session_auth_id" tableName="user_session"/>
+            </not>
+        </preConditions>
+        <createIndex tableName="user_session" indexName="idx_user_session_auth_id">
+            <column name="authorization_id"/>
+        </createIndex>
+    </changeSet>
+
 </databaseChangeLog>

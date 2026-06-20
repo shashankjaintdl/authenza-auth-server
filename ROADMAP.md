@@ -54,9 +54,15 @@ Elevate platform security by protecting endpoints and validating identities.
   - Require authentication before calling self-service MFA endpoints (`/mfa/setup`, `/mfa/confirm`, `/mfa/disable`).
   - Enforce user identity scoping: a user can only manage their own MFA secret, not another user's.
   - *(Full RBAC-based admin override — "admin can manage any user's MFA" — deferred to Phase 4.)*
-- **Active Session Management:**
-  - Track active user sessions globally (e.g., via Redis or a `sessions` database table) instead of solely relying on stateless tokens.
+- **Active Session Management:** ✅ *Implemented (Phase 2)*
+  - Track active user sessions globally via a `sessions` database table and Redis revocation blacklist.
   - Add capabilities for users to view "Active Devices" and revoke (logout) specific remote sessions.
+  - **Third-Party App Integration (API-First):** Customers building their own apps do **not** need to implement session tracking themselves. Authenza exposes the following ready-to-use REST endpoints callable with the user's OAuth2 access token:
+    - `GET  /api/v1/users/{userId}/sessions` — list all active devices with IP, browser, last-active timestamp
+    - `DELETE /api/v1/users/{userId}/sessions/{sessionId}` — revoke a specific device
+    - `DELETE /api/v1/users/{userId}/sessions` — sign out from all devices simultaneously
+  - **Integration pattern:** Authenticate user via OAuth2 → extract `user_id` claim from JWT → call session API with Bearer token → render device list in your UI.
+  - *Prerequisite for safe third-party exposure:* `@PreAuthorize("principal.id == #userId or hasRole('TENANT_ADMIN')")` ownership guards must be enabled on `SessionController` (deferred to Phase 4 RBAC sprint) to prevent cross-user session access.
 - **FIDO2 / WebAuthn (Passwordless):** ✅ *Implemented (Phase 2)*
   - Allow users to authenticate using physical device biometrics (Apple FaceID, TouchID, Windows Hello, YubiKeys).
   - Library: Yubico `webauthn-server-core` (`com.yubico:webauthn-server-core:2.5.4`).
@@ -65,6 +71,11 @@ Elevate platform security by protecting endpoints and validating identities.
   - **Authentication flow** (`/webauthn/authenticate/start` → `/finish`): Generates an assertion challenge, verifies the signed assertion, increments the sign-count for replay-attack protection.
   - **Passkey management** (`GET/DELETE /users/{userId}/passkeys`): Lets users view and remove their registered keys from the Security settings tab.
   - **TODO (Next Steps):** Integrate the `/webauthn/authenticate/finish` success response into the `auth-server-core` OIDC flow so a successful passkey assertion can complete an OAuth2 authorization code grant without a password form submission.
+- **Known Security Gaps — `requires_password_change` Enforcement:** *(Sprint 10 — To Fix)*
+  - **Gap 1 — WebAuthn/Passkey Login Bypasses the Gate:** `WebAuthnBridgeController.completeBridgeLogin()` establishes a full Spring Security session without calling `isPasswordChangeRequired()`. A user with `requires_password_change = true` who authenticates via passkey completely skips the forced password change, receives a full JWT, and gains unrestricted portal access.
+    - *Fix:* Add `isPasswordChangeRequired()` check in `WebAuthnBridgeController` after account-state validation (step 3), storing `PENDING_PASSWORD_CHANGE_*` session attributes and redirecting to `/{tenantId}/force-password-change` — identical to the form-login handler in `SecurityConfig`.
+  - **Gap 2 — Flag Has No Effect on Already-Logged-In Users:** If an admin sets `requires_password_change = true` on a user who already holds a valid JWT, the user retains full portal access until the token naturally expires.
+    - *Fix:* Embed a `password_change_required: true` claim in the JWT via `OAuth2TokenCustomizer`, then extend `RevokedSessionJwtValidator` to reject tokens carrying this claim with HTTP 401 — triggering the Angular `error.interceptor` → `logoffLocal()` → redirect to login → force-password-change on next login.
 - **Tenant-Level Rate Limiting:**
   - Protect infrastructure from noisy-neighbor DDoS attacks by throttling API requests per `tenant_id` (e.g., max 10,000 auth attempts per hour).
 - **Strict Cross-Tenant Session Isolation:**
@@ -74,6 +85,9 @@ Elevate platform security by protecting endpoints and validating identities.
 - **Adaptive / Risk-Based Authentication:**
   - Detect anomalous login attempts (e.g., impossible travel, unknown devices, or new IP addresses).
   - Automatically challenge the user with progressive MFA or send a "New Device Detected" security alert email.
+- **Performance & Data Access Optimization (Sprint 10):**
+  - Add Database Indexes for high-frequency low-latency queries (`user_session` on `user_id, revoked` and `authorization_id`; `webauthn_credential` on `user_id`).
+  - Move WebAuthn and MFA challenges from per-pod `HttpSession` to Redis for horizontal scalability.
 
 ---
 
@@ -117,6 +131,9 @@ Expand upon the Spring Authorization Server framework standardizing the token is
   - **Device Authorization Grant (RFC 8628):** Support input-constrained devices (e.g., CLI tools, Smart TVs) by allowing users to authorize on a secondary browser via a short code.
   - **Mutual TLS (mTLS) Client Authentication (RFC 8705):** Mandate X.509 client certificates for high-security B2B integrations instead of basic `client_secret` strings.
   - **Rich Authorization Requests (RAR - RFC 9396):** Enable complex JSON payload scopes for precise transactional approvals rather than simple string scopes.
+- **Scale Preparation & Hardening:**
+  - Migrate Brute Force tracking from in-memory `ConcurrentHashMap` to Redis with TTL to prevent cluster-wide lockout bypasses.
+  - Implement caching for `RegisteredClient` lookups using Caffeine with Redis Pub/Sub invalidation to reduce MySQL load on every token request.
 
 ---
 
@@ -129,6 +146,7 @@ Enable complex B2B scenarios and tenant-specific configuration.
   - Build a **custom `UserDetails`** principal that carries `userId` (database PK) alongside `username`, enabling precise ownership checks in controllers.
   - Add `@PreAuthorize` expressions for MFA management: users can only manage their own MFA; `ROLE_ADMIN` or `ROLE_TENANT_ADMIN` can manage any user's MFA.
   - Role-gate the tenant-wide MFA policy endpoint (`PUT /api/v1/settings/mfa-policy`) to `ROLE_TENANT_ADMIN` only.
+  - **Enable Session API Ownership Guards:** Uncomment `@PreAuthorize("principal.id == #userId or hasRole('TENANT_ADMIN')")` on all three `SessionController` endpoints (`GET/DELETE /users/{userId}/sessions`). Currently commented out — without this, any authenticated user can list or revoke sessions belonging to any other user. This is a **required prerequisite** before advertising the session API as a safe third-party integration point.
   - **Tenant Portal UI & Backend Endpoint Segregation (In Progress):**
     - Enable Spring Security `oauth2ResourceServer` in `auth-iam-service` to validate JWTs.
     - Add `@PreAuthorize("hasRole('TENANT_ADMIN')")` restrictions on `UserController`, `TenantSettingsController`, etc.
@@ -228,6 +246,14 @@ Mature the product to fit into wider enterprise ecosystems.
 - **Scale-Out Policy Caching (Caffeine + Redis Pub/Sub):**
   - Optimize the performance of tenant-specific security policies (MFA, Session TTL) by introducing ultra-low-latency local Caffeine caches.
   - Implement a Redis Pub/Sub invalidation mechanism to "broadcast" setting changes from the `auth-iam-service` to all `auth-server-core` instances, ensuring instant policy updates while maintaining near-zero database load during logins.
+- **Token Generation Optimizations (Zero-Latency Customizer):**
+  - Eliminate all synchronous database queries from `OAuth2TokenCustomizer` to prevent database bottlenecks during high-volume token minting and silent renewals.
+  - Decouple `user_session` linking by moving the `UPDATE` query into an asynchronous `@EventListener(OAuth2TokenCreatedEvent.class)` so it executes in a background thread, removing it from the critical path of the HTTP response.
+- **Production Infrastructure Scale-Out:**
+  - Transition from standalone Redis to Redis Cluster for High Availability (HA).
+  - Tune HikariCP connection pools specifically for the multi-tenant `RoutingDataSource` to handle peak concurrency.
+  - Evaluate DB read replicas to separate read/write load as tenant user bases grow.
+  - *Architecture Decision:* Distributed In-Memory Data Grids (IMDG) like TIBCO, Hazelcast, or Apache Ignite are explicitly excluded. MySQL + Redis + Caffeine is the proven, sufficient stack for scaling to 10M+ users in this domain.
 
 ---
 
@@ -238,7 +264,8 @@ Empower tenant developers to integrate deeply with the Authenza platform.
   - Provide a highly polished `docker-compose.yml` and unified CLI experience so a company's developers can spin up the entire Authenza stack (Master DB, Redis, Auth Server, and Portal) locally on their laptop in seconds.
   - *Strategic differentiator:* Developers cannot test Auth0 or Azure AD effectively without a live internet connection and navigating complex cloud sandbox environments. Authenza must run locally as flawlessly as it runs in production.
 - **Event Webhooks (Asynchronous):**
-  - Fire asynchronous HTTP callbacks to tenant-configured URLs upon critical lifecycle events (`USER_REGISTERED`, `PASSWORD_CHANGED`, `TENANT_DELETED`) for downstream auditing and data synchronization.
+  - Fire asynchronous HTTP callbacks to tenant-configured URLs upon critical lifecycle events (`USER_REGISTERED`, `PASSWORD_CHANGED`, `TENANT_DELETED`, `SESSION_CREATED`, `SESSION_REVOKED`) for downstream auditing and data synchronization.
+  - **Session webhooks** eliminate the need for third-party apps to poll the session list API — they receive a push notification when a device logs in or is revoked, enabling real-time UI updates.
 - **Synchronous Logic Webhooks (The "Plugin Killer"):**
   - Instead of forcing developers to write custom Javascript plugins inside the Auth engine (like Auth0 Actions), Authenza will pause during critical flows (e.g., `pre-login`) and make a synchronous HTTP call to the tenant's own external REST API.
   - The tenant's API returns `{ "action": "ALLOW" }` or `{ "action": "DENY", "reason": "Invoice unpaid" }`.

@@ -125,13 +125,13 @@ public class UserService {
 
         User user = new User();
         user.setEmail(request.getEmail());
-        user.setPreferredUsername(request.getPreferredUsername() != null && !request.getPreferredUsername().isBlank() 
-            ? request.getPreferredUsername() 
-            : request.getEmail());
+        user.setPreferredUsername(request.getPreferredUsername() != null && !request.getPreferredUsername().isBlank()
+                ? request.getPreferredUsername()
+                : request.getEmail());
         user.setGivenName(request.getGivenName());
         user.setFamilyName(request.getFamilyName());
         user.setName(request.getGivenName() + " " + request.getFamilyName());
-        
+
         // Enforce password policies
         PasswordPolicyValidator.validate(request.getPassword());
         user.setPassword(passwordEncoder.encode(request.getPassword()));
@@ -210,7 +210,8 @@ public class UserService {
                     .withSort(Sort.Direction.fromString(databaseHelper.getSortOrder()), databaseHelper.getSortBy());
         }
         // Map the secure User entity safely to the UserResponse DTO.
-        // We filter out shadow admins by excluding users with the sentinel password [GLOBAL_ACCOUNT].
+        // We filter out shadow admins by excluding users with the sentinel password
+        // [GLOBAL_ACCOUNT].
         return userRepository.findByPasswordNot("[GLOBAL_ACCOUNT]", pageable).map(this::toUserResponse);
     }
 
@@ -543,7 +544,7 @@ public class UserService {
             }
         } catch (IllegalArgumentException ex) {
             if (ex.getMessage() != null && ex.getMessage().contains("password encoding prefix")) {
-                // If it lacks a prefix, it's an old legacy format and definitely won't match 
+                // If it lacks a prefix, it's an old legacy format and definitely won't match
                 // the new delegating encoder logic. We treat it as incorrect.
                 throw new IllegalArgumentException("Incorrect current password.");
             }
@@ -569,8 +570,10 @@ public class UserService {
     }
 
     /**
-     * Forces a password change for a user (e.g. after admin assigned a temporary password).
-     * Bypasses current password verification, but requires the requires_password_change flag to be true.
+     * Forces a password change for a user (e.g. after admin assigned a temporary
+     * password).
+     * Bypasses current password verification, but requires the
+     * requires_password_change flag to be true.
      *
      * @param userId      the user's database ID
      * @param newPassword the new plaintext password
@@ -590,8 +593,9 @@ public class UserService {
                 throw new IllegalArgumentException("New password must be different from the temporary password.");
             }
         } catch (IllegalArgumentException ex) {
-            // DelegatingPasswordEncoder throws this if the current DB password lacks a {prefix}.
-            // If it lacks a prefix (like [GLOBAL_ACCOUNT] or legacy text), we safely assume 
+            // DelegatingPasswordEncoder throws this if the current DB password lacks a
+            // {prefix}.
+            // If it lacks a prefix (like [GLOBAL_ACCOUNT] or legacy text), we safely assume
             // the new password is "different" and allow the change to proceed.
             if (!ex.getMessage().contains("password encoding prefix")) {
                 throw ex;

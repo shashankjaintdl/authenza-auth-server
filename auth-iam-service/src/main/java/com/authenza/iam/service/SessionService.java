@@ -15,10 +15,13 @@ import java.util.List;
 /**
  * Manages active user sessions stored in the {@code user_session} table.
  *
- * <p>Session revocation deletes the corresponding {@code oauth2_authorization} row
- * (if any), immediately preventing refresh-token reuse. Access tokens remain
- * technically valid until they expire (typically 5–60 min) unless token
- * introspection is enabled on resource servers.
+ * <p>Session revocation:
+ * <ol>
+ *   <li>Deletes the {@code oauth2_authorization} row — blocks refresh-token reuse.</li>
+ *   <li>Writes the {@code session_id} to the Redis blacklist via {@link RevokedSessionStore}
+ *       — causes the IAM service to reject the still-live access token on its next request,
+ *       giving <em>immediate</em> forced-logout without waiting for token expiry.</li>
+ * </ol>
  */
 @Service
 public class SessionService {
@@ -26,9 +29,11 @@ public class SessionService {
     private static final Logger log = LoggerFactory.getLogger(SessionService.class);
 
     private final JdbcTemplate jdbcTemplate;
+    private final RevokedSessionStore revokedSessionStore;
 
-    public SessionService(JdbcTemplate jdbcTemplate) {
+    public SessionService(JdbcTemplate jdbcTemplate, RevokedSessionStore revokedSessionStore) {
         this.jdbcTemplate = jdbcTemplate;
+        this.revokedSessionStore = revokedSessionStore;
     }
 
     // ─────────────────────────────────────────────
@@ -75,85 +80,97 @@ public class SessionService {
      * Revokes a specific session.
      *
      * <ol>
-     *   <li>Verifies the session belongs to {@code userId} (prevents cross-user revocation).</li>
+     *   <li>Verifies the session belongs to {@code userId}.</li>
      *   <li>Marks the {@code user_session} row as revoked.</li>
      *   <li>Deletes the linked {@code oauth2_authorization} row to block refresh-token reuse.</li>
+     *   <li>Writes the {@code session_id} to Redis so the access token is rejected immediately.</li>
      * </ol>
-     *
-     * @param userId    the user who owns the session
-     * @param sessionId the {@code user_session.id} to revoke
-     * @throws ResourceNotFoundException if the session does not exist or belongs to another user
      */
     @Transactional
     public void revokeSession(Long userId, Long sessionId) {
-        // Fetch the authorization_id before revoking (needed for cascade delete)
+        // Fetch auth ID + access-token expiry before revoking
         String fetchSql = """
-                SELECT authorization_id FROM user_session
+                SELECT authorization_id, expires_at FROM user_session
                 WHERE  id      = ?
                   AND  user_id = ?
                   AND  revoked = false
                 """;
 
-        List<String> authIds = jdbcTemplate.query(fetchSql,
-                (rs, rowNum) -> rs.getString("authorization_id"),
+        var rows = jdbcTemplate.query(fetchSql,
+                (rs, rowNum) -> new Object[]{
+                        rs.getString("authorization_id"),
+                        rs.getTimestamp("expires_at")
+                },
                 sessionId, userId);
 
-        if (authIds.isEmpty()) {
+        if (rows.isEmpty()) {
             throw new ResourceNotFoundException(
                     "Session not found or already revoked (id=" + sessionId + ").");
         }
 
+        String authorizationId = (String) rows.get(0)[0];
+        java.sql.Timestamp expiresAt = (java.sql.Timestamp) rows.get(0)[1];
+
         // Mark session as revoked
         jdbcTemplate.update(
-                "UPDATE user_session SET revoked = true, revoked_at = ? WHERE id = ?",
-                Instant.now(), sessionId);
+                "UPDATE user_session SET revoked = true, revoked_at = ?, authorization_id = NULL WHERE id = ?",
+                java.sql.Timestamp.from(Instant.now()), sessionId);
 
-        // Delete the OAuth2 authorization to block refresh-token reuse
-        String authorizationId = authIds.get(0);
+        // Delete the OAuth2 authorization to block refresh-token reuse.
+        // NOTE: We clear authorization_id BEFORE this delete so that the JWT
+        // token customizer can re-link the new oauth2_authorization to this
+        // (now revoked) row on a silent re-auth page reload. The revoked row's
+        // numeric id will then be embedded as session_id in the new JWT, and the
+        // Redis blacklist check in RevokedSessionJwtValidator will reject it → 401.
         if (authorizationId != null) {
             int deleted = jdbcTemplate.update(
                     "DELETE FROM oauth2_authorization WHERE id = ?", authorizationId);
             log.info("[Session] Deleted oauth2_authorization '{}' for session {} (user {})",
                     authorizationId, sessionId, userId);
             if (deleted == 0) {
-                log.debug("[Session] No oauth2_authorization row found for id '{}' — may have already expired",
-                        authorizationId);
+                log.debug("[Session] No oauth2_authorization row found for id '{}'", authorizationId);
             }
         }
+
+        // Blacklist the session_id in Redis so the active access token is rejected immediately
+        Instant tokenExpiry = (expiresAt != null) ? expiresAt.toInstant() : null;
+        revokedSessionStore.revoke(sessionId.toString(), tokenExpiry);
 
         log.info("[Session] Revoked session {} for user {} in tenant '{}'",
                 sessionId, userId, TenantContextHolder.getTenantId());
     }
 
     /**
-     * Revokes <em>all</em> active sessions for a user — equivalent to
-     * "Sign out of all devices".
-     *
-     * @param userId the user whose sessions should be revoked
-     * @return the number of sessions revoked
+     * Revokes <em>all</em> active sessions for a user — "Sign out of all devices".
      */
     @Transactional
     public int revokeAllSessions(Long userId) {
-        // Collect active authorization IDs before revoking
-        List<String> authIds = jdbcTemplate.query(
-                "SELECT authorization_id FROM user_session WHERE user_id = ? AND revoked = false",
-                (rs, rowNum) -> rs.getString("authorization_id"),
+        // Collect active session IDs and authorization IDs before revoking
+        var rows = jdbcTemplate.query(
+                "SELECT id, authorization_id FROM user_session WHERE user_id = ? AND revoked = false",
+                (rs, rowNum) -> new Object[]{rs.getLong("id"), rs.getString("authorization_id")},
                 userId);
 
-        // Mark all user_session rows as revoked in one statement
+        // Mark all revoked
         int count = jdbcTemplate.update(
                 "UPDATE user_session SET revoked = true, revoked_at = ? WHERE user_id = ? AND revoked = false",
-                Instant.now(), userId);
+                java.sql.Timestamp.from(Instant.now()), userId);
 
-        // Delete all linked oauth2_authorization rows
-        authIds.stream()
-                .filter(id -> id != null && !id.isBlank())
-                .forEach(id -> jdbcTemplate.update(
-                        "DELETE FROM oauth2_authorization WHERE id = ?", id));
+        for (Object[] row : rows) {
+            Long sid = (Long) row[0];
+            String authId = (String) row[1];
+
+            // Blacklist each session_id in Redis
+            revokedSessionStore.revoke(sid.toString());
+
+            // Delete OAuth2 authorization
+            if (authId != null && !authId.isBlank()) {
+                jdbcTemplate.update("DELETE FROM oauth2_authorization WHERE id = ?", authId);
+            }
+        }
 
         log.info("[Session] Revoked {} session(s) for user {} in tenant '{}'",
                 count, userId, TenantContextHolder.getTenantId());
-
         return count;
     }
 }

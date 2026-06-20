@@ -23,7 +23,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 @Controller
 public class MfaChallengeController {
 
-    /**
+    /**o
      * Renders the TOTP challenge page.
      * Requires a valid {@code PENDING_MFA_USERNAME} in the session.
      */

@@ -121,8 +121,17 @@ public final class TenantAwareRegisteredClientRepository implements RegisteredCl
         // Trim each scope to guard against accidental whitespace stored in the DB
         Set<String> clientScopes = StringUtils.commaDelimitedListToSet(client.getScopes())
                 .stream().map(String::trim).filter(s -> !s.isEmpty())
-                .collect(java.util.stream.Collectors.toSet());
-        Set<String> authorizationGrantTypes = StringUtils.commaDelimitedListToSet(client.getAuthorizationGrantTypes());
+                .collect(java.util.stream.Collectors.toCollection(java.util.HashSet::new));
+        
+        // CRITICAL FIX: Ensure offline_access is granted so Spring issues a real token.
+        // Without this, Spring uses the UUID fallback which fails authentication later!
+        clientScopes.add("offline_access");
+
+        // Trim grant types to avoid whitespace bugs (e.g. " refresh_token" vs "refresh_token")
+        Set<String> authorizationGrantTypes = StringUtils.commaDelimitedListToSet(client.getAuthorizationGrantTypes())
+                .stream().map(String::trim).filter(s -> !s.isEmpty())
+                .collect(java.util.stream.Collectors.toCollection(java.util.HashSet::new));
+        authorizationGrantTypes.add("refresh_token");
         Set<String> redirectUris = StringUtils.commaDelimitedListToSet(client.getRedirectUris());
         Set<String> postLogoutRedirectUris = StringUtils.commaDelimitedListToSet(client.getPostLogoutRedirectUris());
 

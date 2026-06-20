@@ -123,7 +123,6 @@ public class JdbcTenantUserDetailsService implements UserDetailsService {
         authorities.add(new SimpleGrantedAuthority("SCOPE_openid"));
         authorities.add(new SimpleGrantedAuthority("SCOPE_profile"));
         authorities.add(new SimpleGrantedAuthority("SCOPE_offline_access"));
-
         boolean enabled = "ACTIVE".equalsIgnoreCase(base.status)
                 || "PENDING_VERIFICATION".equalsIgnoreCase(base.status);
         boolean accountNonLocked = !"LOCKED".equalsIgnoreCase(base.status);

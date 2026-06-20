@@ -64,6 +64,22 @@ public class LoginController {
         return "redirect:" + authorizeUrl;
     }
 
+    @org.springframework.beans.factory.annotation.Value("${app.services.tenant-portal-url:http://localhost:4200}")
+    private String tenantPortalUrl;
+
+    /**
+     * Fallback for lost OAuth2 sessions.
+     * If a user sits on the login page for 5 hours, the HTTP session expires, and
+     * Spring Security loses the original /authorize request. After successful
+     * login,
+     * it redirects to /{tenantId}/. This endpoint catches that redirect and bounces
+     * the user back to the Angular portal.
+     */
+    @GetMapping({"/{tenantId}", "/{tenantId}/"})
+    public String tenantRootRedirect(@PathVariable String tenantId) {
+        return "redirect:" + tenantPortalUrl + "/" + tenantId + "/";
+    }
+
     @GetMapping("/{tenantId}/login")
     public String loginPage(@PathVariable String tenantId,
             @RequestParam(name = "error", required = false) String error,
