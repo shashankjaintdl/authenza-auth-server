@@ -57,6 +57,10 @@ app:
       # Default session active time. Can be overridden in DB (tenant_settings)
       default-ttl-days: 30
 
+    rate-limit:
+      burst-per-minute: 200
+      sustained-per-hour: 5000
+
   mfa:
     # AES-256-GCM key (base64-encoded, must decode to exactly 32 bytes).
     # Generate a production key with: openssl rand -base64 32
