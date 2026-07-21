@@ -118,7 +118,7 @@ public class JdbcTenantUserDetailsService implements UserDetailsService {
             }
         }
 
-        // Add standard OIDC scopes as authorities so Spring Authorization Server 
+        // Add standard OIDC scopes as authorities so Spring Authorization Server
         // grants them during the token exchange.
         authorities.add(new SimpleGrantedAuthority("SCOPE_openid"));
         authorities.add(new SimpleGrantedAuthority("SCOPE_profile"));
@@ -185,7 +185,8 @@ public class JdbcTenantUserDetailsService implements UserDetailsService {
             log.debug("[MFA-DEBUG] MFA required for '{}' via tenant policy", username);
             return true;
         }
-        // MFA is required ONLY if mfa_enabled = true (user opted in or admin enabled it).
+        // MFA is required ONLY if mfa_enabled = true (user opted in or admin enabled
+        // it).
         // An orphan secret (mfa_secret IS NOT NULL but mfa_enabled = false) is from an
         // abandoned setup and must NOT block login — it will be cleaned up on next
         // successful non-MFA login via clearOrphanMfaSecret().
@@ -268,7 +269,8 @@ public class JdbcTenantUserDetailsService implements UserDetailsService {
     /**
      * Clears an orphan {@code mfa_secret} left over from an abandoned MFA setup.
      *
-     * <p>Called after a successful non-MFA login when {@code mfa_enabled = false}
+     * <p>
+     * Called after a successful non-MFA login when {@code mfa_enabled = false}
      * but a stale secret exists in the DB. This keeps the database clean and
      * prevents ghost secrets from causing confusion in future setups.
      *
@@ -277,8 +279,8 @@ public class JdbcTenantUserDetailsService implements UserDetailsService {
     public void clearOrphanMfaSecret(String username) {
         int updated = jdbcTemplate.update(
                 "UPDATE application_user SET mfa_secret = NULL " +
-                "WHERE (preferred_username = ? OR email = ?) " +
-                "AND mfa_enabled = false AND mfa_secret IS NOT NULL",
+                        "WHERE (preferred_username = ? OR email = ?) " +
+                        "AND mfa_enabled = false AND mfa_secret IS NOT NULL",
                 username, username);
         if (updated > 0) {
             log.info("[MFA] Cleared orphan mfa_secret for user '{}' on successful non-MFA login", username);

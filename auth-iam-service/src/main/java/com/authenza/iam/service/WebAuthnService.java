@@ -20,7 +20,6 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
 import java.util.*;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 
 /**
@@ -49,20 +48,14 @@ import java.util.stream.Collectors;
  *       (replay-attack prevention), and returns the authenticated userId.</li>
  * </ol>
  *
- * <p><b>In-Memory Challenge Cache:</b> Pending registration/authentication requests are stored
- * in a {@link ConcurrentHashMap} with a 5-minute TTL. In a production cluster, replace this
- * with Redis to share challenge state across instances.</p>
+ * <p><b>Challenge Store:</b> Pending registration/authentication challenges are stored
+ * in Redis via {@link RedisWebAuthnChallengeStore} with a 5-minute TTL.
+ * This enables cross-pod challenge resolution in a horizontally-scaled cluster.</p>
  */
 @Service
 public class WebAuthnService {
 
     private static final Logger log = LoggerFactory.getLogger(WebAuthnService.class);
-
-    /**
-     * TTL for pending WebAuthn challenges (both registration and authentication).
-     * Challenges not completed within this window are automatically discarded.
-     */
-    private static final long CHALLENGE_TTL_MS = 5 * 60 * 1_000;
 
     private final RelyingParty relyingParty;
     private final UserRepository userRepository;
@@ -70,12 +63,7 @@ public class WebAuthnService {
     private final ObjectMapper objectMapper;
     private final WebAuthnBridgeTokenService bridgeTokenService;
     private final TenantSettingsService tenantSettingsService;
-
-    /**
-     * Pending challenges keyed by a random requestId UUID.
-     * Value is a pair of (challenge-data, creation-timestamp).
-     */
-    private final ConcurrentHashMap<String, PendingRequest<?>> pendingRequests = new ConcurrentHashMap<>();
+    private final RedisWebAuthnChallengeStore challengeStore;
 
     public WebAuthnService(
             UserRepository userRepository,
@@ -83,6 +71,7 @@ public class WebAuthnService {
             ObjectMapper objectMapper,
             WebAuthnBridgeTokenService bridgeTokenService,
             TenantSettingsService tenantSettingsService,
+            RedisWebAuthnChallengeStore challengeStore,
             @Value("${app.webauthn.rp-id}") String rpId,
             @Value("${app.webauthn.rp-name}") String rpName,
             @Value("${app.webauthn.origin}") String origin) {
@@ -92,6 +81,7 @@ public class WebAuthnService {
         this.objectMapper = objectMapper;
         this.bridgeTokenService = bridgeTokenService;
         this.tenantSettingsService = tenantSettingsService;
+        this.challengeStore = challengeStore;
 
         // RelyingParty is the server-side authority that signs and verifies WebAuthn operations.
         // rpId   = the domain name (e.g., "localhost" in dev, "auth.authenza.com" in prod).
@@ -152,8 +142,7 @@ public class WebAuthnService {
         PublicKeyCredentialCreationOptions creationOptions = relyingParty.startRegistration(startOptions);
 
         String requestId = UUID.randomUUID().toString();
-        pendingRequests.put(requestId, new PendingRequest<>(creationOptions, System.currentTimeMillis()));
-        evictExpiredRequests();
+        challengeStore.saveRegistrationChallenge(requestId, creationOptions);
 
         String optionsJson = creationOptions.toJson();
         log.info("[WebAuthn] Registration started for userId={}, requestId={}", userId, requestId);
@@ -170,10 +159,10 @@ public class WebAuthnService {
     @Transactional
     public void finishRegistration(Long userId, WebAuthnRegistrationFinishRequest request) throws Exception {
         checkWebAuthnEnabled();
-        PendingRequest<?> pending = getAndRemovePending(request.requestId());
-
-        @SuppressWarnings("unchecked")
-        PublicKeyCredentialCreationOptions options = (PublicKeyCredentialCreationOptions) pending.data();
+        PublicKeyCredentialCreationOptions options = challengeStore.getAndRemoveRegistrationChallenge(request.requestId());
+        if (options == null) {
+            throw new IllegalArgumentException("WebAuthn registration request expired or not found. Please try again.");
+        }
 
         String credentialJson = request.credentialJson();
         if (!credentialJson.contains("\"clientExtensionResults\"")) {
@@ -238,8 +227,7 @@ public class WebAuthnService {
         AssertionRequest assertionRequest = relyingParty.startAssertion(assertionOptions);
 
         String requestId = UUID.randomUUID().toString();
-        pendingRequests.put(requestId, new PendingRequest<>(assertionRequest, System.currentTimeMillis()));
-        evictExpiredRequests();
+        challengeStore.saveAuthenticationChallenge(requestId, assertionRequest);
 
         log.info("[WebAuthn] Authentication started for username={}, requestId={}", username, requestId);
         return new WebAuthnRegistrationStartResponse(assertionRequest.toJson(), requestId);
@@ -260,10 +248,10 @@ public class WebAuthnService {
     public WebAuthnAuthResult finishAuthentication(
             WebAuthnAuthenticationFinishRequest request, String tenantId) throws Exception {
         checkWebAuthnEnabled();
-        PendingRequest<?> pending = getAndRemovePending(request.requestId());
-
-        @SuppressWarnings("unchecked")
-        AssertionRequest assertionRequest = (AssertionRequest) pending.data();
+        AssertionRequest assertionRequest = challengeStore.getAndRemoveAuthenticationChallenge(request.requestId());
+        if (assertionRequest == null) {
+            throw new IllegalArgumentException("WebAuthn authentication request expired or not found. Please try again.");
+        }
 
         String credentialJson = request.credentialJson();
         if (!credentialJson.contains("\"clientExtensionResults\"")) {
@@ -375,30 +363,10 @@ public class WebAuthnService {
         return descriptors;
     }
 
-    private PendingRequest<?> getAndRemovePending(String requestId) {
-        PendingRequest<?> pending = pendingRequests.remove(requestId);
-        if (pending == null) {
-            throw new IllegalArgumentException("WebAuthn request expired or not found. Please try again.");
-        }
-        if (System.currentTimeMillis() - pending.createdAt() > CHALLENGE_TTL_MS) {
-            throw new IllegalArgumentException("WebAuthn challenge has expired (5-minute window). Please restart.");
-        }
-        return pending;
-    }
-
-    /** Removes all entries from the pending request map that have exceeded the TTL. */
-    private void evictExpiredRequests() {
-        long now = System.currentTimeMillis();
-        pendingRequests.entrySet().removeIf(e -> (now - e.getValue().createdAt()) > CHALLENGE_TTL_MS);
-    }
-
     private void checkWebAuthnEnabled() {
         String isEnabled = tenantSettingsService.getSetting("webauthn_fingerprint_enabled");
         if (!"true".equalsIgnoreCase(isEnabled)) {
             throw new AccessDeniedException("WebAuthn / Passkeys are disabled for this tenant.");
         }
     }
-
-    /** Simple wrapper to hold challenge data alongside its creation timestamp for TTL checking. */
-    private record PendingRequest<T>(T data, long createdAt) {}
 }

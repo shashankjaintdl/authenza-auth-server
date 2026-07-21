@@ -24,6 +24,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import javax.sql.DataSource;
 import java.sql.Connection;
+import java.time.Instant;
 
 @Service
 public class TenantProvisioningService {
@@ -324,7 +325,7 @@ public class TenantProvisioningService {
     @Transactional
     public void updateLastAccessed(String tenantId) {
         repository.findByTenantId(tenantId).ifPresent(tenant -> {
-            tenant.setLastAccessedAt(java.time.Instant.now());
+            tenant.setLastAccessedAt(Instant.now());
             repository.save(tenant);
         });
     }

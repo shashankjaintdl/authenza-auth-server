@@ -37,15 +37,18 @@ public class SecurityConfig {
     private final JdbcTenantUserDetailsService userDetailsService;
     private final MfaAuthenticationFilter mfaAuthenticationFilter;
     private final SessionRecordingService sessionRecordingService;
+    private final AuthPendingStateStore authPendingStateStore;
 
     public SecurityConfig(BruteForceProtectionService bruteForceProtectionService,
             JdbcTenantUserDetailsService userDetailsService,
             MfaAuthenticationFilter mfaAuthenticationFilter,
-            SessionRecordingService sessionRecordingService) {
+            SessionRecordingService sessionRecordingService,
+            AuthPendingStateStore authPendingStateStore) {
         this.bruteForceProtectionService = bruteForceProtectionService;
         this.userDetailsService = userDetailsService;
         this.mfaAuthenticationFilter = mfaAuthenticationFilter;
         this.sessionRecordingService = sessionRecordingService;
+        this.authPendingStateStore = authPendingStateStore;
     }
 
     @Bean
@@ -159,15 +162,16 @@ public class SecurityConfig {
                 // ── Force Password Change gate: if admin set a temporary password ──
                 if (userDetailsService.isPasswordChangeRequired(username)) {
                     SecurityContextHolder.clearContext();
-                    HttpSession forceChangeSession = request.getSession(true);
-                    forceChangeSession
-                            .removeAttribute(HttpSessionSecurityContextRepository.SPRING_SECURITY_CONTEXT_KEY);
-                    forceChangeSession.setAttribute("PENDING_PASSWORD_CHANGE_USERNAME", username);
-                    forceChangeSession.setAttribute("PENDING_PASSWORD_CHANGE_TENANT", tenantId);
+                    HttpSession forceChangeSession = request.getSession(false);
+                    if (forceChangeSession != null) {
+                        forceChangeSession.removeAttribute(HttpSessionSecurityContextRepository.SPRING_SECURITY_CONTEXT_KEY);
+                    }
                     Long userId = userDetailsService.loadUserId(username);
-                    forceChangeSession.setAttribute("PENDING_PASSWORD_CHANGE_USER_ID", userId);
+                    String pwdToken = authPendingStateStore.savePendingState(
+                            AuthPendingStateStore.TYPE_PWD_CHANGE,
+                            new AuthPendingStateStore.PendingState(username, tenantId, userId));
 
-                    response.sendRedirect("/" + tenantId + "/force-password-change");
+                    response.sendRedirect("/" + tenantId + "/force-password-change?pwdToken=" + pwdToken);
                     return;
                 }
 
@@ -179,21 +183,22 @@ public class SecurityConfig {
                     // Invalidate the Spring Security authentication produced by form login
                     // so the user is not treated as logged-in yet
                     SecurityContextHolder.clearContext();
-                    HttpSession mfaSession = request.getSession(true);
-                    mfaSession.removeAttribute(HttpSessionSecurityContextRepository.SPRING_SECURITY_CONTEXT_KEY);
-                    mfaSession.setAttribute(MfaAuthenticationFilter.PENDING_MFA_USERNAME, username);
-                    mfaSession.setAttribute(MfaAuthenticationFilter.PENDING_MFA_TENANT, tenantId);
-                    // Also store userId for the setup flow (needed to call IAM API)
+                    HttpSession mfaSession = request.getSession(false);
+                    if (mfaSession != null) {
+                        mfaSession.removeAttribute(HttpSessionSecurityContextRepository.SPRING_SECURITY_CONTEXT_KEY);
+                    }
                     Long userId = userDetailsService.loadUserId(username);
-                    mfaSession.setAttribute(MfaAuthenticationFilter.PENDING_MFA_USER_ID, userId);
+                    String mfaToken = authPendingStateStore.savePendingState(
+                            AuthPendingStateStore.TYPE_MFA,
+                            new AuthPendingStateStore.PendingState(username, tenantId, userId));
 
                     // Routing decision: only send to /mfa-verify if the user has
                     // FULLY enrolled (mfa_enabled=true AND secret confirmed).
                     // If they visited /mfa-setup but closed without confirming, they
                     // have a secret in the DB but mfa_enabled=false — send back to setup.
                     String mfaTarget = userDetailsService.isMfaFullyEnrolled(username)
-                            ? "/" + tenantId + "/mfa-verify"
-                            : "/" + tenantId + "/mfa-setup";
+                            ? "/" + tenantId + "/mfa-verify?mfaToken=" + mfaToken
+                            : "/" + tenantId + "/mfa-setup?mfaToken=" + mfaToken;
                     response.sendRedirect(mfaTarget);
                     return;
                 }

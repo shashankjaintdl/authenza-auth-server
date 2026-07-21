@@ -55,6 +55,11 @@ app:
   auth-server:
     base-url: "http://localhost:8081"
 
+  security:
+    rate-limit:
+      burst-per-minute: 200
+      sustained-per-hour: 5000
+
 logging:
   level:
     root: INFO

@@ -1,5 +1,6 @@
 package com.authenza.core.web;
 
+import com.authenza.core.security.AuthPendingStateStore;
 import com.authenza.core.security.JdbcTenantUserDetailsService;
 import com.authenza.core.service.SessionRecordingService;
 import jakarta.servlet.http.HttpServletRequest;
@@ -66,14 +67,17 @@ public class WebAuthnBridgeController {
 
     private final JdbcTenantUserDetailsService userDetailsService;
     private final SessionRecordingService sessionRecordingService;
+    private final AuthPendingStateStore authPendingStateStore;
     private final byte[] secretKeyBytes;
 
     public WebAuthnBridgeController(
             JdbcTenantUserDetailsService userDetailsService,
             SessionRecordingService sessionRecordingService,
+            AuthPendingStateStore authPendingStateStore,
             @Value("${app.webauthn.bridge-secret}") String bridgeSecret) {
         this.userDetailsService = userDetailsService;
         this.sessionRecordingService = sessionRecordingService;
+        this.authPendingStateStore = authPendingStateStore;
         this.secretKeyBytes = HexFormat.of().parseHex(bridgeSecret);
     }
 
@@ -134,16 +138,17 @@ public class WebAuthnBridgeController {
         // requires it to be changed, we must block full authentication and force the change.
         if (userDetailsService.isPasswordChangeRequired(username)) {
             log.info("[WebAuthn Bridge] Passkey user {} needs password change. Redirecting...", username);
-            
-            HttpSession forceChangeSession = request.getSession(true);
-            // Ensure no lingering security context
-            forceChangeSession.removeAttribute(HttpSessionSecurityContextRepository.SPRING_SECURITY_CONTEXT_KEY);
-            
-            forceChangeSession.setAttribute("PENDING_PASSWORD_CHANGE_USERNAME", username);
-            forceChangeSession.setAttribute("PENDING_PASSWORD_CHANGE_TENANT", tenantId);
-            forceChangeSession.setAttribute("PENDING_PASSWORD_CHANGE_USER_ID", claims.userId());
 
-            return "redirect:/" + tenantId + "/force-password-change";
+            HttpSession forceChangeSession = request.getSession(false);
+            if (forceChangeSession != null) {
+                forceChangeSession.removeAttribute(HttpSessionSecurityContextRepository.SPRING_SECURITY_CONTEXT_KEY);
+            }
+
+            String pwdToken = authPendingStateStore.savePendingState(
+                    AuthPendingStateStore.TYPE_PWD_CHANGE,
+                    new AuthPendingStateStore.PendingState(username, tenantId, claims.userId()));
+
+            return "redirect:/" + tenantId + "/force-password-change?pwdToken=" + pwdToken;
         }
 
         // ── 4. Establish Spring Security session ────────────────────────────────
