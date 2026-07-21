@@ -3,8 +3,8 @@ package com.authenza.core.web;
 import com.authenza.adapter.context.TenantContextHolder;
 import com.authenza.common.dto.ApiResponse;
 import com.authenza.core.client.IamServiceClient;
+import com.authenza.core.security.AuthPendingStateStore;
 import jakarta.servlet.http.HttpServletRequest;
-import jakarta.servlet.http.HttpSession;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.security.web.csrf.CsrfToken;
@@ -22,18 +22,21 @@ public class ForcePasswordChangeController {
     private static final String VIEW = "force-password-change";
 
     private final IamServiceClient iamServiceClient;
+    private final AuthPendingStateStore authPendingStateStore;
 
-    public ForcePasswordChangeController(IamServiceClient iamServiceClient) {
+    public ForcePasswordChangeController(IamServiceClient iamServiceClient,
+                                         AuthPendingStateStore authPendingStateStore) {
         this.iamServiceClient = iamServiceClient;
+        this.authPendingStateStore = authPendingStateStore;
     }
 
     @GetMapping("/{tenantId}/force-password-change")
     public String showForcePasswordChangePage(@PathVariable String tenantId,
+                            @RequestParam(required = false) String pwdToken,
                             Model model,
                             HttpServletRequest request) {
-        HttpSession session = request.getSession(false);
 
-        if (!hasPendingPasswordChange(session)) {
+        if (!authPendingStateStore.hasPendingState(AuthPendingStateStore.TYPE_PWD_CHANGE, pwdToken)) {
             return "redirect:/" + tenantId + "/login";
         }
 
@@ -41,31 +44,46 @@ public class ForcePasswordChangeController {
         CsrfToken csrf = (CsrfToken) request.getAttribute(CsrfToken.class.getName());
         if (csrf != null) csrf.getToken();
 
-        String username = (String) session.getAttribute("PENDING_PASSWORD_CHANGE_USERNAME");
+        // Peek at state without consuming it (needed for the POST step)
+        AuthPendingStateStore.PendingState pendingState =
+                authPendingStateStore.getAndClearPendingState(AuthPendingStateStore.TYPE_PWD_CHANGE, pwdToken);
+        if (pendingState == null) {
+            return "redirect:/" + tenantId + "/login";
+        }
+
+        // Re-save so the POST handler can still read it
+        String newPwdToken = authPendingStateStore.savePendingState(AuthPendingStateStore.TYPE_PWD_CHANGE, pendingState);
 
         model.addAttribute("tenantId", tenantId);
-        model.addAttribute("username", username);
+        model.addAttribute("pwdToken", newPwdToken);
+        model.addAttribute("username", pendingState.username());
 
         return VIEW;
     }
 
     @PostMapping("/{tenantId}/force-password-change")
     public String processForcePasswordChange(@PathVariable String tenantId,
+                               @RequestParam(required = false) String pwdToken,
                                @RequestParam(value = "newPassword", defaultValue = "") String newPassword,
                                @RequestParam(value = "confirmPassword", defaultValue = "") String confirmPassword,
                                Model model,
                                HttpServletRequest request) {
-        HttpSession session = request.getSession(false);
 
-        if (!hasPendingPasswordChange(session)) {
+        AuthPendingStateStore.PendingState pendingState =
+                authPendingStateStore.getAndClearPendingState(AuthPendingStateStore.TYPE_PWD_CHANGE, pwdToken);
+
+        if (pendingState == null) {
             return "redirect:/" + tenantId + "/login";
         }
 
-        String username = (String) session.getAttribute("PENDING_PASSWORD_CHANGE_USERNAME");
-        Long userId     = (Long)   session.getAttribute("PENDING_PASSWORD_CHANGE_USER_ID");
+        String username = pendingState.username();
+        Long userId     = pendingState.userId();
 
         if (!newPassword.equals(confirmPassword)) {
+            // Re-save state for retry
+            String retryToken = authPendingStateStore.savePendingState(AuthPendingStateStore.TYPE_PWD_CHANGE, pendingState);
             model.addAttribute("tenantId", tenantId);
+            model.addAttribute("pwdToken", retryToken);
             model.addAttribute("username", username);
             model.addAttribute("error", "Passwords do not match.");
             return VIEW;
@@ -81,25 +99,18 @@ public class ForcePasswordChangeController {
                     : "Failed to update password. Please try again.";
             log.warn("[FORCE-PWD-CHANGE] Failed for user '{}': {}", username, errorMsg);
 
+            // Re-save state so user can retry
+            String retryToken = authPendingStateStore.savePendingState(AuthPendingStateStore.TYPE_PWD_CHANGE, pendingState);
             model.addAttribute("tenantId", tenantId);
+            model.addAttribute("pwdToken", retryToken);
             model.addAttribute("username", username);
             model.addAttribute("error", errorMsg);
             return VIEW;
         }
 
         log.info("[FORCE-PWD-CHANGE] Completed for user '{}' in tenant '{}'", username, tenantId);
-        
-        // Invalidate the session attributes
-        session.removeAttribute("PENDING_PASSWORD_CHANGE_USERNAME");
-        session.removeAttribute("PENDING_PASSWORD_CHANGE_TENANT");
-        session.removeAttribute("PENDING_PASSWORD_CHANGE_USER_ID");
 
-        // Redirect to login with a success message indicator
+        // State was already consumed by getAndClearPendingState — no further cleanup needed.
         return "redirect:/" + tenantId + "/login?passwordChanged=true";
-    }
-
-    private boolean hasPendingPasswordChange(HttpSession session) {
-        return session != null
-                && session.getAttribute("PENDING_PASSWORD_CHANGE_USERNAME") != null;
     }
 }
