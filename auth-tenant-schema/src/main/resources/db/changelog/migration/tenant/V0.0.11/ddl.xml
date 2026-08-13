@@ -128,4 +128,30 @@
         </createIndex>
     </changeSet>
 
+    <changeSet id="add-tenant-switch-policy-setting" author="authenza">
+        <!--
+            Tenant Switch Security Policy (V0.0.11)
+
+            Controls how the auth server behaves when an authenticated user attempts
+            to access a different tenant's resources.
+
+            Values:
+              - REQUIRE_PASSWORD : (Default / Secure) Force the user to re-authenticate
+                                   at the target tenant's login page. Prevents cross-tenant
+                                   session bleed. See CROSS_TENANT_SESSION_BLEED.md.
+              - AUTO_LOGIN       : (SSO / Permissive) Silently switch the session using
+                                   the master-token flow. Suitable only for tenants that
+                                   have explicitly opted into transparent SSO.
+        -->
+        <preConditions onFail="MARK_RAN">
+            <sqlCheck expectedResult="0">
+                SELECT COUNT(*) FROM tenant_settings WHERE setting_key = 'tenant_switch_policy'
+            </sqlCheck>
+        </preConditions>
+        <insert tableName="tenant_settings">
+            <column name="setting_key" value="tenant_switch_policy"/>
+            <column name="setting_value" value="REQUIRE_PASSWORD"/>
+        </insert>
+    </changeSet>
+
 </databaseChangeLog>

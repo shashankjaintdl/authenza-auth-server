@@ -1,17 +1,17 @@
 package com.authenza.core.service;
 
-import com.authenza.adapter.context.TenantContextHolder;
-import com.authenza.adapter.routing.TenantRoutingDataSource;
 import com.authenza.core.config.SuperAdminClientProperties;
 import com.fasterxml.jackson.databind.Module;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.context.event.EventListener;
 import org.springframework.core.annotation.Order;
 import org.springframework.core.Ordered;
-import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
+import org.springframework.jdbc.core.namedparam.NamedParameterJdbcOperations;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.jackson2.SecurityJackson2Modules;
 import org.springframework.security.oauth2.server.authorization.jackson2.OAuth2AuthorizationServerJackson2Module;
@@ -19,7 +19,7 @@ import org.springframework.security.oauth2.server.authorization.settings.ClientS
 import org.springframework.security.oauth2.server.authorization.settings.TokenSettings;
 import org.springframework.stereotype.Component;
 
-import javax.sql.DataSource;
+import java.sql.Timestamp;
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
@@ -44,27 +44,26 @@ public class SuperAdminClientInitializer {
 
     private static final Logger log = LoggerFactory.getLogger(SuperAdminClientInitializer.class);
 
-    private static final String CHECK_SQL = "SELECT COUNT(*) FROM oauth2_registered_client WHERE client_id = ?";
+    private static final String CHECK_SQL = "SELECT COUNT(*) FROM oauth2_registered_client WHERE client_id = :clientId";
 
     private static final String INSERT_SQL = "INSERT INTO oauth2_registered_client " +
             "(id, client_id, client_id_issued_at, client_secret, client_secret_expires_at, " +
             "client_name, client_authentication_methods, authorization_grant_types, " +
-            "redirect_uris, post_logout_redirect_uris, scopes, client_settings, token_settings) " +
-            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+            "redirect_uris, post_logout_redirect_uris, scopes, client_settings, token_settings, tenant_id) " +
+            "VALUES (:id, :clientId, :clientIdIssuedAt, :clientSecret, :clientSecretExpiresAt, " +
+            ":clientName, :clientAuthenticationMethods, :authorizationGrantTypes, " +
+            ":redirectUris, :postLogoutRedirectUris, :scopes, :clientSettings, :tokenSettings, :tenantId)";
 
-    private final DataSource dataSource;
-    private final TenantRoutingDataSource tenantRoutingDataSource;
+    private final NamedParameterJdbcOperations jdbcOperations;
     private final PasswordEncoder passwordEncoder;
     private final SuperAdminClientProperties properties;
     private final ObjectMapper objectMapper;
 
     public SuperAdminClientInitializer(
-            DataSource dataSource,
-            TenantRoutingDataSource tenantRoutingDataSource,
+            @Qualifier("masterJdbcOperations") NamedParameterJdbcOperations jdbcOperations,
             PasswordEncoder passwordEncoder,
             SuperAdminClientProperties properties) {
-        this.dataSource = dataSource;
-        this.tenantRoutingDataSource = tenantRoutingDataSource;
+        this.jdbcOperations = jdbcOperations;
         this.passwordEncoder = passwordEncoder;
         this.properties = properties;
 
@@ -85,29 +84,14 @@ public class SuperAdminClientInitializer {
         }
 
         try {
-            if (!tenantRoutingDataSource.isKnownTenant(properties.getTenantId())) {
-                log.warn(
-                        "Super admin tenant '{}' is not yet provisioned or loaded by adapter. Skipping client registration. "
-                                +
-                                "Please ensure auth-master-service has fully initialized the system-admin tenant.",
-                        properties.getTenantId());
-                return;
-            }
-
-            // Set the tenant context so the TenantRoutingDataSource routes
-            // to the super-admin's dedicated database (e.g., auth_super_admin)
-            TenantContextHolder.setTenantId(properties.getTenantId());
-
-            JdbcTemplate jdbcTemplate = new JdbcTemplate(dataSource);
-
             // Delete any existing row to ensure settings JSON is always up-to-date
-            Integer count = jdbcTemplate.queryForObject(
-                    CHECK_SQL, Integer.class, properties.getClientId());
+            MapSqlParameterSource checkParams = new MapSqlParameterSource("clientId", properties.getClientId());
+            Integer count = this.jdbcOperations.queryForObject(CHECK_SQL, checkParams, Integer.class);
 
             if (count != null && count > 0) {
-                jdbcTemplate.update(
-                        "DELETE FROM oauth2_registered_client WHERE client_id = ?",
-                        properties.getClientId());
+                this.jdbcOperations.update(
+                        "DELETE FROM oauth2_registered_client WHERE client_id = :clientId",
+                        checkParams);
                 log.info("Deleted existing super admin client '{}' — will re-create with current config.",
                         properties.getClientId());
             }
@@ -126,28 +110,29 @@ public class SuperAdminClientInitializer {
             String clientSettingsJson = buildClientSettingsJson();
             String tokenSettingsJson = buildTokenSettingsJson();
 
-            jdbcTemplate.update(INSERT_SQL,
-                    id,
-                    properties.getClientId(),
-                    now,
-                    encodedSecret,
-                    null,
-                    properties.getClientName(),
-                    authMethods,
-                    grantTypes,
-                    redirectUris,
-                    postLogoutUris,
-                    scopes,
-                    clientSettingsJson,
-                    tokenSettingsJson);
+            MapSqlParameterSource insertParams = new MapSqlParameterSource()
+                    .addValue("id", id)
+                    .addValue("clientId", properties.getClientId())
+                    .addValue("clientIdIssuedAt", Timestamp.from(now))
+                    .addValue("clientSecret", encodedSecret)
+                    .addValue("clientSecretExpiresAt", null)
+                    .addValue("clientName", properties.getClientName())
+                    .addValue("clientAuthenticationMethods", authMethods)
+                    .addValue("authorizationGrantTypes", grantTypes)
+                    .addValue("redirectUris", redirectUris)
+                    .addValue("postLogoutRedirectUris", postLogoutUris)
+                    .addValue("scopes", scopes)
+                    .addValue("clientSettings", clientSettingsJson)
+                    .addValue("tokenSettings", tokenSettingsJson)
+                    .addValue("tenantId", properties.getTenantId());
 
-            log.info("Super admin client '{}' registered successfully in tenant database '{}'.",
+            this.jdbcOperations.update(INSERT_SQL, insertParams);
+
+            log.info("Super admin client '{}' registered successfully in master database schema under tenant ID '{}'.",
                     properties.getClientId(), properties.getTenantId());
 
         } catch (Exception e) {
-            log.error("Failed to register super admin client in tenant database.", e);
-        } finally {
-            TenantContextHolder.clear();
+            log.error("Failed to register super admin client in master database schema.", e);
         }
     }
 

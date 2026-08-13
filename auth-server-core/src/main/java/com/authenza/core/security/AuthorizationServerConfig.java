@@ -1,8 +1,9 @@
 package com.authenza.core.security;
 
 import com.authenza.adapter.cache.TenantSettingsCache;
-import com.authenza.core.repository.JdbcTenantClientRepository;
 import com.authenza.core.repository.TenantAwareRegisteredClientRepository;
+import org.springframework.jdbc.core.namedparam.NamedParameterJdbcOperations;
+import org.springframework.beans.factory.annotation.Qualifier;
 import com.nimbusds.jose.jwk.JWKSet;
 import com.nimbusds.jose.jwk.RSAKey;
 import com.nimbusds.jose.jwk.source.ImmutableJWKSet;
@@ -61,7 +62,7 @@ import org.springframework.security.oauth2.server.authorization.token.OAuth2Toke
 @Configuration
 public class AuthorizationServerConfig {
 
-        private final JdbcTenantClientRepository tenantClientRepository;
+        private final NamedParameterJdbcOperations masterJdbcOperations;
         private final DataSource dataSource;
         // Pre-built JdbcTemplate backed by the tenant RoutingDataSource.
         // Stored as a field to avoid creating a new object on every token issuance.
@@ -74,10 +75,11 @@ public class AuthorizationServerConfig {
         @org.springframework.beans.factory.annotation.Value("${app.services.tenant-portal-url:http://localhost:4200}")
         private String defaultPortalUrl;
 
-        public AuthorizationServerConfig(JdbcTenantClientRepository tenantClientRepository,
+        public AuthorizationServerConfig(
+                        @Qualifier("masterJdbcOperations") NamedParameterJdbcOperations masterJdbcOperations,
                         DataSource dataSource,
                         com.authenza.adapter.cache.TenantSettingsCache tenantSettingsCache) {
-                this.tenantClientRepository = tenantClientRepository;
+                this.masterJdbcOperations = masterJdbcOperations;
                 this.dataSource = dataSource;
                 this.jdbcTemplate = new org.springframework.jdbc.core.JdbcTemplate(dataSource);
                 this.tenantSettingsCache = tenantSettingsCache;
@@ -191,7 +193,7 @@ public class AuthorizationServerConfig {
          */
         @Bean
         public RegisteredClientRepository registeredClientRepository() {
-                return new TenantAwareRegisteredClientRepository(this.tenantClientRepository);
+                return new TenantAwareRegisteredClientRepository(this.masterJdbcOperations);
         }
 
         /**
