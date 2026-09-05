@@ -22,5 +22,6 @@
     <include file="V0.0.5/ddl.xml" relativeToChangelogFile="true"/>
     <!-- V0.0.6: Default Tenant Logic — is_default, last_accessed_at -->
     <include file="V0.0.6/ddl.xml" relativeToChangelogFile="true"/>
+    <include file="V0.0.7/ddl.xml" relativeToChangelogFile="true"/>
 
 </databaseChangeLog>

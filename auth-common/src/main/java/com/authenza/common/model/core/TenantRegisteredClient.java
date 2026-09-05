@@ -53,6 +53,9 @@ public class TenantRegisteredClient  implements Persistable<String> {
     @Column("token_settings")
     private String tokenSettings;
 
+    @Column("tenant_id")
+    private String tenantId;
+
     @Transient // This field is NOT saved to the database
     private boolean isNew = true;
 
@@ -167,6 +170,14 @@ public class TenantRegisteredClient  implements Persistable<String> {
 
     public void setTokenSettings(String tokenSettings) {
         this.tokenSettings = tokenSettings;
+    }
+
+    public String getTenantId() {
+        return tenantId;
+    }
+
+    public void setTenantId(String tenantId) {
+        this.tenantId = tenantId;
     }
 
     @Override
