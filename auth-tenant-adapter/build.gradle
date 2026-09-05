@@ -18,6 +18,10 @@ dependencies {
     // Caffeine for ultra-fast, in-memory caching (e.g. TenantSettings)
     api 'com.github.ben-manes.caffeine:caffeine'
 
+    // Bucket4j for Distributed Rate Limiting
+    api 'com.bucket4j:bucket4j-core:8.10.1'
+    api 'com.bucket4j:bucket4j-redis:8.10.1'
+
     // Servlet API (provided at runtime by the embedded container)
     compileOnly 'jakarta.servlet:jakarta.servlet-api:6.1.0'
 

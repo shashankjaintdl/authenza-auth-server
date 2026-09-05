@@ -324,6 +324,9 @@
             <form th:action="'/' + ${tenantId} + '/mfa-verify'" method="post" id="mfa-form" autocomplete="off">
                 <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}" />
 
+                <!-- mfaToken: carries the Redis-backed pending state token through the POST -->
+                <input type="hidden" name="mfaToken" th:value="${mfaToken}" />
+
                 <!-- Hidden aggregated code field sent to server -->
                 <input type="hidden" name="code" id="code-hidden" />
 

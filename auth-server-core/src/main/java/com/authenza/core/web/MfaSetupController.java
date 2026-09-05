@@ -3,9 +3,8 @@ package com.authenza.core.web;
 import com.authenza.adapter.context.TenantContextHolder;
 import com.authenza.common.dto.ApiResponse;
 import com.authenza.core.client.IamServiceClient;
-import com.authenza.core.security.MfaAuthenticationFilter;
+import com.authenza.core.security.AuthPendingStateStore;
 import jakarta.servlet.http.HttpServletRequest;
-import jakarta.servlet.http.HttpSession;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.security.web.csrf.CsrfToken;
@@ -29,7 +28,7 @@ import java.util.Map;
  *   <li>On success, proceed to the normal TOTP challenge ({@code /mfa-verify}).</li>
  * </ol>
  *
- * <p>Access is session-gated: {@code PENDING_MFA_USERNAME} must be present,
+ * <p>Access is gated by a {@code mfaToken} query parameter backed by a Redis key,
  * meaning the user has already passed the password step.
  */
 @Controller
@@ -39,9 +38,12 @@ public class MfaSetupController {
     private static final String VIEW = "mfa-setup";
 
     private final IamServiceClient iamServiceClient;
+    private final AuthPendingStateStore authPendingStateStore;
 
-    public MfaSetupController(IamServiceClient iamServiceClient) {
+    public MfaSetupController(IamServiceClient iamServiceClient,
+                               AuthPendingStateStore authPendingStateStore) {
         this.iamServiceClient = iamServiceClient;
+        this.authPendingStateStore = authPendingStateStore;
     }
 
     // ─────────────────────────────────────────────────────────────────────────
@@ -54,12 +56,12 @@ public class MfaSetupController {
      */
     @GetMapping("/{tenantId}/mfa-setup")
     public String showSetup(@PathVariable String tenantId,
+                            @RequestParam(required = false) String mfaToken,
                             Model model,
                             HttpServletRequest request) {
-        HttpSession session = request.getSession(false);
 
         // Gate: only allow after successful password step
-        if (!hasPendingMfa(session)) {
+        if (!authPendingStateStore.hasPendingState(AuthPendingStateStore.TYPE_MFA, mfaToken)) {
             return "redirect:/" + tenantId + "/login";
         }
 
@@ -67,8 +69,18 @@ public class MfaSetupController {
         CsrfToken csrf = (CsrfToken) request.getAttribute(CsrfToken.class.getName());
         if (csrf != null) csrf.getToken();
 
-        String username = (String) session.getAttribute(MfaAuthenticationFilter.PENDING_MFA_USERNAME);
-        Long userId     = (Long)   session.getAttribute(MfaAuthenticationFilter.PENDING_MFA_USER_ID);
+        // Peek at pending state without consuming it (hasPendingState already confirmed it exists)
+        AuthPendingStateStore.PendingState pendingState =
+                authPendingStateStore.getAndClearPendingState(AuthPendingStateStore.TYPE_MFA, mfaToken);
+        if (pendingState == null) {
+            return "redirect:/" + tenantId + "/login";
+        }
+
+        // Re-save the state so /mfa-setup POST and subsequent /mfa-verify still work
+        String newMfaToken = authPendingStateStore.savePendingState(AuthPendingStateStore.TYPE_MFA, pendingState);
+
+        String username = pendingState.username();
+        Long userId     = pendingState.userId();
 
         // Ensure tenant context is set for the IAM service call
         TenantContextHolder.setTenantId(tenantId);
@@ -82,6 +94,7 @@ public class MfaSetupController {
                     : "Failed to generate MFA setup. Please try again.";
             log.warn("[MFA-SETUP] Setup failed for user '{}': {}", username, errorMsg);
             model.addAttribute("tenantId", tenantId);
+            model.addAttribute("mfaToken", newMfaToken);
             model.addAttribute("error", errorMsg);
             return VIEW;
         }
@@ -97,6 +110,7 @@ public class MfaSetupController {
         }
 
         model.addAttribute("tenantId", tenantId);
+        model.addAttribute("mfaToken", newMfaToken);
         model.addAttribute("qrCodeUri", qrCodeUri);
         model.addAttribute("secret", secret);
         model.addAttribute("username", username);
@@ -115,17 +129,24 @@ public class MfaSetupController {
      */
     @PostMapping("/{tenantId}/mfa-setup")
     public String confirmSetup(@PathVariable String tenantId,
+                               @RequestParam(required = false) String mfaToken,
                                @RequestParam(value = "code", defaultValue = "") String code,
                                Model model,
                                HttpServletRequest request) {
-        HttpSession session = request.getSession(false);
 
-        if (!hasPendingMfa(session)) {
+        // Gate: only allow after successful password step
+        if (!authPendingStateStore.hasPendingState(AuthPendingStateStore.TYPE_MFA, mfaToken)) {
             return "redirect:/" + tenantId + "/login";
         }
 
-        String username = (String) session.getAttribute(MfaAuthenticationFilter.PENDING_MFA_USERNAME);
-        Long userId     = (Long)   session.getAttribute(MfaAuthenticationFilter.PENDING_MFA_USER_ID);
+        AuthPendingStateStore.PendingState pendingState =
+                authPendingStateStore.getAndClearPendingState(AuthPendingStateStore.TYPE_MFA, mfaToken);
+        if (pendingState == null) {
+            return "redirect:/" + tenantId + "/login";
+        }
+
+        String username = pendingState.username();
+        Long userId     = pendingState.userId();
 
         TenantContextHolder.setTenantId(tenantId);
 
@@ -140,6 +161,9 @@ public class MfaSetupController {
                     : "Invalid code. Please try again.";
             log.warn("[MFA-SETUP] Confirm failed for user '{}': {}", username, errorMsg);
 
+            // Re-save the state so the user can retry
+            String retryToken = authPendingStateStore.savePendingState(AuthPendingStateStore.TYPE_MFA, pendingState);
+
             // Keep the QR code visible on re-try by regenerating it
             ApiResponse<?> setupResponse = iamServiceClient.setupMfa(tenantId, userId);
             if (setupResponse != null && setupResponse.isSuccess()) {
@@ -151,22 +175,17 @@ public class MfaSetupController {
             }
 
             model.addAttribute("tenantId", tenantId);
+            model.addAttribute("mfaToken", retryToken);
             model.addAttribute("username", username);
             model.addAttribute("error", errorMsg);
             return VIEW;
         }
 
+        // Re-save state so the subsequent mfa-verify step can read it
+        String newMfaToken = authPendingStateStore.savePendingState(AuthPendingStateStore.TYPE_MFA, pendingState);
+
         log.info("[MFA-SETUP] Enrollment complete for user '{}' in tenant '{}'", username, tenantId);
         // Now that setup is confirmed, send the user to the normal TOTP challenge
-        return "redirect:/" + tenantId + "/mfa-verify";
-    }
-
-    // ─────────────────────────────────────────────────────────────────────────
-    // Helpers
-    // ─────────────────────────────────────────────────────────────────────────
-
-    private boolean hasPendingMfa(HttpSession session) {
-        return session != null
-                && session.getAttribute(MfaAuthenticationFilter.PENDING_MFA_USERNAME) != null;
+        return "redirect:/" + tenantId + "/mfa-verify?mfaToken=" + newMfaToken;
     }
 }
