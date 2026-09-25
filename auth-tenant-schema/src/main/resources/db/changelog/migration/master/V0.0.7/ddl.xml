@@ -57,4 +57,75 @@
             <column name="tenant_id" value="GLOBAL"/>
         </insert>
     </changeSet>
+
+    <!--
+        V0.0.7 (addendum) — Global WebAuthn Passkey Registry
+        ══════════════════════════════════════════════════════════════════
+
+        Purpose:
+          Allows tenant owners (global_accounts users) to register a single biometric
+          passkey (Touch ID / Face ID / Windows Hello) in the master database and
+          reuse it transparently across every tenant they own — without re-registering
+          per tenant.
+
+          Standard tenant employees are NOT affected. Their passkeys continue to be
+          stored in the per-tenant webauthn_credential table as before.
+
+        Routing: WebAuthnService detects whether the authenticating user is a
+          global_accounts member and writes/reads from this table accordingly.
+        ══════════════════════════════════════════════════════════════════
+    -->
+    <changeSet id="v0.0.7-create-global-webauthn-credentials" author="authenza">
+        <preConditions onFail="MARK_RAN">
+            <not><tableExists tableName="global_webauthn_credentials"/></not>
+        </preConditions>
+
+        <createTable tableName="global_webauthn_credentials">
+            <column name="id" type="BIGINT" autoIncrement="true">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <!-- FK → global_accounts.id (not application_user.id) -->
+            <column name="account_id" type="BIGINT">
+                <constraints nullable="false"/>
+            </column>
+            <!-- FIDO2 Credential ID — base64url, globally unique per physical key -->
+            <column name="credential_id" type="VARCHAR(512)">
+                <constraints nullable="false" unique="true"/>
+            </column>
+            <!-- COSE-encoded public key used for signature verification -->
+            <column name="public_key_cose" type="TEXT">
+                <constraints nullable="false"/>
+            </column>
+            <!-- Monotonic counter — incremented by authenticator on every use (replay-attack guard) -->
+            <column name="sign_count" type="BIGINT" defaultValueNumeric="0"/>
+            <!-- Human-readable label e.g. "My MacBook Touch ID" -->
+            <column name="display_name" type="VARCHAR(255)"/>
+            <!-- Authenticator Attestation GUID — identifies device model -->
+            <column name="aaguid" type="VARCHAR(100)"/>
+            <!-- Comma-separated transports: internal, usb, nfc, ble -->
+            <column name="transports" type="VARCHAR(255)"/>
+            <column name="user_verified" type="BOOLEAN" defaultValueBoolean="false"/>
+            <column name="created_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+            <column name="last_used_at" type="TIMESTAMP"/>
+        </createTable>
+
+        <!-- CASCADE: deleting a global_account removes all their passkeys automatically -->
+        <addForeignKeyConstraint
+            baseTableName="global_webauthn_credentials"
+            baseColumnNames="account_id"
+            referencedTableName="global_accounts"
+            referencedColumnNames="id"
+            constraintName="fk_global_webauthn_account"
+            onDelete="CASCADE"/>
+
+        <createIndex tableName="global_webauthn_credentials" indexName="idx_global_webauthn_account_id">
+            <column name="account_id"/>
+        </createIndex>
+        <createIndex tableName="global_webauthn_credentials" indexName="idx_global_webauthn_credential_id">
+            <column name="credential_id"/>
+        </createIndex>
+    </changeSet>
+
 </databaseChangeLog>

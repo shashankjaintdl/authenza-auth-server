@@ -34,7 +34,24 @@ public class TenantSettingsService {
 
     private static final Logger log = LoggerFactory.getLogger(TenantSettingsService.class);
 
-    public static final String MFA_REQUIRED_FOR_ALL = "mfa_required_for_all";
+    public static final String MFA_REQUIRED_FOR_ALL      = "mfa_required_for_all";
+
+    /**
+     * Tenant-level switch for the Global WebAuthn Passkey feature.
+     *
+     * <p>When {@code "true"}, users who are registered in {@code global_accounts} can
+     * authenticate to this tenant using a passkey that was registered on any other
+     * tenant they own — without re-enrolling.
+     *
+     * <p>When {@code "false"} (default), global users are treated exactly like
+     * local tenant employees for WebAuthn purposes: the {@code webauthn_fingerprint_enabled}
+     * setting controls whether they can register and use passkeys.
+     *
+     * <p>Set this to {@code "true"} only if the tenant explicitly opts in to
+     * cross-tenant passkey sharing, typically for SaaS platform owners managing
+     * multiple tenants from a single account.
+     */
+    public static final String GLOBAL_WEBAUTHN_ENABLED    = "global_webauthn_enabled";
 
     private final JdbcTemplate jdbcTemplate;
     private final TenantSettingsCache settingsCache;
@@ -70,6 +87,17 @@ public class TenantSettingsService {
      */
     public boolean isMfaRequiredForAll() {
         return "true".equalsIgnoreCase(getSetting(MFA_REQUIRED_FOR_ALL));
+    }
+
+    /**
+     * Returns whether this tenant allows global-account users to authenticate
+     * using a passkey registered on a different tenant.
+     *
+     * <p>Defaults to {@code false} — tenant admins must explicitly enable this
+     * via the Security Settings panel or the {@code /api/v1/settings} API.
+     */
+    public boolean isGlobalWebAuthnEnabled() {
+        return "true".equalsIgnoreCase(getSetting(GLOBAL_WEBAUTHN_ENABLED));
     }
 
     /**
