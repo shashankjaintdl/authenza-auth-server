@@ -1,8 +1,9 @@
 package com.authenza.core.security;
 
 import com.authenza.adapter.cache.TenantSettingsCache;
-import com.authenza.core.repository.JdbcTenantClientRepository;
 import com.authenza.core.repository.TenantAwareRegisteredClientRepository;
+import org.springframework.jdbc.core.namedparam.NamedParameterJdbcOperations;
+import org.springframework.beans.factory.annotation.Qualifier;
 import com.nimbusds.jose.jwk.JWKSet;
 import com.nimbusds.jose.jwk.RSAKey;
 import com.nimbusds.jose.jwk.source.ImmutableJWKSet;
@@ -61,12 +62,13 @@ import org.springframework.security.oauth2.server.authorization.token.OAuth2Toke
 @Configuration
 public class AuthorizationServerConfig {
 
-        private final JdbcTenantClientRepository tenantClientRepository;
+        private final NamedParameterJdbcOperations masterJdbcOperations;
         private final DataSource dataSource;
         // Pre-built JdbcTemplate backed by the tenant RoutingDataSource.
         // Stored as a field to avoid creating a new object on every token issuance.
         private final JdbcTemplate jdbcTemplate;
         private final TenantSettingsCache tenantSettingsCache;
+        private final OAuthTransactionTokenService oauthTransactionTokenService;
 
         /**
          * Static fallback — used when no tenant-specific portal_url setting is found.
@@ -74,13 +76,16 @@ public class AuthorizationServerConfig {
         @org.springframework.beans.factory.annotation.Value("${app.services.tenant-portal-url:http://localhost:4200}")
         private String defaultPortalUrl;
 
-        public AuthorizationServerConfig(JdbcTenantClientRepository tenantClientRepository,
+        public AuthorizationServerConfig(
+                        @Qualifier("masterJdbcOperations") NamedParameterJdbcOperations masterJdbcOperations,
                         DataSource dataSource,
-                        com.authenza.adapter.cache.TenantSettingsCache tenantSettingsCache) {
-                this.tenantClientRepository = tenantClientRepository;
+                        TenantSettingsCache tenantSettingsCache,
+                        OAuthTransactionTokenService oauthTransactionTokenService) {
+                this.masterJdbcOperations = masterJdbcOperations;
                 this.dataSource = dataSource;
-                this.jdbcTemplate = new org.springframework.jdbc.core.JdbcTemplate(dataSource);
+                this.jdbcTemplate = new JdbcTemplate(dataSource);
                 this.tenantSettingsCache = tenantSettingsCache;
+                this.oauthTransactionTokenService = oauthTransactionTokenService;
         }
 
         @Bean
@@ -169,12 +174,15 @@ public class AuthorizationServerConfig {
                 // 
                 // By filtering to /oauth2/authorize, all other API endpoints naturally 
                 // fall back to Spring's default behavior: returning a 401 Unauthorized.
-                .exceptionHandling((exceptions) -> exceptions
-                        .defaultAuthenticationEntryPointFor(
-                                new TenantAwareAuthenticationEntryPoint("/{tenantId}/login"),
-                                PathPatternRequestMatcher.withDefaults().matcher("/{tenantId}/oauth2/authorize")
-                        )
-                );
+                .exceptionHandling((exceptions) -> {
+                        TenantAwareAuthenticationEntryPoint authorizeEntryPoint =
+                                        new TenantAwareAuthenticationEntryPoint("/{tenantId}/login");
+                        authorizeEntryPoint.setTransactionTokenService(oauthTransactionTokenService);
+                        exceptions.defaultAuthenticationEntryPointFor(
+                                        authorizeEntryPoint,
+                                        PathPatternRequestMatcher.withDefaults().matcher("/{tenantId}/oauth2/authorize")
+                        );
+                });
         // @formatter:on
 
                 return http.build();
@@ -191,7 +199,7 @@ public class AuthorizationServerConfig {
          */
         @Bean
         public RegisteredClientRepository registeredClientRepository() {
-                return new TenantAwareRegisteredClientRepository(this.tenantClientRepository);
+                return new TenantAwareRegisteredClientRepository(this.masterJdbcOperations);
         }
 
         /**
@@ -362,7 +370,7 @@ public class AuthorizationServerConfig {
                                                                                         +
                                                                                         "WHERE user_id = ? AND authorization_id IS NULL AND revoked = false "
                                                                                         +
-                                                                                        "ORDER BY created_at DESC LIMIT 1",
+                                                                                        "ORDER BY last_active_at DESC, created_at DESC LIMIT 1",
                                                                         authId, userId);
 
                                                         // Embed session_id into the JWT so the resource server
@@ -370,7 +378,7 @@ public class AuthorizationServerConfig {
                                                         // Only select non-revoked sessions to ensure the claim
                                                         // is never set to an already-blacklisted session ID.
                                                         java.util.List<Long> sessionIds = jdbcTemplate.queryForList(
-                                                                        "SELECT id FROM user_session WHERE authorization_id = ? AND user_id = ? AND revoked = false LIMIT 1",
+                                                                        "SELECT id FROM user_session WHERE authorization_id = ? AND user_id = ? AND revoked = false ORDER BY last_active_at DESC, created_at DESC LIMIT 1",
                                                                         Long.class, authId, userId);
                                                         if (!sessionIds.isEmpty()) {
                                                                 context.getClaims().claim("session_id",

@@ -20,6 +20,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
+import java.util.Optional;
 
 /**
  * Intercepts {@code POST /{tenantId}/mfa-verify} and completes the multi-step
@@ -54,6 +55,7 @@ public class MfaAuthenticationFilter extends OncePerRequestFilter {
     private final BruteForceProtectionService bruteForceProtectionService;
     private final SessionRecordingService sessionRecordingService;
     private final AuthPendingStateStore authPendingStateStore;
+    private final OAuthTransactionTokenService oauthTransactionTokenService;
     private final HttpSessionSecurityContextRepository securityContextRepository =
             new HttpSessionSecurityContextRepository();
 
@@ -61,12 +63,14 @@ public class MfaAuthenticationFilter extends OncePerRequestFilter {
                                    TotpService totpService,
                                    BruteForceProtectionService bruteForceProtectionService,
                                    SessionRecordingService sessionRecordingService,
-                                   AuthPendingStateStore authPendingStateStore) {
-        this.userDetailsService = userDetailsService;
-        this.totpService = totpService;
-        this.bruteForceProtectionService = bruteForceProtectionService;
-        this.sessionRecordingService = sessionRecordingService;
-        this.authPendingStateStore = authPendingStateStore;
+                                   AuthPendingStateStore authPendingStateStore,
+                                   OAuthTransactionTokenService oauthTransactionTokenService) {
+        this.userDetailsService           = userDetailsService;
+        this.totpService                  = totpService;
+        this.bruteForceProtectionService  = bruteForceProtectionService;
+        this.sessionRecordingService      = sessionRecordingService;
+        this.authPendingStateStore        = authPendingStateStore;
+        this.oauthTransactionTokenService = oauthTransactionTokenService;
     }
 
     @Override
@@ -144,10 +148,12 @@ public class MfaAuthenticationFilter extends OncePerRequestFilter {
         if (!codeValid) {
             log.warn("[MFA] Invalid TOTP code for user '{}' in tenant '{}'", username, tenantId);
             bruteForceProtectionService.recordFailedAttempt(username, tenantId);
-            // Re-save the pending state for another attempt with a fresh token
+            // Re-save the pending state for another attempt with a fresh token.
+            // Carry the oauthTx so the OAuth2 context survives multiple TOTP retries.
             String newMfaToken = authPendingStateStore.savePendingState(
                     AuthPendingStateStore.TYPE_MFA,
-                    new AuthPendingStateStore.PendingState(username, tenantId, pendingState.userId()));
+                    new AuthPendingStateStore.PendingState(username, tenantId, pendingState.userId(),
+                            pendingState.oauthTx()));
             response.sendRedirect("/" + tenantId + "/mfa-verify?mfaToken=" + newMfaToken + "&error");
             return;
         }
@@ -169,7 +175,8 @@ public class MfaAuthenticationFilter extends OncePerRequestFilter {
         // Record session for Active Devices tracking (MFA-completed login path)
         sessionRecordingService.recordSession(pendingState.userId(), request);
 
-        // ── 6. Follow saved request (OAuth2 authorize) or fall back ───────────
+        // ── 6. Follow saved request → tx replay → tenant root ────────────────
+        // Priority 1: Session SavedRequest (fast-path for short-lived logins)
         HttpSessionRequestCache requestCache = new HttpSessionRequestCache();
         SavedRequest savedRequest = requestCache.getRequest(request, response);
 
@@ -177,9 +184,26 @@ public class MfaAuthenticationFilter extends OncePerRequestFilter {
             String targetUrl = savedRequest.getRedirectUrl();
             requestCache.removeRequest(request, response);
             response.sendRedirect(targetUrl);
-        } else {
-            response.sendRedirect("/" + tenantId + "/");
+            return;
         }
+
+        // Priority 2: Stateless tx token — restores OAuth2 context that survived session expiry.
+        // The tx was stored in PendingState during the success handler MFA gate.
+        String oauthTx = pendingState.oauthTx();
+        if (oauthTx != null && !oauthTx.isBlank()) {
+            Optional<OAuthTransactionContext> ctxOpt =
+                    oauthTransactionTokenService.verifyContext(oauthTx, tenantId);
+            if (ctxOpt.isPresent()) {
+                log.info("[MFA] Replaying OAuth2 authorize after MFA for tenant={}, client={}",
+                        tenantId, ctxOpt.get().clientId());
+                response.sendRedirect(oauthTransactionTokenService.buildAuthorizeUrl(ctxOpt.get()));
+                return;
+            }
+        }
+
+        // Priority 3: Tenant root fallback
+        response.sendRedirect("/" + tenantId + "/");
+
     }
 
     // ─────────────────────────────────────────────────────────────────────────

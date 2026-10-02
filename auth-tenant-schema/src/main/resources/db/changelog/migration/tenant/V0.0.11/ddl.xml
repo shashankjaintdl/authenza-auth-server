@@ -103,6 +103,36 @@
         </insert>
     </changeSet>
 
+    <!--
+        Seed: global_webauthn_enabled (default: false)
+        ══════════════════════════════════════════════════════════════════
+        Controls whether global-account users (tenant owners registered in
+        global_accounts) can authenticate to THIS tenant using a passkey
+        registered on any other tenant they own.
+
+        false (default) — global users are gated by the same
+                          webauthn_fingerprint_enabled setting as local employees.
+                          Tenant admins keep full control.
+        true            — tenant has explicitly opted in to cross-tenant
+                          passkey sharing. Useful for SaaS owners who manage
+                          multiple tenants from a single global identity.
+
+        Tenant admins toggle this via: PUT /api/v1/settings
+        Body: { "key": "global_webauthn_enabled", "value": "true" }
+        ══════════════════════════════════════════════════════════════════
+    -->
+    <changeSet id="add-global-webauthn-enabled-setting" author="authenza">
+        <preConditions onFail="MARK_RAN">
+            <sqlCheck expectedResult="0">
+                SELECT COUNT(*) FROM tenant_settings WHERE setting_key = 'global_webauthn_enabled'
+            </sqlCheck>
+        </preConditions>
+        <insert tableName="tenant_settings">
+            <column name="setting_key" value="global_webauthn_enabled"/>
+            <column name="setting_value" value="false"/>
+        </insert>
+    </changeSet>
+
     <changeSet id="add-user-session-indexes" author="authenza">
         <!-- Speed up queries for the "Active Devices" list -->
         <preConditions onFail="MARK_RAN">
@@ -126,6 +156,32 @@
         <createIndex tableName="user_session" indexName="idx_user_session_auth_id">
             <column name="authorization_id"/>
         </createIndex>
+    </changeSet>
+
+    <changeSet id="add-tenant-switch-policy-setting" author="authenza">
+        <!--
+            Tenant Switch Security Policy (V0.0.11)
+
+            Controls how the auth server behaves when an authenticated user attempts
+            to access a different tenant's resources.
+
+            Values:
+              - REQUIRE_PASSWORD : (Default / Secure) Force the user to re-authenticate
+                                   at the target tenant's login page. Prevents cross-tenant
+                                   session bleed. See CROSS_TENANT_SESSION_BLEED.md.
+              - AUTO_LOGIN       : (SSO / Permissive) Silently switch the session using
+                                   the master-token flow. Suitable only for tenants that
+                                   have explicitly opted into transparent SSO.
+        -->
+        <preConditions onFail="MARK_RAN">
+            <sqlCheck expectedResult="0">
+                SELECT COUNT(*) FROM tenant_settings WHERE setting_key = 'tenant_switch_policy'
+            </sqlCheck>
+        </preConditions>
+        <insert tableName="tenant_settings">
+            <column name="setting_key" value="tenant_switch_policy"/>
+            <column name="setting_value" value="REQUIRE_PASSWORD"/>
+        </insert>
     </changeSet>
 
 </databaseChangeLog>

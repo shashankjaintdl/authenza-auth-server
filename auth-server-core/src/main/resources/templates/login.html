@@ -83,7 +83,8 @@
 
         .error-msg,
         .logout-msg,
-        .locked-msg {
+        .locked-msg,
+        .session-expired-msg {
             padding: .75rem 1rem;
             border-radius: 8px;
             font-size: .875rem;
@@ -108,6 +109,12 @@
             background: rgba(251, 191, 36, .1);
             border-left: 3px solid #fbbf24;
             color: #fde68a;
+        }
+
+        .session-expired-msg {
+            background: rgba(245, 158, 11, .1);
+            border-left: 3px solid #f59e0b;
+            color: #fcd34d;
         }
 
         @keyframes shakeFade {
@@ -456,7 +463,25 @@
                     You have been signed out.
                 </div>
 
+                <!-- Session timeout notification -->
+                <!-- When a tx token is present, the user was mid-OAuth2-flow: softer message -->
+                <div class="session-expired-msg" th:if="${(param.session_expired != null or sessionExpired) and (tx == null or #strings.isEmpty(tx))}">
+                    ⏱️ Your session expired due to inactivity. Please sign in again.
+                </div>
+                <!-- With tx: context-preserving session expiry — reassure the user their flow is saved -->
+                <div class="session-expired-msg" th:if="${(param.session_expired != null or sessionExpired) and tx != null and !#strings.isEmpty(tx)}">
+                    🔐 Your session expired. Sign in to continue — you'll be taken right back to where you were.
+                </div>
+
                 <form th:action="@{'/' + ${tenantId} + '/login'}" method="post">
+
+                    <!--
+                        Stateless OAuth2 transaction token (Okta-style context preservation).
+                        Signed HMAC payload carrying client_id, redirect_uri, scope, state, and PKCE.
+                        Travels with the POST so the OAuth2 authorize context survives session expiry.
+                        The server verifies the HMAC before trusting any field in this token.
+                    -->
+                    <input type="hidden" name="tx" th:value="${tx}" th:if="${tx != null and !#strings.isEmpty(tx)}" />
 
                     <div class="form-group">
                         <label for="username">Username</label>
@@ -531,6 +556,8 @@
             const TENANT_ID = /*[[${tenantId}]]*/ 'system-admin';
             const IAM_BASE_URL = /*[[${@environment.getProperty('app.services.iam.base-url')}]]*/ 'http://localhost:8082';
             const WEBAUTHN_ENABLED = /*[[${webauthnEnabled}]]*/ false;
+            // The signed OAuth2 tx token (null if not present on this login page)
+            const OAUTH_TX = /*[[${tx}]]*/ null;
 
             // ── Form validation ──────────────────────────────────────────────
             const usernameInput = document.getElementById('username');
@@ -716,6 +743,16 @@
                     tokenInput.name = 'bridgeToken';
                     tokenInput.value = bridgeToken;
                     form.appendChild(tokenInput);
+
+                    // Include the OAuth2 tx token so WebAuthn logins also benefit
+                    // from stateless context preservation after session expiry.
+                    if (OAUTH_TX) {
+                        const txInput = document.createElement('input');
+                        txInput.type = 'hidden';
+                        txInput.name = 'tx';
+                        txInput.value = OAUTH_TX;
+                        form.appendChild(txInput);
+                    }
 
                     document.body.appendChild(form);
                     form.submit();

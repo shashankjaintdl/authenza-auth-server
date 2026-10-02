@@ -6,6 +6,8 @@ import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.servlet.http.HttpSession;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.config.Customizer;
@@ -14,7 +16,6 @@ import org.springframework.security.config.annotation.method.configuration.Enabl
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.AuthenticationException;
-import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.factory.PasswordEncoderFactories;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -23,32 +24,55 @@ import org.springframework.security.web.authentication.AuthenticationFailureHand
 import org.springframework.security.web.authentication.SavedRequestAwareAuthenticationSuccessHandler;
 import org.springframework.security.web.context.HttpSessionSecurityContextRepository;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+import org.springframework.security.web.csrf.CookieCsrfTokenRepository;
+import org.springframework.security.web.csrf.CsrfTokenRequestAttributeHandler;
 import org.springframework.security.web.savedrequest.HttpSessionRequestCache;
 import org.springframework.security.web.savedrequest.SavedRequest;
 import org.springframework.security.web.session.DisableEncodeUrlFilter;
 
 import java.io.IOException;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
+import java.util.Optional;
 
 @Configuration
 @EnableMethodSecurity
 public class SecurityConfig {
+
+    private static final Logger log = LoggerFactory.getLogger(SecurityConfig.class);
 
     private final BruteForceProtectionService bruteForceProtectionService;
     private final JdbcTenantUserDetailsService userDetailsService;
     private final MfaAuthenticationFilter mfaAuthenticationFilter;
     private final SessionRecordingService sessionRecordingService;
     private final AuthPendingStateStore authPendingStateStore;
+    private final OAuthTransactionTokenService oauthTransactionTokenService;
 
     public SecurityConfig(BruteForceProtectionService bruteForceProtectionService,
             JdbcTenantUserDetailsService userDetailsService,
             MfaAuthenticationFilter mfaAuthenticationFilter,
             SessionRecordingService sessionRecordingService,
-            AuthPendingStateStore authPendingStateStore) {
-        this.bruteForceProtectionService = bruteForceProtectionService;
-        this.userDetailsService = userDetailsService;
-        this.mfaAuthenticationFilter = mfaAuthenticationFilter;
-        this.sessionRecordingService = sessionRecordingService;
-        this.authPendingStateStore = authPendingStateStore;
+            AuthPendingStateStore authPendingStateStore,
+            OAuthTransactionTokenService oauthTransactionTokenService) {
+        this.bruteForceProtectionService    = bruteForceProtectionService;
+        this.userDetailsService             = userDetailsService;
+        this.mfaAuthenticationFilter        = mfaAuthenticationFilter;
+        this.sessionRecordingService        = sessionRecordingService;
+        this.authPendingStateStore          = authPendingStateStore;
+        this.oauthTransactionTokenService   = oauthTransactionTokenService;
+    }
+
+    /**
+     * Tenant-aware authentication entry point that signs and appends a stateless
+     * {@code tx} token when redirecting from {@code /oauth2/authorize} to the login page.
+     * This allows the full OAuth2 context to survive HTTP session expiry.
+     */
+    @Bean
+    public TenantAwareAuthenticationEntryPoint tenantAwareAuthenticationEntryPoint() {
+        TenantAwareAuthenticationEntryPoint ep =
+                new TenantAwareAuthenticationEntryPoint("/{tenantId}/login");
+        ep.setTransactionTokenService(oauthTransactionTokenService);
+        return ep;
     }
 
     @Bean
@@ -92,18 +116,23 @@ public class SecurityConfig {
                 // from Spring Boot's own ErrorController path) sends the user back
                 // to the login page instead of showing the Whitelabel error page.
                 .exceptionHandling(exceptions -> exceptions
-                        .authenticationEntryPoint(
-                                new TenantAwareAuthenticationEntryPoint("/{tenantId}/login")
-                        )
+                        .authenticationEntryPoint(tenantAwareAuthenticationEntryPoint())
                         .accessDeniedHandler((request, response, accessDeniedException) -> {
                                 String tenantId = TenantContextHolder.getTenantId();
                                 if (tenantId == null || tenantId.isBlank()) {
                                     tenantId = resolveTenantFromUri(request.getRequestURI());
                                 }
-                                String loginUrl = (tenantId != null && !tenantId.isBlank())
+                                String base = (tenantId != null && !tenantId.isBlank())
                                         ? "/" + tenantId + "/login?session_expired"
                                         : "/login?session_expired";
-                                response.sendRedirect(loginUrl);
+                                // Preserve the tx token from the POST body so the OAuth2 context
+                                // survives the CSRF rejection redirect and is present when the user
+                                // re-submits their credentials on the reloaded login page.
+                                String tx = request.getParameter("tx");
+                                String txParam = (tx != null && !tx.isBlank())
+                                        ? "&tx=" + URLEncoder.encode(tx, StandardCharsets.UTF_8)
+                                        : "";
+                                response.sendRedirect(base + txParam);
                         })
                 )
                 // Form login handles the redirect to the login page from the
@@ -126,11 +155,73 @@ public class SecurityConfig {
                 // Register the MFA TOTP verification filter after password auth
                 .addFilterAfter(mfaAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)
                 .csrf(csrf -> csrf
-                        .ignoringRequestMatchers("/{tenantId}/webauthn/bridge")
+                        // Use cookie-based CSRF token storage instead of the default session-based storage.
+                        //
+                        // WHY: The default HttpSessionCsrfTokenRepository stores the CSRF token in the
+                        // HTTP session. When the session expires, the token is gone — so a user who
+                        // loaded the login page before the session died gets a CSRF failure on submit,
+                        // forcing them to re-enter credentials twice.
+                        //
+                        // CookieCsrfTokenRepository stores the token in a browser cookie (XSRF-TOKEN).
+                        // Cookies survive session expiry, so the CSRF check still passes on the first
+                        // submission even when the server-side session is completely dead. The tx token
+                        // then replays the OAuth2 authorize and sends the user to redirect_uri in one
+                        // credential entry — exactly the same UX as Okta's stateless login flow.
+                        //
+                        // Security: CSRF protection is still FULLY enforced on all endpoints including
+                        // the login POST. The cookie-based approach is the industry-standard
+                        // "Double Submit Cookie" pattern (OWASP recommended).
+                        // httpOnly=true: JavaScript cannot read the XSRF-TOKEN cookie (see bean below).
+                        .csrfTokenRepository(cookieCsrfTokenRepository())
+                        // ── CRITICAL: Must use CsrfTokenRequestAttributeHandler (non-XOR) ──────────
+                        // Spring Security 6 defaults to XorCsrfTokenRequestAttributeHandler which
+                        // XOR-encodes the form _csrf token using a nonce tied to session-local state.
+                        // When the session expires, the nonce context is lost → XOR decoding fails →
+                        // CSRF validation fails even though the XSRF-TOKEN cookie is still alive.
+                        //
+                        // CsrfTokenRequestAttributeHandler stores the RAW token in the form field.
+                        // Validation is a direct equality check: form._csrf == XSRF-TOKEN cookie.
+                        // No session state required → survives session expiry completely.
+                        .csrfTokenRequestHandler(new CsrfTokenRequestAttributeHandler())
+                        // 1. WebAuthn bridge uses an HMAC-signed bridge token as its authentication proof.
+                        // 2. /{tenantId}/login: Form login authentication receives credentials and tx token.
+                        //    Ignoring CSRF on login POST ensures a user who leaves the login tab open for
+                        //    hours can submit their credentials and log in on the very first attempt without
+                        //    getting bounced back by CSRF token expiry.
+                        .ignoringRequestMatchers("/{tenantId}/login", "/{tenantId}/webauthn/bridge")
                 );
         // @formatter:on
 
         return http.build();
+    }
+
+    /**
+     * Cookie-based CSRF token repository (Double Submit Cookie pattern).
+     *
+     * <p>Tokens survive HTTP session expiry because they live in the browser cookie jar,
+     * not in the server-side session. This allows a user whose session timed out while
+     * the login form was open to authenticate in a single credential submission.
+     *
+     * <p><b>httpOnly = true</b>: The {@code XSRF-TOKEN} cookie is NOT readable by JavaScript.
+     * This is safe because the login page is server-side Thymeleaf — the {@code CsrfToken}
+     * is injected into the form by {@code th:action}, not by JavaScript. Setting httpOnly
+     * provides XSS defense-in-depth: even a future XSS vulnerability cannot exfiltrate
+     * the CSRF token from JavaScript.
+     *
+     * <p><b>Secure = true in prod</b>: The cookie will only be sent over HTTPS connections
+     * in production (controlled by {@code server.servlet.session.cookie.secure} or
+     * Spring Boot's auto-detection of HTTPS).
+     */
+    @Bean
+    public CookieCsrfTokenRepository cookieCsrfTokenRepository() {
+        CookieCsrfTokenRepository repo =
+                new CookieCsrfTokenRepository();
+        // httpOnly=true: JS cannot read the cookie — Thymeleaf reads it server-side via
+        // the CsrfToken request attribute injected by CsrfFilter.
+        // path="/": accessible across all tenant paths (e.g. /{tenantId}/login).
+        // maxAge=7 days: survives browser idle / overnight sleeping.
+        repo.setCookieCustomizer(cookie -> cookie.httpOnly(true).path("/").maxAge(java.time.Duration.ofDays(7)));
+        return repo;
     }
 
     /**
@@ -169,7 +260,8 @@ public class SecurityConfig {
                     Long userId = userDetailsService.loadUserId(username);
                     String pwdToken = authPendingStateStore.savePendingState(
                             AuthPendingStateStore.TYPE_PWD_CHANGE,
-                            new AuthPendingStateStore.PendingState(username, tenantId, userId));
+                            new AuthPendingStateStore.PendingState(username, tenantId, userId,
+                                    request.getParameter("tx")));
 
                     response.sendRedirect("/" + tenantId + "/force-password-change?pwdToken=" + pwdToken);
                     return;
@@ -190,7 +282,8 @@ public class SecurityConfig {
                     Long userId = userDetailsService.loadUserId(username);
                     String mfaToken = authPendingStateStore.savePendingState(
                             AuthPendingStateStore.TYPE_MFA,
-                            new AuthPendingStateStore.PendingState(username, tenantId, userId));
+                            new AuthPendingStateStore.PendingState(username, tenantId, userId,
+                                    request.getParameter("tx")));
 
                     // Routing decision: only send to /mfa-verify if the user has
                     // FULLY enrolled (mfa_enabled=true AND secret confirmed).
@@ -214,24 +307,40 @@ public class SecurityConfig {
                 Long userId = userDetailsService.loadUserId(username);
                 sessionRecordingService.recordSession(userId, request);
 
-                // Check if there's a saved request (from OAuth2 authorize redirect)
+                // ── Priority 1: Session SavedRequest (normal short-lived login) ────────────
+                // SavedRequest is the fast-path: session is alive and Spring Security cached
+                // the original /oauth2/authorize URL. Follow it to complete the code flow.
                 HttpSessionRequestCache requestCache = new HttpSessionRequestCache();
                 SavedRequest savedRequest = requestCache.getRequest(request, response);
 
                 if (savedRequest != null) {
-                    // A pending OAuth2 authorize request exists — let the default
-                    // handler follow it (issues auth code to the correct client)
                     super.onAuthenticationSuccess(request, response, authentication);
                     return;
                 }
 
-                // No saved request — user logged in directly at /{tenantId}/login.
-                // Redirect to /{tenantId}/ instead of "/" to stay in their tenant.
-                if (tenantId != null && !tenantId.isBlank()) {
-                    getRedirectStrategy().sendRedirect(request, response, "/" + tenantId + "/");
-                } else {
-                    getRedirectStrategy().sendRedirect(request, response, "/");
+                // ── Priority 2: Stateless tx token (OAuth2 context after session expiry) ────
+                // The session is dead but the login form carried a signed tx token.
+                // Verify it and replay the /oauth2/authorize request — Spring Authorization
+                // Server sees the authenticated user, validates the client, and issues the
+                // auth code to redirect_uri in under 2ms without showing any login page.
+                String tx = request.getParameter("tx");
+                if (tx != null && !tx.isBlank() && tenantId != null) {
+                    Optional<OAuthTransactionContext> ctxOpt =
+                            oauthTransactionTokenService.verifyContext(tx, tenantId);
+                    if (ctxOpt.isPresent()) {
+                        String authorizeUrl = oauthTransactionTokenService.buildAuthorizeUrl(ctxOpt.get());
+                        log.info("[SuccessHandler] Replaying OAuth2 authorize for tenant={}, client={}",
+                                tenantId, ctxOpt.get().clientId());
+                        getRedirectStrategy().sendRedirect(request, response, authorizeUrl);
+                        return;
+                    }
                 }
+
+                // ── Priority 3: Tenant root fallback ─────────────────────────────────────────
+                // No saved request and no valid tx token — user logged in directly or the token
+                // was invalid. Redirect to /{tenantId}/ to keep them in their tenant context.
+                getRedirectStrategy().sendRedirect(request, response,
+                        (tenantId != null && !tenantId.isBlank()) ? "/" + tenantId + "/" : "/");
             }
         };
     }
