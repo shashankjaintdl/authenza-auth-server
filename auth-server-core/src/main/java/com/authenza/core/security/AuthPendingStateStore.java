@@ -114,16 +114,22 @@ public class AuthPendingStateStore {
      * @param username the user's login email/username
      * @param tenantId the active tenant at the time of initial password authentication
      * @param userId   the database ID of the user
+     * @param oauthTx  the signed OAuth2 transaction token ({@code tx} parameter), if the login
+     *                 was initiated from an {@code /oauth2/authorize} redirect. May be
+     *                 {@code null} for direct logins. Used to replay the authorize request
+     *                 after MFA or forced password change completes.
      */
-    public record PendingState(String username, String tenantId, Long userId) {
+    public record PendingState(String username, String tenantId, Long userId, String oauthTx) {
         @JsonCreator
         public PendingState(
                 @JsonProperty("username") String username,
                 @JsonProperty("tenantId") String tenantId,
-                @JsonProperty("userId")   Long userId) {
+                @JsonProperty("userId")   Long   userId,
+                @JsonProperty("oauthTx") String oauthTx) {
             this.username = username;
             this.tenantId = tenantId;
             this.userId   = userId;
+            this.oauthTx  = oauthTx;
         }
     }
 }

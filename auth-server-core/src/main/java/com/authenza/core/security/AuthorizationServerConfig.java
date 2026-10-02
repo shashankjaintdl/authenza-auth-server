@@ -68,6 +68,7 @@ public class AuthorizationServerConfig {
         // Stored as a field to avoid creating a new object on every token issuance.
         private final JdbcTemplate jdbcTemplate;
         private final TenantSettingsCache tenantSettingsCache;
+        private final OAuthTransactionTokenService oauthTransactionTokenService;
 
         /**
          * Static fallback — used when no tenant-specific portal_url setting is found.
@@ -78,11 +79,13 @@ public class AuthorizationServerConfig {
         public AuthorizationServerConfig(
                         @Qualifier("masterJdbcOperations") NamedParameterJdbcOperations masterJdbcOperations,
                         DataSource dataSource,
-                        com.authenza.adapter.cache.TenantSettingsCache tenantSettingsCache) {
+                        TenantSettingsCache tenantSettingsCache,
+                        OAuthTransactionTokenService oauthTransactionTokenService) {
                 this.masterJdbcOperations = masterJdbcOperations;
                 this.dataSource = dataSource;
-                this.jdbcTemplate = new org.springframework.jdbc.core.JdbcTemplate(dataSource);
+                this.jdbcTemplate = new JdbcTemplate(dataSource);
                 this.tenantSettingsCache = tenantSettingsCache;
+                this.oauthTransactionTokenService = oauthTransactionTokenService;
         }
 
         @Bean
@@ -171,12 +174,15 @@ public class AuthorizationServerConfig {
                 // 
                 // By filtering to /oauth2/authorize, all other API endpoints naturally 
                 // fall back to Spring's default behavior: returning a 401 Unauthorized.
-                .exceptionHandling((exceptions) -> exceptions
-                        .defaultAuthenticationEntryPointFor(
-                                new TenantAwareAuthenticationEntryPoint("/{tenantId}/login"),
-                                PathPatternRequestMatcher.withDefaults().matcher("/{tenantId}/oauth2/authorize")
-                        )
-                );
+                .exceptionHandling((exceptions) -> {
+                        TenantAwareAuthenticationEntryPoint authorizeEntryPoint =
+                                        new TenantAwareAuthenticationEntryPoint("/{tenantId}/login");
+                        authorizeEntryPoint.setTransactionTokenService(oauthTransactionTokenService);
+                        exceptions.defaultAuthenticationEntryPointFor(
+                                        authorizeEntryPoint,
+                                        PathPatternRequestMatcher.withDefaults().matcher("/{tenantId}/oauth2/authorize")
+                        );
+                });
         // @formatter:on
 
                 return http.build();
@@ -364,7 +370,7 @@ public class AuthorizationServerConfig {
                                                                                         +
                                                                                         "WHERE user_id = ? AND authorization_id IS NULL AND revoked = false "
                                                                                         +
-                                                                                        "ORDER BY created_at DESC LIMIT 1",
+                                                                                        "ORDER BY last_active_at DESC, created_at DESC LIMIT 1",
                                                                         authId, userId);
 
                                                         // Embed session_id into the JWT so the resource server
@@ -372,7 +378,7 @@ public class AuthorizationServerConfig {
                                                         // Only select non-revoked sessions to ensure the claim
                                                         // is never set to an already-blacklisted session ID.
                                                         java.util.List<Long> sessionIds = jdbcTemplate.queryForList(
-                                                                        "SELECT id FROM user_session WHERE authorization_id = ? AND user_id = ? AND revoked = false LIMIT 1",
+                                                                        "SELECT id FROM user_session WHERE authorization_id = ? AND user_id = ? AND revoked = false ORDER BY last_active_at DESC, created_at DESC LIMIT 1",
                                                                         Long.class, authId, userId);
                                                         if (!sessionIds.isEmpty()) {
                                                                 context.getClaims().claim("session_id",

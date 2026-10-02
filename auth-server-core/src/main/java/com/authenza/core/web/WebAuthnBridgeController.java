@@ -2,6 +2,8 @@ package com.authenza.core.web;
 
 import com.authenza.core.security.AuthPendingStateStore;
 import com.authenza.core.security.JdbcTenantUserDetailsService;
+import com.authenza.core.security.OAuthTransactionContext;
+import com.authenza.core.security.OAuthTransactionTokenService;
 import com.authenza.core.service.SessionRecordingService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -27,6 +29,7 @@ import javax.crypto.spec.SecretKeySpec;
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
 import java.util.HexFormat;
+import java.util.Optional;
 
 /**
  * Completes the FIDO2/WebAuthn passwordless login flow inside {@code auth-server-core}.
@@ -68,17 +71,20 @@ public class WebAuthnBridgeController {
     private final JdbcTenantUserDetailsService userDetailsService;
     private final SessionRecordingService sessionRecordingService;
     private final AuthPendingStateStore authPendingStateStore;
+    private final OAuthTransactionTokenService oauthTransactionTokenService;
     private final byte[] secretKeyBytes;
 
     public WebAuthnBridgeController(
             JdbcTenantUserDetailsService userDetailsService,
             SessionRecordingService sessionRecordingService,
             AuthPendingStateStore authPendingStateStore,
+            OAuthTransactionTokenService oauthTransactionTokenService,
             @Value("${app.webauthn.bridge-secret}") String bridgeSecret) {
-        this.userDetailsService = userDetailsService;
-        this.sessionRecordingService = sessionRecordingService;
-        this.authPendingStateStore = authPendingStateStore;
-        this.secretKeyBytes = HexFormat.of().parseHex(bridgeSecret);
+        this.userDetailsService           = userDetailsService;
+        this.sessionRecordingService      = sessionRecordingService;
+        this.authPendingStateStore        = authPendingStateStore;
+        this.oauthTransactionTokenService = oauthTransactionTokenService;
+        this.secretKeyBytes               = HexFormat.of().parseHex(bridgeSecret);
     }
 
     /**
@@ -98,6 +104,7 @@ public class WebAuthnBridgeController {
     public String completeBridgeLogin(
             @PathVariable String tenantId,
             @RequestParam("bridgeToken") String bridgeToken,
+            @RequestParam(name = "tx", required = false) String tx,
             HttpServletRequest request,
             HttpServletResponse response) {
 
@@ -146,7 +153,7 @@ public class WebAuthnBridgeController {
 
             String pwdToken = authPendingStateStore.savePendingState(
                     AuthPendingStateStore.TYPE_PWD_CHANGE,
-                    new AuthPendingStateStore.PendingState(username, tenantId, claims.userId()));
+                    new AuthPendingStateStore.PendingState(username, tenantId, claims.userId(), tx));
 
             return "redirect:/" + tenantId + "/force-password-change?pwdToken=" + pwdToken;
         }
@@ -178,16 +185,26 @@ public class WebAuthnBridgeController {
                 claims.userId(), tenantId);
 
         // ── 6. Redirect to complete the OAuth2 authorize flow ───────────────────
-        // If the user arrived via an OAuth2 /authorize redirect (normal OIDC flow),
-        // Spring will have saved the original /authorize URL in the session.
-        // Following it completes the authorization code exchange and issues tokens.
+        // Priority 1: Session SavedRequest (normal OIDC flow with live session)
         HttpSessionRequestCache requestCache = new HttpSessionRequestCache();
         SavedRequest savedRequest = requestCache.getRequest(request, response);
         if (savedRequest != null) {
             return "redirect:" + savedRequest.getRedirectUrl();
         }
 
-        // No pending authorize request — user navigated directly to the login page.
+        // Priority 2: Stateless tx token (session expired — Okta-style recovery)
+        // The tx was included in the WebAuthn bridge form POST from the login page JS.
+        if (tx != null && !tx.isBlank()) {
+            Optional<OAuthTransactionContext> ctxOpt =
+                    oauthTransactionTokenService.verifyContext(tx, tenantId);
+            if (ctxOpt.isPresent()) {
+                log.info("[WebAuthn Bridge] Replaying OAuth2 authorize via tx for tenant={}, client={}",
+                        tenantId, ctxOpt.get().clientId());
+                return "redirect:" + oauthTransactionTokenService.buildAuthorizeUrl(ctxOpt.get());
+            }
+        }
+
+        // Priority 3: Tenant root fallback — user navigated directly to the login page.
         return "redirect:/" + tenantId + "/";
     }
 
