@@ -1,6 +1,7 @@
 package com.authenza.core.security;
 
 import com.authenza.adapter.context.TenantContextHolder;
+import com.authenza.adapter.context.TenantUriUtils;
 import com.authenza.adapter.routing.TenantRoutingDataSource;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
@@ -64,7 +65,7 @@ public class MultiTenantSecurityFilter extends OncePerRequestFilter {
             return;
         }
 
-        String tenantId = resolveTenantId(uri);
+        String tenantId = TenantUriUtils.resolveTenantFromUri(uri);
 
         if (tenantId != null) {
 
@@ -107,16 +108,5 @@ public class MultiTenantSecurityFilter extends OncePerRequestFilter {
             TenantContextHolder.clear();
             AuthorizationServerContextHolder.resetContext();
         }
-    }
-
-    private String resolveTenantId(String uri) {
-        if (uri == null || uri.equals("/"))
-            return null;
-        String[] parts = uri.split("/");
-        for (String part : parts) {
-            if (!part.isEmpty())
-                return part;
-        }
-        return null;
     }
 }
