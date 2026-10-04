@@ -2,6 +2,7 @@ package com.authenza.core.web;
 
 import com.authenza.core.config.SuperAdminClientProperties;
 import com.authenza.core.security.OAuthTransactionTokenService;
+import com.authenza.core.security.OAuthTransactionContext;
 import jakarta.servlet.http.*;
 import org.springframework.security.web.savedrequest.HttpSessionRequestCache;
 import org.springframework.security.web.savedrequest.SavedRequest;
@@ -16,6 +17,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.util.UriComponentsBuilder;
 
+import java.util.Optional;
 import java.util.Set;
 
 @Controller
@@ -105,40 +107,18 @@ public class LoginController {
 
         boolean isSessionExpired = sessionExpired != null || request.getParameter("session_expired") != null;
 
-        // Allow ?error, ?logout, and ?session_expired — these mean the user
-        // was previously interacting with the auth flow and is returning after
-        // a failed attempt, explicit logout, or session timeout.
-        if (error == null && logout == null && !isSessionExpired) {
-            // Check for a pending OAuth2 authorization request in the session.
-            // This is set when /oauth2/authorize redirects an unauthenticated user.
-            HttpSessionRequestCache requestCache = new HttpSessionRequestCache();
-            SavedRequest savedRequest = requestCache.getRequest(request, null);
-
-            if (savedRequest == null) {
-                // No session-backed saved request — check whether the stateless tx token
-                // provides a valid OAuth2 context (Okta-style: survives session expiry).
-                boolean hasTx = tx != null && !tx.isBlank() &&
-                        oauthTransactionTokenService.verifyContext(tx, tenantId).isPresent();
-
-                if (!hasTx) {
-                    // Genuinely no OAuth2 context — block direct navigation to the login page.
-                    model.addAttribute("title",     "Unauthorized Access");
-                    model.addAttribute("message",
-                            "Login page can only be accessed through a valid OAuth2 client authorization flow. " +
-                                    "Please use an authorized client application to initiate login.");
-                    model.addAttribute("errorCode", "MISSING_AUTH_REQUEST");
-                    return "error-page";
-                }
-                // Valid tx token present — allow the login page to render normally.
-            }
-        }
+        // Verify tx token if provided, preserving OAuth2 context across session boundaries
+        boolean hasTx = tx != null && !tx.isBlank() &&
+                oauthTransactionTokenService.verifyContext(tx, tenantId).isPresent();
 
         model.addAttribute("tenantId",      tenantId);
         model.addAttribute("sessionExpired", isSessionExpired);
-        model.addAttribute("tx",            tx);   // passed to hidden form field in login.html
+        model.addAttribute("tx",            hasTx ? tx : null);   // passed to hidden form field in login.html
 
         String webAuthnEnabled = settingsCache.getSetting(tenantId, "webauthn_fingerprint_enabled");
-        model.addAttribute("webauthnEnabled", "true".equalsIgnoreCase(webAuthnEnabled));
+        String globalWebAuthnEnabled = settingsCache.getSetting(tenantId, "global_webauthn_enabled");
+        boolean isPasskeyEnabled = "true".equalsIgnoreCase(webAuthnEnabled) || "true".equalsIgnoreCase(globalWebAuthnEnabled);
+        model.addAttribute("webauthnEnabled", isPasskeyEnabled);
 
         return "login";
     }
@@ -168,9 +148,19 @@ public class LoginController {
             }
         }
 
-        // 2. Fallback: If no client context found, default to system admin behavior
+        // 2. Stateless tx token check: if an already authenticated user visits /login?tx=..., replay authorize request
+        String tx = request.getParameter("tx");
+        if (tx != null && !tx.isBlank()) {
+            Optional<OAuthTransactionContext> ctxOpt = oauthTransactionTokenService.verifyContext(tx, tenantId);
+            if (ctxOpt.isPresent()) {
+                String authorizeUrl = oauthTransactionTokenService.buildAuthorizeUrl(ctxOpt.get());
+                return "redirect:" + authorizeUrl;
+            }
+        }
+
+        // 3. Fallback: If no client context found, redirect to portal dashboard
         if ("system-admin".equals(tenantId)) {
-            return "redirect:/";
+            return "redirect:" + tenantPortalUrl + "/" + tenantId + "/dashboard";
         }
 
         // 3. Last Resort: Use Referer header (where the user just clicked "Back" from)
@@ -179,7 +169,7 @@ public class LoginController {
             return "redirect:" + referer;
         }
 
-        return "redirect:/";
+        return "redirect:" + tenantPortalUrl + "/" + tenantId + "/dashboard";
     }
 
     @GetMapping("/error/invalid-tenant")

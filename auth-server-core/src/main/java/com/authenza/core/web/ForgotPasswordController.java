@@ -39,10 +39,12 @@ public class ForgotPasswordController {
      */
     @GetMapping("/{tenantId}/forgot-password")
     public String showForgotPasswordForm(@PathVariable String tenantId,
+                                         @RequestParam(name = "tx", required = false) String tx,
                                          Model model,
                                          HttpServletRequest request) {
         forceCsrfToken(request);
         model.addAttribute("tenantId", tenantId);
+        model.addAttribute("tx", tx != null && !tx.isBlank() ? tx : null);
         return "forgot-password";
     }
 
@@ -52,11 +54,13 @@ public class ForgotPasswordController {
      */
     @PostMapping("/{tenantId}/forgot-password")
     public String handleForgotPassword(@PathVariable String tenantId,
+                                       @RequestParam(name = "tx", required = false) String tx,
                                        @RequestParam("email") String email,
                                        Model model,
                                        HttpServletRequest request) {
         forceCsrfToken(request);
         model.addAttribute("tenantId", tenantId);
+        model.addAttribute("tx", tx != null && !tx.isBlank() ? tx : null);
 
         iamClient.requestPasswordReset(tenantId, email);
 

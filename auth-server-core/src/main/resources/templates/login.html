@@ -22,6 +22,149 @@
             overflow-x: hidden;
         }
 
+        /* ─── Page Loader Overlay ─── */
+        .page-loader {
+            position: fixed;
+            inset: 0;
+            z-index: 99999;
+            background: #1A1A1E;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: opacity 0.35s cubic-bezier(0.4, 0, 0.2, 1), visibility 0.35s;
+            opacity: 1;
+            visibility: visible;
+        }
+
+        .page-loader.hidden {
+            opacity: 0;
+            visibility: hidden;
+            pointer-events: none;
+        }
+
+        .loader-content {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 1.25rem;
+            text-align: center;
+        }
+
+        .loader-spinner-wrapper {
+            position: relative;
+            width: 52px;
+            height: 52px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .spinner-ring {
+            width: 48px;
+            height: 48px;
+            border-radius: 50%;
+            border: 3px solid rgba(139, 92, 246, 0.15);
+            border-top-color: #8b5cf6;
+            border-right-color: #c4b5fd;
+            animation: spin 0.8s cubic-bezier(0.6, 0.2, 0.4, 0.8) infinite;
+            box-shadow: 0 0 24px rgba(139, 92, 246, 0.35);
+        }
+
+        .spinner-core {
+            position: absolute;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: #8b5cf6;
+            box-shadow: 0 0 12px #8b5cf6;
+            animation: pulseCore 1.6s ease-in-out infinite;
+        }
+
+        @keyframes pulseCore {
+            0%, 100% {
+                transform: scale(0.8);
+                opacity: 0.6;
+            }
+            50% {
+                transform: scale(1.15);
+                opacity: 1;
+            }
+        }
+
+        .loader-text {
+            font-size: 0.95rem;
+            font-weight: 500;
+            color: #d4d4d8;
+            letter-spacing: -0.01em;
+            display: flex;
+            align-items: center;
+            gap: 0.35rem;
+        }
+
+        .loader-tenant {
+            color: #a78bfa;
+            font-weight: 600;
+        }
+
+        /* ─── Top Indeterminate Progress Bar ─── */
+        .top-loader-bar {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 3px;
+            z-index: 100000;
+            background: transparent;
+            overflow: hidden;
+            display: none;
+        }
+
+        .top-loader-bar.active {
+            display: block;
+        }
+
+        .top-loader-bar::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            height: 100%;
+            width: 45%;
+            background: linear-gradient(90deg, #7c3aed, #a78bfa, #c4b5fd);
+            border-radius: 2px;
+            box-shadow: 0 0 12px #8b5cf6;
+            animation: topBarSlide 1.2s infinite ease-in-out;
+        }
+
+        @keyframes topBarSlide {
+            0% {
+                left: -45%;
+            }
+            100% {
+                left: 100%;
+            }
+        }
+
+        /* ─── Button Spinner ─── */
+        .btn-spinner {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+        }
+
+        .spin-icon {
+            width: 18px;
+            height: 18px;
+            animation: spin 0.8s linear infinite;
+        }
+
+        @keyframes spin {
+            to {
+                transform: rotate(360deg);
+            }
+        }
+
         .split-layout {
             display: flex;
             min-height: 100vh;
@@ -67,7 +210,9 @@
         .form-container p.subtitle {
             font-size: .95rem;
             color: #a1a1aa;
-            margin-bottom: 2rem;
+            margin-bottom: 1.5rem;
+            line-height: 1.45;
+            min-height: 2.8rem;
         }
 
         .tenant-badge {
@@ -77,10 +222,96 @@
             background: rgba(167, 139, 250, 0.1);
             padding: .2rem .75rem;
             border-radius: 12px;
-            margin-bottom: 2rem;
+            margin-bottom: 1.75rem;
             font-weight: 500;
         }
 
+        /* Stepper progress indicator dots */
+        .stepper-dots {
+            display: flex;
+            align-items: center;
+            gap: .4rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .step-dot {
+            height: 4px;
+            width: 20px;
+            border-radius: 2px;
+            background: #3f3f46;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .step-dot.active {
+            width: 34px;
+            background: #8b5cf6;
+        }
+
+        /* User identity badge on Step 2 */
+        .user-chip {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            background: rgba(255, 255, 255, 0.04);
+            border: 1px solid #3f3f46;
+            border-radius: 9999px;
+            padding: .35rem .6rem .35rem .75rem;
+            margin-bottom: 1.5rem;
+            transition: border-color .2s;
+        }
+
+        .user-chip:hover {
+            border-color: #52525b;
+        }
+
+        .user-chip-info {
+            display: flex;
+            align-items: center;
+            gap: .55rem;
+            min-width: 0;
+            overflow: hidden;
+        }
+
+        .user-chip-avatar {
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            background: rgba(139, 92, 246, 0.2);
+            color: #a78bfa;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+        }
+
+        .user-chip-name {
+            font-size: .875rem;
+            font-weight: 500;
+            color: #f1f5f9;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .btn-change-user {
+            background: none;
+            border: none;
+            color: #a78bfa;
+            font-size: .8rem;
+            font-weight: 600;
+            cursor: pointer;
+            padding: .2rem .5rem;
+            border-radius: 6px;
+            transition: all .2s;
+            flex-shrink: 0;
+        }
+
+        .btn-change-user:hover {
+            color: #d8b4fe;
+            background: rgba(167, 139, 250, 0.1);
+        }
+
+        /* Alert notifications */
         .error-msg,
         .logout-msg,
         .locked-msg,
@@ -140,6 +371,22 @@
             }
         }
 
+        .step-pane {
+            animation: paneFadeIn 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+        }
+
+        @keyframes paneFadeIn {
+            from {
+                opacity: 0;
+                transform: translateX(10px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateX(0);
+            }
+        }
+
         .form-group {
             margin-bottom: 1.5rem;
             position: relative;
@@ -173,6 +420,10 @@
             transition: all 0.3s ease;
         }
 
+        input[type="password"] {
+            padding-right: 2.2rem;
+        }
+
         input[type="text"]:focus,
         input[type="password"]:focus {
             border-bottom-color: #8b5cf6;
@@ -184,6 +435,26 @@
 
         input.input-error {
             border-bottom-color: #ef4444;
+        }
+
+        .pwd-toggle {
+            position: absolute;
+            right: 0;
+            top: 50%;
+            transform: translateY(-50%);
+            background: none;
+            border: none;
+            color: #71717a;
+            cursor: pointer;
+            padding: .35rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: color .2s;
+        }
+
+        .pwd-toggle:hover {
+            color: #e4e4e7;
         }
 
         .field-feedback {
@@ -231,6 +502,9 @@
             cursor: pointer;
             transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
             box-shadow: 0 4px 12px rgba(139, 92, 246, 0.25);
+            display: flex;
+            align-items: center;
+            justify-content: center;
         }
 
         button.btn-submit:hover:not(:disabled) {
@@ -269,12 +543,102 @@
             border-bottom-color: #ffffff;
         }
 
+        /* ─── Back Button ─── */
+        .back-link-wrapper {
+            margin-top: 1.5rem;
+            text-align: center;
+        }
+
+        .btn-back {
+            background: none;
+            border: none;
+            color: #71717a;
+            font-size: .85rem;
+            font-weight: 500;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: .4rem;
+            padding: .35rem .75rem;
+            border-radius: 6px;
+            transition: all .2s;
+        }
+
+        .btn-back:hover {
+            color: #e4e4e7;
+            background: rgba(255, 255, 255, 0.05);
+        }
+
+        /* ─── Passkey Button ─── */
+        .divider {
+            display: flex;
+            align-items: center;
+            gap: .75rem;
+            margin: 1.5rem 0;
+            color: #52525b;
+            font-size: .8rem;
+            font-weight: 500;
+            letter-spacing: .05em;
+            text-transform: uppercase;
+        }
+
+        .divider::before,
+        .divider::after {
+            content: '';
+            flex: 1;
+            height: 1px;
+            background: #3f3f46;
+        }
+
+        button.btn-passkey {
+            width: 100%;
+            padding: .75rem;
+            border: 1px solid #3f3f46;
+            border-radius: 8px;
+            background: transparent;
+            color: #d4d4d8;
+            font-size: .95rem;
+            font-weight: 500;
+            font-family: inherit;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: .6rem;
+            transition: all 0.25s ease;
+        }
+
+        button.btn-passkey:hover:not(:disabled) {
+            border-color: #8b5cf6;
+            color: #c4b5fd;
+            background: rgba(139, 92, 246, 0.06);
+        }
+
+        button.btn-passkey:disabled {
+            opacity: 0.4;
+            cursor: not-allowed;
+        }
+
+        .passkey-status {
+            margin-top: .75rem;
+            font-size: .82rem;
+            text-align: center;
+            min-height: 1.2rem;
+            color: #a1a1aa;
+        }
+
+        .passkey-status.error {
+            color: #f87171;
+        }
+
+        .passkey-status.success {
+            color: #4ade80;
+        }
 
         /* ─── Right Hero Section ─── */
         .hero-section {
             flex: 1.2;
             background: #8b5cf6;
-            /* Fallback */
             background: linear-gradient(135deg, #7c3aed 0%, #4c1d95 100%);
             display: flex;
             flex-direction: column;
@@ -370,83 +734,45 @@
                 padding: 1.5rem;
             }
         }
-
-        /* ─── Passkey Button ─── */
-        .divider {
-            display: flex;
-            align-items: center;
-            gap: .75rem;
-            margin: 1.5rem 0;
-            color: #52525b;
-            font-size: .8rem;
-            font-weight: 500;
-            letter-spacing: .05em;
-            text-transform: uppercase;
-        }
-
-        .divider::before,
-        .divider::after {
-            content: '';
-            flex: 1;
-            height: 1px;
-            background: #3f3f46;
-        }
-
-        button.btn-passkey {
-            width: 100%;
-            padding: .75rem;
-            border: 1px solid #3f3f46;
-            border-radius: 8px;
-            background: transparent;
-            color: #d4d4d8;
-            font-size: .95rem;
-            font-weight: 500;
-            font-family: inherit;
-            cursor: pointer;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: .6rem;
-            transition: all 0.25s ease;
-        }
-
-        button.btn-passkey:hover:not(:disabled) {
-            border-color: #8b5cf6;
-            color: #c4b5fd;
-            background: rgba(139, 92, 246, 0.06);
-        }
-
-        button.btn-passkey:disabled {
-            opacity: 0.4;
-            cursor: not-allowed;
-        }
-
-        .passkey-status {
-            margin-top: .75rem;
-            font-size: .82rem;
-            text-align: center;
-            min-height: 1.2rem;
-            color: #a1a1aa;
-        }
-
-        .passkey-status.error {
-            color: #f87171;
-        }
-
-        .passkey-status.success {
-            color: #4ade80;
-        }
     </style>
 </head>
 
 <body>
+    <!-- ─── Top Indeterminate Progress Bar ─── -->
+    <div id="topLoaderBar" class="top-loader-bar" aria-hidden="true"></div>
+
+    <!-- ─── Full-Screen Page Loader ─── -->
+    <div id="pageLoader" class="page-loader" role="status" aria-live="polite">
+        <div class="loader-content">
+            <div class="loader-spinner-wrapper">
+                <div class="spinner-ring"></div>
+                <div class="spinner-core"></div>
+            </div>
+            <div class="loader-text">
+                <span id="loaderMsg">Authenticating securely with</span>
+                <span class="loader-tenant" th:text="${tenantId}">system-admin</span>
+            </div>
+        </div>
+    </div>
+    <noscript>
+        <style>
+            .page-loader { display: none !important; }
+        </style>
+    </noscript>
+
     <div class="split-layout">
         <!-- ─── Left Form Section ─── -->
         <div class="form-section">
             <div class="form-container">
                 <span class="tenant-badge" th:text="${tenantId}">tenant</span>
-                <h1>Login</h1>
-                <p class="subtitle">Enter your account details to securely access your workspace.</p>
+
+                <div class="stepper-dots">
+                    <span class="step-dot active" id="dot1"></span>
+                    <span class="step-dot" id="dot2"></span>
+                </div>
+
+                <h1 id="stepTitle">Login</h1>
+                <p class="subtitle" id="stepSubtitle">Enter your account details to securely access your workspace.</p>
 
                 <!-- Generic failed-credentials error -->
                 <div class="error-msg" th:if="${param.error}">
@@ -464,16 +790,14 @@
                 </div>
 
                 <!-- Session timeout notification -->
-                <!-- When a tx token is present, the user was mid-OAuth2-flow: softer message -->
                 <div class="session-expired-msg" th:if="${(param.session_expired != null or sessionExpired) and (tx == null or #strings.isEmpty(tx))}">
                     ⏱️ Your session expired due to inactivity. Please sign in again.
                 </div>
-                <!-- With tx: context-preserving session expiry — reassure the user their flow is saved -->
                 <div class="session-expired-msg" th:if="${(param.session_expired != null or sessionExpired) and tx != null and !#strings.isEmpty(tx)}">
                     🔐 Your session expired. Sign in to continue — you'll be taken right back to where you were.
                 </div>
 
-                <form th:action="@{'/' + ${tenantId} + '/login'}" method="post">
+                <form id="loginForm" th:action="@{'/' + ${tenantId} + '/login'}" method="post">
 
                     <!--
                         Stateless OAuth2 transaction token (Okta-style context preservation).
@@ -483,58 +807,117 @@
                     -->
                     <input type="hidden" name="tx" th:value="${tx}" th:if="${tx != null and !#strings.isEmpty(tx)}" />
 
-                    <div class="form-group">
-                        <label for="username">Username</label>
-                        <div class="input-wrapper">
-                            <input type="text" id="username" name="username" autocomplete="username" autofocus
-                                required />
+                    <!-- ── Step 1: Username / Identifier ── -->
+                    <div id="step1" class="step-pane">
+                        <div class="form-group">
+                            <label for="username">Username</label>
+                            <div class="input-wrapper">
+                                <input type="text" id="username" name="username" autocomplete="username" autofocus
+                                    required />
+                            </div>
+                            <div id="usernameFeedback" class="field-feedback">Username is required</div>
                         </div>
-                        <div id="usernameFeedback" class="field-feedback">Username is required</div>
+
+                        <button type="button" id="nextBtn" class="btn-submit" disabled>
+                            <span class="btn-text">Continue</span>
+                            <span class="btn-spinner" style="display: none;">
+                                <svg class="spin-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                                    <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-opacity="0.25"></circle>
+                                    <path d="M12 2a10 10 0 0 1 10 10" stroke="currentColor"></path>
+                                </svg>
+                                Continuing...
+                            </span>
+                        </button>
+
+                        <p class="signup-link">
+                            Don't have an account?
+                            <a th:href="${tx != null} ? @{'/' + ${tenantId} + '/register'(tx=${tx})} : @{'/' + ${tenantId} + '/register'}">Sign up</a>
+                        </p>
                     </div>
 
-                    <div class="form-group">
-                        <label for="password">Password</label>
-                        <div class="input-wrapper">
-                            <input type="password" id="password" name="password" autocomplete="current-password"
-                                required />
+                    <!-- ── Step 2: Authentication Choice (Password or Passkey) ── -->
+                    <div id="step2" class="step-pane" style="display: none;">
+                        <!-- User identity chip with change option -->
+                        <div class="user-chip">
+                            <div class="user-chip-info">
+                                <div class="user-chip-avatar">
+                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                        <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+                                        <circle cx="12" cy="7" r="4"></circle>
+                                    </svg>
+                                </div>
+                                <span class="user-chip-name" id="displayUsername"></span>
+                            </div>
+                            <button type="button" id="changeUserBtn" class="btn-change-user" title="Change account">Change</button>
                         </div>
-                        <div id="passwordFeedback" class="field-feedback">Password is required</div>
-                    </div>
 
-                    <div class="forgot-link">
-                        <a th:href="@{'/' + ${tenantId} + '/forgot-password'}">Forgot Password?</a>
-                    </div>
+                        <div class="form-group">
+                            <label for="password">Password</label>
+                            <div class="input-wrapper">
+                                <input type="password" id="password" name="password" autocomplete="current-password" />
+                                <button type="button" id="togglePwdBtn" class="pwd-toggle" title="Show password" aria-label="Toggle password visibility">
+                                    <svg id="eyeIcon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                        <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                                        <circle cx="12" cy="12" r="3"></circle>
+                                    </svg>
+                                    <svg id="eyeOffIcon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display: none;">
+                                        <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path>
+                                        <line x1="1" y1="1" x2="23" y2="23"></line>
+                                    </svg>
+                                </button>
+                            </div>
+                            <div id="passwordFeedback" class="field-feedback">Password is required</div>
+                        </div>
 
-                    <button type="submit" id="submitBtn" class="btn-submit" disabled>Login</button>
+                        <div class="forgot-link">
+                            <a th:href="${tx != null} ? @{'/' + ${tenantId} + '/forgot-password'(tx=${tx})} : @{'/' + ${tenantId} + '/forgot-password'}">Forgot Password?</a>
+                        </div>
+
+                        <button type="submit" id="submitBtn" class="btn-submit" disabled>
+                            <span class="btn-text">Login</span>
+                            <span class="btn-spinner" style="display: none;">
+                                <svg class="spin-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                                    <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-opacity="0.25"></circle>
+                                    <path d="M12 2a10 10 0 0 1 10 10" stroke="currentColor"></path>
+                                </svg>
+                                Authenticating...
+                            </span>
+                        </button>
+
+                        <!-- ─── WebAuthn Passkey Login Choice ─── -->
+                        <!-- Only shown when the browser supports the WebAuthn API AND allowed by tenant admin -->
+                        <div id="passkeySection" style="display: none;">
+                            <div class="divider">or</div>
+                            <button type="button" id="passkeyBtn" class="btn-passkey">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none"
+                                    stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                                    <path d="M12 10a2 2 0 0 0-2 2c0 1.02-.1 2.51-.26 4" />
+                                    <path d="M14 13.12c0 2.38 0 6.38-1 8.88" />
+                                    <path d="M17.29 21.02c.12-.6.43-2.3.5-3.02" />
+                                    <path d="M2 12a10 10 0 0 1 18-6" />
+                                    <path d="M2 16h.01" />
+                                    <path d="M21.8 16c.2-2 .131-5.354 0-6" />
+                                    <path d="M5 19.5C5.5 18 6 15 6 12a6 6 0 0 1 .34-2" />
+                                    <path d="M8.65 22c.21-.66.45-1.32.57-2" />
+                                    <path d="M9 6.8a6 6 0 0 1 9 5.2v2" />
+                                </svg>
+                                <span>Sign in with Passkey</span>
+                            </button>
+                            <div id="passkeyStatus" class="passkey-status"></div>
+                        </div>
+
+                        <div class="back-link-wrapper">
+                            <button type="button" id="backBtn" class="btn-back">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <line x1="19" y1="12" x2="5" y2="12"></line>
+                                    <polyline points="12 19 5 12 12 5"></polyline>
+                                </svg>
+                                Back
+                            </button>
+                        </div>
+                    </div>
                 </form>
 
-                <p class="signup-link">
-                    Don't have an account?
-                    <a th:href="@{'/' + ${tenantId} + '/register'}">Sign up</a>
-                </p>
-
-                <!-- ─── WebAuthn Passkey Login ─── -->
-                <!-- Only shown when the browser supports the WebAuthn API -->
-                <div id="passkeySection" style="display:none">
-                    <div class="divider">or</div>
-                    <button type="button" id="passkeyBtn" class="btn-passkey">
-                        <!-- Fingerprint icon -->
-                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none"
-                            stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-                            <path d="M12 10a2 2 0 0 0-2 2c0 1.02-.1 2.51-.26 4" />
-                            <path d="M14 13.12c0 2.38 0 6.38-1 8.88" />
-                            <path d="M17.29 21.02c.12-.6.43-2.3.5-3.02" />
-                            <path d="M2 12a10 10 0 0 1 18-6" />
-                            <path d="M2 16h.01" />
-                            <path d="M21.8 16c.2-2 .131-5.354 0-6" />
-                            <path d="M5 19.5C5.5 18 6 15 6 12a6 6 0 0 1 .34-2" />
-                            <path d="M8.65 22c.21-.66.45-1.32.57-2" />
-                            <path d="M9 6.8a6 6 0 0 1 9 5.2v2" />
-                        </svg>
-                        Sign in with Passkey
-                    </button>
-                    <div id="passkeyStatus" class="passkey-status"></div>
-                </div>
             </div>
         </div>
 
@@ -558,63 +941,248 @@
             const WEBAUTHN_ENABLED = /*[[${webauthnEnabled}]]*/ false;
             // The signed OAuth2 tx token (null if not present on this login page)
             const OAUTH_TX = /*[[${tx}]]*/ null;
+            const HAS_ERROR = /*[[${param.error != null}]]*/ false;
 
-            // ── Form validation ──────────────────────────────────────────────
+            // DOM Elements
+            const pageLoader = document.getElementById('pageLoader');
+            const loaderMsg = document.getElementById('loaderMsg');
+            const topLoaderBar = document.getElementById('topLoaderBar');
+
+            const loginForm = document.getElementById('loginForm');
+            const step1 = document.getElementById('step1');
+            const step2 = document.getElementById('step2');
+            const dot1 = document.getElementById('dot1');
+            const dot2 = document.getElementById('dot2');
+            const stepSubtitle = document.getElementById('stepSubtitle');
+
             const usernameInput = document.getElementById('username');
             const passwordInput = document.getElementById('password');
+            const nextBtn = document.getElementById('nextBtn');
             const submitBtn = document.getElementById('submitBtn');
+            const changeUserBtn = document.getElementById('changeUserBtn');
+            const backBtn = document.getElementById('backBtn');
+            const displayUsername = document.getElementById('displayUsername');
+
             const usernameFeedback = document.getElementById('usernameFeedback');
             const passwordFeedback = document.getElementById('passwordFeedback');
 
+            const togglePwdBtn = document.getElementById('togglePwdBtn');
+            const eyeIcon = document.getElementById('eyeIcon');
+            const eyeOffIcon = document.getElementById('eyeOffIcon');
+
+            const passkeySection = document.getElementById('passkeySection');
+            const passkeyBtn = document.getElementById('passkeyBtn');
+            const passkeyStatus = document.getElementById('passkeyStatus');
+
+            let currentStep = 1;
+
+            // ── Page Loader Controls ──
+            function showPageLoader(message) {
+                if (message && loaderMsg) {
+                    loaderMsg.textContent = message;
+                }
+                if (topLoaderBar) topLoaderBar.classList.add('active');
+                if (pageLoader) pageLoader.classList.remove('hidden');
+            }
+
+            function hidePageLoader() {
+                if (topLoaderBar) topLoaderBar.classList.remove('active');
+                if (pageLoader) pageLoader.classList.add('hidden');
+            }
+
+            function setBtnLoading(btn, isLoading, loadingText) {
+                const textSpan = btn.querySelector('.btn-text');
+                const spinSpan = btn.querySelector('.btn-spinner');
+                if (isLoading) {
+                    btn.disabled = true;
+                    if (textSpan) textSpan.style.display = 'none';
+                    if (spinSpan) {
+                        spinSpan.style.display = 'inline-flex';
+                        if (loadingText) spinSpan.lastChild.textContent = ' ' + loadingText;
+                    }
+                } else {
+                    btn.disabled = false;
+                    if (textSpan) textSpan.style.display = '';
+                    if (spinSpan) spinSpan.style.display = 'none';
+                }
+            }
+
+            // Dismiss initial page loader smoothly once ready
+            if (document.readyState === 'complete') {
+                setTimeout(hidePageLoader, 150);
+            } else {
+                window.addEventListener('load', function () {
+                    setTimeout(hidePageLoader, 150);
+                });
+            }
+
+            // Handle back-forward navigation cache (BFCache)
+            window.addEventListener('pageshow', function () {
+                hidePageLoader();
+                setBtnLoading(submitBtn, false);
+                setBtnLoading(nextBtn, false);
+                checkStep1State();
+                checkStep2State();
+            });
+
+            // ── Form Validation ──
             function validateField(inputEl, feedbackEl) {
                 if (!inputEl.value.trim()) {
                     inputEl.classList.remove('input-valid');
                     inputEl.classList.add('input-error');
-                    feedbackEl.classList.add('show');
+                    if (feedbackEl) feedbackEl.classList.add('show');
                     return false;
                 } else {
                     inputEl.classList.remove('input-error');
                     inputEl.classList.add('input-valid');
-                    feedbackEl.classList.remove('show');
+                    if (feedbackEl) feedbackEl.classList.remove('show');
                     return true;
                 }
             }
 
-            function checkFormState() {
-                const isUserValid = !!usernameInput.value.trim();
-                const isPassValid = !!passwordInput.value;
-                submitBtn.disabled = !(isUserValid && isPassValid);
+            function checkStep1State() {
+                const isValid = !!usernameInput.value.trim();
+                nextBtn.disabled = !isValid;
             }
 
+            function checkStep2State() {
+                const isValid = !!passwordInput.value;
+                submitBtn.disabled = !isValid;
+            }
+
+            function goToStep2() {
+                if (!validateField(usernameInput, usernameFeedback)) {
+                    usernameInput.focus();
+                    return;
+                }
+
+                const username = usernameInput.value.trim();
+                displayUsername.textContent = username;
+                try {
+                    sessionStorage.setItem('authenza_last_username', username);
+                } catch (e) {}
+
+                currentStep = 2;
+                step1.style.display = 'none';
+                step2.style.display = 'block';
+
+                dot1.classList.remove('active');
+                dot2.classList.add('active');
+
+                stepSubtitle.textContent = 'Enter your password or choose passkey to continue.';
+
+                // Show passkey section only if browser supports it AND tenant admin enabled it
+                if (window.PublicKeyCredential && WEBAUTHN_ENABLED) {
+                    passkeySection.style.display = 'block';
+                } else {
+                    passkeySection.style.display = 'none';
+                }
+
+                passwordInput.focus();
+                checkStep2State();
+            }
+
+            function goToStep1() {
+                currentStep = 1;
+                step2.style.display = 'none';
+                step1.style.display = 'block';
+
+                dot2.classList.remove('active');
+                dot1.classList.add('active');
+
+                stepSubtitle.textContent = 'Enter your account details to securely access your workspace.';
+
+                usernameInput.focus();
+                usernameInput.select();
+                checkStep1State();
+            }
+
+            // Step 1 input listeners
             usernameInput.addEventListener('input', function () {
                 if (usernameInput.classList.contains('input-error')) {
                     validateField(usernameInput, usernameFeedback);
                 }
-                checkFormState();
+                checkStep1State();
             });
+
+            usernameInput.addEventListener('blur', function () {
+                if (usernameInput.value.trim()) {
+                    validateField(usernameInput, usernameFeedback);
+                }
+            });
+
+            usernameInput.addEventListener('keydown', function (e) {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    goToStep2();
+                }
+            });
+
+            nextBtn.addEventListener('click', goToStep2);
+
+            // Step 2 input & navigation listeners
+            changeUserBtn.addEventListener('click', goToStep1);
+            backBtn.addEventListener('click', goToStep1);
 
             passwordInput.addEventListener('input', function () {
                 if (passwordInput.classList.contains('input-error')) {
                     validateField(passwordInput, passwordFeedback);
                 }
-                checkFormState();
+                checkStep2State();
             });
 
-            usernameInput.addEventListener('blur', function () { validateField(usernameInput, usernameFeedback); });
-            passwordInput.addEventListener('blur', function () { validateField(passwordInput, passwordFeedback); });
+            passwordInput.addEventListener('blur', function () {
+                if (passwordInput.value) {
+                    validateField(passwordInput, passwordFeedback);
+                }
+            });
 
-            setTimeout(checkFormState, 100);
+            // Password visibility toggle
+            togglePwdBtn.addEventListener('click', function () {
+                const isPassword = passwordInput.type === 'password';
+                passwordInput.type = isPassword ? 'text' : 'password';
+                eyeIcon.style.display = isPassword ? 'none' : 'block';
+                eyeOffIcon.style.display = isPassword ? 'block' : 'none';
+                togglePwdBtn.title = isPassword ? 'Hide password' : 'Show password';
+            });
 
-            // ── WebAuthn Passkey Flow ────────────────────────────────────────
+            // Form submission interceptor
+            loginForm.addEventListener('submit', function (e) {
+                if (currentStep === 1) {
+                    e.preventDefault();
+                    goToStep2();
+                    return;
+                }
+                if (!passwordInput.value) {
+                    e.preventDefault();
+                    validateField(passwordInput, passwordFeedback);
+                    passwordInput.focus();
+                    return;
+                }
+                // Save username before posting so error redirect restores it
+                try {
+                    sessionStorage.setItem('authenza_last_username', usernameInput.value.trim());
+                } catch (e) {}
 
-            // Show the passkey button only if the browser supports WebAuthn
-            if (window.PublicKeyCredential && WEBAUTHN_ENABLED) {
-                document.getElementById('passkeySection').style.display = 'block';
+                // Trigger smooth page loader & button spinner state
+                setBtnLoading(submitBtn, true, 'Signing in...');
+                showPageLoader('Authenticating credentials with');
+            });
+
+            // On initial page load: auto-restore if returning from failed password attempt
+            try {
+                const storedUser = sessionStorage.getItem('authenza_last_username');
+                if (HAS_ERROR && storedUser) {
+                    usernameInput.value = storedUser;
+                    goToStep2();
+                } else {
+                    checkStep1State();
+                }
+            } catch (e) {
+                checkStep1State();
             }
 
-            const passkeyBtn = document.getElementById('passkeyBtn');
-            const passkeyStatus = document.getElementById('passkeyStatus');
-
+            // ── WebAuthn Passkey Flow ────────────────────────────────────────
             function setPasskeyStatus(msg, type) {
                 passkeyStatus.textContent = msg;
                 passkeyStatus.className = 'passkey-status' + (type ? ' ' + type : '');
@@ -640,7 +1208,6 @@
             }
 
             // Serializes a PublicKeyCredential (assertion) to a plain JSON-safe object
-            // so it can be sent as a request body to the server.
             function credentialToJson(cred) {
                 return {
                     id: cred.id,
@@ -661,12 +1228,13 @@
                 const username = usernameInput.value.trim();
                 if (!username) {
                     setPasskeyStatus('Please enter your username or email first.', 'error');
-                    usernameInput.focus();
+                    goToStep1();
                     return;
                 }
 
                 passkeyBtn.disabled = true;
                 setPasskeyStatus('Starting passkey authentication…');
+                if (topLoaderBar) topLoaderBar.classList.add('active');
 
                 try {
                     // ── Step 1: Get assertion challenge from auth-iam-service ────
@@ -683,8 +1251,6 @@
                         throw new Error(err.message || 'Could not start passkey authentication.');
                     }
                     const startData = await startResp.json();
-                    // assertionRequest.toJson() wraps options inside publicKeyCredentialRequestOptions.
-                    // navigator.credentials.get() needs the inner object directly.
                     const assertionReq = JSON.parse(startData.data.credentialCreationOptions);
                     const options = assertionReq.publicKeyCredentialRequestOptions;
                     const requestId = startData.data.requestId;
@@ -700,8 +1266,6 @@
                             ...c, id: base64urlToUint8Array(c.id)
                         }));
                     } else {
-                        // No specific credentials — remove the field so the browser
-                        // shows all available passkeys (discoverable credential mode)
                         delete options.allowCredentials;
                     }
 
@@ -731,9 +1295,9 @@
                     const bridgeToken = finishData.data.bridgeToken;
 
                     // ── Step 4: Hand off to auth-server-core via bridge form POST ─
-                    // We use a hidden form submit (not fetch) so auth-server-core's
-                    // redirect response properly sets the session cookie in the browser.
                     setPasskeyStatus('Signing you in…', 'success');
+                    showPageLoader('Verifying passkey and signing into');
+
                     const form = document.createElement('form');
                     form.method = 'POST';
                     form.action = '/' + TENANT_ID + '/webauthn/bridge';
@@ -744,8 +1308,6 @@
                     tokenInput.value = bridgeToken;
                     form.appendChild(tokenInput);
 
-                    // Include the OAuth2 tx token so WebAuthn logins also benefit
-                    // from stateless context preservation after session expiry.
                     if (OAUTH_TX) {
                         const txInput = document.createElement('input');
                         txInput.type = 'hidden';
@@ -759,6 +1321,7 @@
 
                 } catch (err) {
                     console.error('[WebAuthn] Error:', err);
+                    if (topLoaderBar) topLoaderBar.classList.remove('active');
                     if (err.name === 'NotAllowedError') {
                         setPasskeyStatus('Passkey authentication was cancelled.', 'error');
                     } else {
