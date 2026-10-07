@@ -183,4 +183,22 @@ public class LoginController {
         model.addAttribute("errorCode", "TENANT_NOT_FOUND");
         return "error-page";
     }
+
+    @GetMapping("/error/tenant-suspended")
+    public String tenantSuspendedPage(
+            @RequestParam(name = "tenantId", required = false) String tenantId,
+            @RequestParam(name = "message", required = false) String message,
+            Model model) {
+        model.addAttribute("title", "Workspace Suspended");
+        model.addAttribute("error", "Workspace Suspended");
+        model.addAttribute("tenantId", tenantId);
+        model.addAttribute("message",
+                message != null ? message
+                        : (tenantId != null
+                            ? "The workspace '" + tenantId + "' is currently suspended or inactive. Please contact your organization administrator or support to restore access."
+                            : "This workspace is currently suspended or inactive. Please contact your organization administrator to restore access."));
+        model.addAttribute("errorCode", "TENANT_SUSPENDED");
+        model.addAttribute("status", 403);
+        return "error-page";
+    }
 }

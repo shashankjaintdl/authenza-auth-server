@@ -14,6 +14,7 @@ import java.util.concurrent.ConcurrentHashMap;
 public class TenantRoutingDataSource extends AbstractRoutingDataSource {
 
     private final Map<Object, Object> tenantDataSources = new ConcurrentHashMap<>();
+    private final Map<String, String> tenantStatuses = new ConcurrentHashMap<>();
 
     public TenantRoutingDataSource(@Qualifier("masterDataSource") DataSource masterDataSource) {
         // 1. Mandatory: Set an initial map to satisfy Spring's validation
@@ -33,13 +34,20 @@ public class TenantRoutingDataSource extends AbstractRoutingDataSource {
     }
 
     /**
-     * Dynamically adds a new tenant connection pool at runtime.
-     * Called when a tenant is identified for the first time or via the Master Service.
+     * Dynamically adds a new tenant connection pool at runtime with active status.
      */
-    public void addTenantDataSource(String tenantId, DataSource dataSource) {
+    public void addTenantDataSource(String tenantId, DataSource dataSource, String active) {
         this.tenantDataSources.put(tenantId, dataSource);
+        this.tenantStatuses.put(tenantId, active != null ? active : "ACTIVE");
         this.setTargetDataSources(new HashMap<>(this.tenantDataSources));
         this.afterPropertiesSet(); // Refresh the internal lookup map
+    }
+
+    /**
+     * Dynamically adds a new tenant connection pool at runtime defaulting to ACTIVE.
+     */
+    public void addTenantDataSource(String tenantId, DataSource dataSource) {
+        addTenantDataSource(tenantId, dataSource, "ACTIVE");
     }
 
     /**
@@ -47,5 +55,22 @@ public class TenantRoutingDataSource extends AbstractRoutingDataSource {
      */
     public boolean isKnownTenant(String tenantId) {
         return this.tenantDataSources.containsKey(tenantId);
+    }
+
+    /**
+     * Returns true if the tenant's status is ACTIVE.
+     */
+    public boolean isTenantActive(String tenantId) {
+        String status = tenantStatuses.get(tenantId);
+        return status != null && ("ACTIVE".equalsIgnoreCase(status) || "true".equalsIgnoreCase(status));
+    }
+
+    /**
+     * Updates the status of an existing tenant.
+     */
+    public void setTenantStatus(String tenantId, String status) {
+        if (tenantId != null && status != null) {
+            this.tenantStatuses.put(tenantId, status);
+        }
     }
 }

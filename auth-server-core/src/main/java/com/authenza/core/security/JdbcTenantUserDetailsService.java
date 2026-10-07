@@ -201,15 +201,16 @@ public class JdbcTenantUserDetailsService implements UserDetailsService {
                 || "PENDING_VERIFICATION".equalsIgnoreCase(effectiveStatus);
         boolean accountNonLocked = !"LOCKED".equalsIgnoreCase(effectiveStatus);
 
-        return User.builder()
-                .username(username)
-                .password(globalAccount.passwordHash)
-                .authorities(new ArrayList<>(authorities))
-                .disabled(!enabled)
-                .accountLocked(!accountNonLocked)
-                .accountExpired(false)
-                .credentialsExpired(false)
-                .build();
+        return new TenantUserDetails(
+                tenantId,
+                username,
+                globalAccount.passwordHash,
+                enabled,
+                true,
+                true,
+                accountNonLocked,
+                new ArrayList<>(authorities)
+        );
     }
 
     /**
@@ -274,15 +275,16 @@ public class JdbcTenantUserDetailsService implements UserDetailsService {
                 || "PENDING_VERIFICATION".equalsIgnoreCase(base.status);
         boolean accountNonLocked = !"LOCKED".equalsIgnoreCase(base.status);
 
-        return User.builder()
-                .username(base.username)
-                .password(resolvedPassword)
-                .authorities(new ArrayList<>(authorities))
-                .disabled(!enabled)
-                .accountLocked(!accountNonLocked)
-                .accountExpired(false)
-                .credentialsExpired(false)
-                .build();
+        return new TenantUserDetails(
+                tenantId,
+                base.username,
+                resolvedPassword,
+                enabled,
+                true,
+                true,
+                accountNonLocked,
+                new ArrayList<>(authorities)
+        );
     }
 
     /**

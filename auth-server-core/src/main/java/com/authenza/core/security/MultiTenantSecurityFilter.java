@@ -78,6 +78,16 @@ public class MultiTenantSecurityFilter extends OncePerRequestFilter {
                 return;
             }
 
+            // Validate that this tenant is currently active
+            if (!routingDataSource.isTenantActive(tenantId)) {
+                String message = URLEncoder.encode(
+                        "The workspace '" + tenantId + "' is currently suspended or inactive. Please contact your organization administrator or support to restore access.",
+                        StandardCharsets.UTF_8);
+                response.sendRedirect("/error/tenant-suspended?tenantId=" + URLEncoder.encode(tenantId, StandardCharsets.UTF_8)
+                        + "&message=" + message);
+                return;
+            }
+
             // 1. Set DB Context (for your RoutingDataSource/Hibernate)
             TenantContextHolder.setTenantId(tenantId);
 

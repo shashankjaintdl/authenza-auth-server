@@ -33,14 +33,15 @@ public class TenantLoaderService {
     @org.springframework.core.annotation.Order(org.springframework.core.Ordered.HIGHEST_PRECEDENCE)
     public void loadAllTenantsOnStartup() {
         JdbcTemplate jdbcTemplate = new JdbcTemplate(masterDataSource);
-        String sql = "SELECT tenant_id, jdbc_url, username, encrypted_password, driver_class_name FROM tenants";
+        String sql = "SELECT tenant_id, jdbc_url, username, encrypted_password, driver_class_name, active FROM tenants";
 
         List<TenantConfig> tenants = jdbcTemplate.query(sql, (rs, rowNum) -> new TenantConfig(
                 rs.getString("tenant_id"),
                 rs.getString("jdbc_url"),
                 rs.getString("username"),
                 rs.getString("encrypted_password"),
-                rs.getString("driver_class_name")
+                rs.getString("driver_class_name"),
+                rs.getString("active")
         ));
 
         tenants.forEach(this::registerTenantDataSource);
@@ -69,8 +70,7 @@ public class TenantLoaderService {
 
         HikariDataSource ds = new HikariDataSource(hikariConfig);
 
-        // Register it in the Dynamic Routing DataSource
-        routingDataSource.addTenantDataSource(config.tenantId(), ds);
+        // Register it in the Dynamic Routing DataSource with active status
+        routingDataSource.addTenantDataSource(config.tenantId(), ds, config.active());
     }
 }
-
