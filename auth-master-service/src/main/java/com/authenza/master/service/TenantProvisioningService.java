@@ -100,16 +100,20 @@ public class TenantProvisioningService {
         String resolvedUsername = finalRequest.username();
         String resolvedPassword = finalRequest.password();
         String resolvedDriver = finalRequest.driver();
-        String resolvedDbType = finalRequest.dbType() != null ? finalRequest.dbType().getValue() : com.authenza.common.enums.DBType.MYSQL.getValue();
+        com.authenza.common.enums.DBType resolvedDbTypeEnum = finalRequest.dbType() != null
+                ? finalRequest.dbType()
+                : com.authenza.common.enums.DBType.MYSQL;
+        String resolvedDbType = resolvedDbTypeEnum.getValue();
 
         if (resolvedJdbcUrl == null || resolvedJdbcUrl.isBlank()) {
             log.info("No DB credentials provided for tenant '{}'. Falling back to default platform database provisioning.", finalRequest.tenantId());
             resolvedUsername = masterDbUsername;
             resolvedPassword = masterDbPassword;
             resolvedDriver = masterDbDriver;
-            resolvedDbType = com.authenza.common.enums.DBType.MYSQL.getValue();
-            
-            // Extract base url from master database. 
+            resolvedDbTypeEnum = com.authenza.common.enums.DBType.MYSQL;
+            resolvedDbType = resolvedDbTypeEnum.getValue();
+
+            // Extract base url from master database.
             // e.g. from jdbc:mysql://localhost:3306/auth-master?createDatabaseIfNotExist=true
             // to   jdbc:mysql://localhost:3306/my_new_tenant?createDatabaseIfNotExist=true
             int lastSlash = masterDbUrl.lastIndexOf("/");
@@ -117,6 +121,15 @@ public class TenantProvisioningService {
             int qMark = masterDbUrl.indexOf("?", lastSlash);
             String options = qMark != -1 ? masterDbUrl.substring(qMark) : "";
             resolvedJdbcUrl = base + "/" + finalRequest.tenantId() + options;
+        }
+
+        // Auto-resolve driver class if not supplied by the caller.
+        // This allows tenants to register with just a jdbcUrl + dbType without
+        // knowing the internal JDBC driver class name.
+        if (resolvedDriver == null || resolvedDriver.isBlank()) {
+            resolvedDriver = resolvedDbTypeEnum.getDefaultDriver();
+            log.info("Driver not specified for tenant '{}'. Auto-resolved to '{}' for engine '{}'.",
+                    finalRequest.tenantId(), resolvedDriver, resolvedDbType);
         }
 
         // 1. Create the Tenant Domain Object
@@ -254,15 +267,17 @@ public class TenantProvisioningService {
             String fullName = trim(account.getGivenName()) + " " + trim(account.getFamilyName());
 
             // Insert shadow user — password uses sentinel value [GLOBAL_ACCOUNT]
+            // ANSI CURRENT_TIMESTAMP is used (vs MySQL-only NOW()) for cross-engine compatibility.
             jdbc.update("""
                 INSERT INTO application_user
                     (preferred_username, email, given_name, family_name, name,
                      password, status, email_verified, mfa_enabled,
                      phone_number_verified, failed_login_attempts, created_at)
-                VALUES (?, ?, ?, ?, ?, '[GLOBAL_ACCOUNT]', 'ACTIVE', true, false, false, 0, NOW())
+                VALUES (?, ?, ?, ?, ?, '[GLOBAL_ACCOUNT]', 'ACTIVE', ?, ?, ?, 0, CURRENT_TIMESTAMP)
                 """,
                 email, email,
-                account.getGivenName(), account.getFamilyName(), fullName.trim()
+                account.getGivenName(), account.getFamilyName(), fullName.trim(),
+                Boolean.TRUE, Boolean.FALSE, Boolean.FALSE
             );
 
             // Get the newly created user's ID

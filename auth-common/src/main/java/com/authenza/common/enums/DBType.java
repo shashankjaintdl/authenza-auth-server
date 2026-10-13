@@ -4,51 +4,58 @@ import org.springframework.util.StringUtils;
 
 public enum DBType {
 
-    MYSQL("MYSQL"),
-    ORACLE("ORACLE"),
-    POSTGRES_SQL("POSTGRES"),
-    MARIA_DB("MARIADB"),
-    MICROSOFT_SQL("MSSQL"),
-    IBM_DB2("IBMDB2");
+    MYSQL("MYSQL", "com.mysql.cj.jdbc.Driver"),
+    ORACLE("ORACLE", "oracle.jdbc.OracleDriver"),
+    POSTGRES_SQL("POSTGRES", "org.postgresql.Driver"),
+    MARIA_DB("MARIADB", "org.mariadb.jdbc.Driver"),
+    MICROSOFT_SQL("MSSQL", "com.microsoft.sqlserver.jdbc.SQLServerDriver"),
+    IBM_DB2("IBMDB2", "com.ibm.db2.jcc.DB2Driver");
 
     private final String value;
+    private final String defaultDriver;
 
-    DBType(String value){
+    DBType(String value, String defaultDriver) {
         this.value = value;
+        this.defaultDriver = defaultDriver;
     }
 
-    public String getValue(){
+    public String getValue() {
         return this.value;
     }
 
-    public static DBType parse(final String s) throws IllegalArgumentException{
+    public String getDefaultDriver() {
+        return this.defaultDriver;
+    }
 
-        if (!StringUtils.hasText(s)){
+    public static DBType parse(final String s) throws IllegalArgumentException {
+        if (!StringUtils.hasText(s)) {
             throw new IllegalArgumentException("DBType value must not be null or empty");
         }
 
-        if (s.equals(DBType.ORACLE.getValue())){
-            return ORACLE;
+        String normalized = s.trim().toUpperCase().replace("-", "_").replace(" ", "_");
+
+        for (DBType type : values()) {
+            if (type.value.equalsIgnoreCase(normalized) || type.name().equalsIgnoreCase(normalized)) {
+                return type;
+            }
         }
 
-        if (s.equals(DBType.POSTGRES_SQL.getValue())){
+        if (normalized.contains("POSTGRES")) {
             return POSTGRES_SQL;
         }
-
-        if (s.equals(DBType.MARIA_DB.getValue())){
+        if (normalized.contains("MARIA")) {
             return MARIA_DB;
         }
-
-        if (s.equals(DBType.MICROSOFT_SQL.getValue())){
+        if (normalized.contains("ORACLE")) {
+            return ORACLE;
+        }
+        if (normalized.contains("SQLSERVER") || normalized.contains("MSSQL")) {
             return MICROSOFT_SQL;
         }
-
-        if (s.equals(DBType.IBM_DB2.getValue())){
+        if (normalized.contains("DB2")) {
             return IBM_DB2;
         }
 
         return MYSQL;
-
     }
-
 }

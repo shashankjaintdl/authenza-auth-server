@@ -19,7 +19,6 @@ import com.authenza.iam.model.EmailVerificationToken;
 import com.authenza.iam.repository.UserRepository;
 import com.authenza.iam.repository.RoleRepository;
 import com.authenza.iam.repository.EmailVerificationTokenRepository;
-import com.authenza.common.model.iam.Role;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -88,6 +87,7 @@ public class UserService {
         user.setFailedLoginAttempts(0);
         user.setMfaEnabled(false);
         user.setCreatedAt(Instant.now());
+        user.setRequiresPasswordChange(false);
 
         // Assign correct Role based on the Tenant Context
         // String targetRoleName = tenantId.equals("system-admin") ? "ROLE_SYSTEM_ADMIN"

@@ -51,7 +51,7 @@ public class SessionService {
                 SELECT id, device_name, ip_address, user_agent, created_at, last_active_at
                 FROM   user_session
                 WHERE  user_id  = ?
-                  AND  revoked  = false
+                  AND  revoked  = ?  -- parameterized boolean: false on MySQL=0, Postgres=false
                   AND  (expires_at IS NULL OR expires_at > CURRENT_TIMESTAMP)
                 ORDER  BY created_at DESC
                 """;
@@ -69,7 +69,8 @@ public class SessionService {
                             ? rs.getTimestamp("last_active_at").toInstant() : null);
                     return s;
                 },
-                userId);
+                userId,
+                Boolean.FALSE); // cross-engine boolean parameter
     }
 
     // ─────────────────────────────────────────────
@@ -93,7 +94,7 @@ public class SessionService {
                 SELECT authorization_id, expires_at FROM user_session
                 WHERE  id      = ?
                   AND  user_id = ?
-                  AND  revoked = false
+                  AND  revoked = ?  -- parameterized boolean
                 """;
 
         var rows = jdbcTemplate.query(fetchSql,
@@ -101,7 +102,7 @@ public class SessionService {
                         rs.getString("authorization_id"),
                         rs.getTimestamp("expires_at")
                 },
-                sessionId, userId);
+                sessionId, userId, Boolean.FALSE); // cross-engine boolean parameter
 
         if (rows.isEmpty()) {
             throw new ResourceNotFoundException(
@@ -111,10 +112,10 @@ public class SessionService {
         String authorizationId = (String) rows.get(0)[0];
         java.sql.Timestamp expiresAt = (java.sql.Timestamp) rows.get(0)[1];
 
-        // Mark session as revoked
+        // Mark session as revoked — CURRENT_TIMESTAMP is ANSI standard (MySQL + Postgres)
         jdbcTemplate.update(
-                "UPDATE user_session SET revoked = true, revoked_at = ?, authorization_id = NULL WHERE id = ?",
-                java.sql.Timestamp.from(Instant.now()), sessionId);
+                "UPDATE user_session SET revoked = ?, revoked_at = ?, authorization_id = NULL WHERE id = ?",
+                Boolean.TRUE, java.sql.Timestamp.from(Instant.now()), sessionId);
 
         // Delete the OAuth2 authorization to block refresh-token reuse.
         // NOTE: We clear authorization_id BEFORE this delete so that the JWT
@@ -147,14 +148,14 @@ public class SessionService {
     public int revokeAllSessions(Long userId) {
         // Collect active session IDs and authorization IDs before revoking
         var rows = jdbcTemplate.query(
-                "SELECT id, authorization_id FROM user_session WHERE user_id = ? AND revoked = false",
+                "SELECT id, authorization_id FROM user_session WHERE user_id = ? AND revoked = ?",
                 (rs, rowNum) -> new Object[]{rs.getLong("id"), rs.getString("authorization_id")},
-                userId);
+                userId, Boolean.FALSE); // cross-engine boolean parameter
 
         // Mark all revoked
         int count = jdbcTemplate.update(
-                "UPDATE user_session SET revoked = true, revoked_at = ? WHERE user_id = ? AND revoked = false",
-                java.sql.Timestamp.from(Instant.now()), userId);
+                "UPDATE user_session SET revoked = ?, revoked_at = ? WHERE user_id = ? AND revoked = ?",
+                Boolean.TRUE, java.sql.Timestamp.from(Instant.now()), userId, Boolean.FALSE);
 
         for (Object[] row : rows) {
             Long sid = (Long) row[0];

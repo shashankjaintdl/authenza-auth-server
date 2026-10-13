@@ -357,10 +357,11 @@ public class AuthorizationServerConfig {
                                         context.getClaims().claim("tenant_id", tenantId);
                                 }
 
-                                // Bake the requires_password_change flag into the JWT
+                                // Bake the requires_password_change flag into the JWT.
+                                // No SQL LIMIT — unique constraint guarantees at most one row.
                                 boolean requiresPasswordChange = false;
                                 java.util.List<Boolean> pwdChangeResult = jdbcTemplate.query(
-                                                "SELECT requires_password_change FROM application_user WHERE preferred_username = ? OR email = ? LIMIT 1",
+                                                "SELECT requires_password_change FROM application_user WHERE preferred_username = ? OR email = ?",
                                                 (rs, rowNum) -> rs.getBoolean("requires_password_change"),
                                                 principal.getName(), principal.getName());
                                 if (!pwdChangeResult.isEmpty()) {
@@ -383,25 +384,28 @@ public class AuthorizationServerConfig {
                                                 if (context.getAuthorization() != null
                                                                 && context.getAuthorization().getId() != null) {
                                                         String authId = context.getAuthorization().getId();
-                                                        // Link to the most recent un-linked, non-revoked session for this user.
-                                                        // The revoked = false guard prevents a revoked session from being
-                                                        // re-linked during a silent re-auth, which would embed a blacklisted
-                                                        // session_id into the fresh JWT and cause an immediate 401.
-                                                        jdbcTemplate.update(
-                                                                        "UPDATE user_session SET authorization_id = ? "
-                                                                                        +
-                                                                                        "WHERE user_id = ? AND authorization_id IS NULL AND revoked = false "
-                                                                                        +
-                                                                                        "ORDER BY last_active_at DESC, created_at DESC LIMIT 1",
-                                                                        authId, userId);
+                                                        // Link to the most recent un-linked, non-revoked session.
+                                                        // ANSI-compatible: SELECT the target id first, then UPDATE by id.
+                                                        // Avoids MySQL-only UPDATE...ORDER BY...LIMIT syntax.
+                                                        java.util.List<Long> unlinkIds = jdbcTemplate.query(
+                                                                        "SELECT id FROM user_session " +
+                                                                        "WHERE user_id = ? AND authorization_id IS NULL AND revoked = ? " +
+                                                                        "ORDER BY last_active_at DESC, created_at DESC LIMIT 1",
+                                                                        (rs, rowNum) -> rs.getLong("id"),
+                                                                        userId, Boolean.FALSE);
+                                                        if (!unlinkIds.isEmpty()) {
+                                                                jdbcTemplate.update(
+                                                                                "UPDATE user_session SET authorization_id = ? WHERE id = ?",
+                                                                                authId, unlinkIds.get(0));
+                                                        }
 
-                                                        // Embed session_id into the JWT so the resource server
-                                                        // can blacklist it on revocation for immediate logout.
-                                                        // Only select non-revoked sessions to ensure the claim
-                                                        // is never set to an already-blacklisted session ID.
-                                                        java.util.List<Long> sessionIds = jdbcTemplate.queryForList(
-                                                                        "SELECT id FROM user_session WHERE authorization_id = ? AND user_id = ? AND revoked = false ORDER BY last_active_at DESC, created_at DESC LIMIT 1",
-                                                                        Long.class, authId, userId);
+                                                        // Embed session_id into the JWT for blacklist-based revocation.
+                                                        java.util.List<Long> sessionIds = jdbcTemplate.query(
+                                                                        "SELECT id FROM user_session " +
+                                                                        "WHERE authorization_id = ? AND user_id = ? AND revoked = ? " +
+                                                                        "ORDER BY last_active_at DESC, created_at DESC LIMIT 1",
+                                                                        (rs, rowNum) -> rs.getLong("id"),
+                                                                        authId, userId, Boolean.FALSE);
                                                         if (!sessionIds.isEmpty()) {
                                                                 context.getClaims().claim("session_id",
                                                                                 sessionIds.get(0).toString());

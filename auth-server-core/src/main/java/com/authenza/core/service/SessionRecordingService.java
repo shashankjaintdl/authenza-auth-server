@@ -78,7 +78,7 @@ public class SessionRecordingService {
                     WHERE  user_id    = ?
                       AND  ip_address = ?
                       AND  user_agent = ?
-                      AND  revoked    = false
+                      AND  revoked    = ?
                       AND  expires_at > ?
                     ORDER  BY last_active_at DESC
                     LIMIT  1
@@ -89,6 +89,7 @@ public class SessionRecordingService {
                     userId,
                     truncate(ipAddress, 100),
                     truncate(userAgent, 500),
+                    Boolean.FALSE,                        // cross-engine boolean parameter
                     java.sql.Timestamp.from(Instant.now()));
 
             if (!rows.isEmpty()) {
