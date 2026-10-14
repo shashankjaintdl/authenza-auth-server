@@ -390,7 +390,7 @@ public class AuthorizationServerConfig {
                                                         java.util.List<Long> unlinkIds = jdbcTemplate.query(
                                                                         "SELECT id FROM user_session " +
                                                                         "WHERE user_id = ? AND authorization_id IS NULL AND revoked = ? " +
-                                                                        "ORDER BY last_active_at DESC, created_at DESC LIMIT 1",
+                                                                        "ORDER BY last_active_at DESC, created_at DESC",
                                                                         (rs, rowNum) -> rs.getLong("id"),
                                                                         userId, Boolean.FALSE);
                                                         if (!unlinkIds.isEmpty()) {
@@ -403,7 +403,7 @@ public class AuthorizationServerConfig {
                                                         java.util.List<Long> sessionIds = jdbcTemplate.query(
                                                                         "SELECT id FROM user_session " +
                                                                         "WHERE authorization_id = ? AND user_id = ? AND revoked = ? " +
-                                                                        "ORDER BY last_active_at DESC, created_at DESC LIMIT 1",
+                                                                        "ORDER BY last_active_at DESC, created_at DESC",
                                                                         (rs, rowNum) -> rs.getLong("id"),
                                                                         authId, userId, Boolean.FALSE);
                                                         if (!sessionIds.isEmpty()) {

@@ -212,5 +212,40 @@ Each service has its own `application.yaml` under `src/main/resources/`. Key pro
 
 ---
 
+## 🗄️ BYOD Tenant Databases
+
+Customers can bring their own database for a tenant. Supported engines (GA):
+
+| `dbType` | Example JDBC URL |
+|----------|------------------|
+| `MYSQL` | `jdbc:mysql://db.example.com:3306/acme_auth` |
+| `POSTGRES` | `jdbc:postgresql://db.example.com:5432/acme_auth` |
+| `MARIADB` | `jdbc:mariadb://db.example.com:3306/acme_auth` |
+
+**Hosted default (unchanged):** omit `jdbcUrl` on `POST /api/v1/admin/tenant` and Authenza provisions a MySQL database on the platform host.
+
+**Preflight (non-mutating):**
+
+```http
+POST /api/v1/admin/tenant/validate-db
+Content-Type: application/json
+
+{
+  "dbType": "POSTGRES",
+  "jdbcUrl": "jdbc:postgresql://db.example.com:5432/acme_auth",
+  "username": "acme_user",
+  "password": "***"
+}
+```
+
+Oracle / MSSQL / IBM DB2 are rejected with `400 UNSUPPORTED_ENGINE`.
+
+Design & implementation checklist:
+
+- [docs/byod_and_portal_tenant_context_design.md](docs/byod_and_portal_tenant_context_design.md)
+- [docs/byod_and_portal_tenant_context_implementation.md](docs/byod_and_portal_tenant_context_implementation.md)
+
+---
+
 *For full architecture details see [ROADMAP.md](ROADMAP.md) · For sprint progress see [SPRINTS.md](SPRINTS.md)*
 

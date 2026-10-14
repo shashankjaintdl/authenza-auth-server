@@ -1,5 +1,7 @@
 package com.authenza.common.enums;
 
+import com.fasterxml.jackson.annotation.JsonCreator;
+import com.fasterxml.jackson.annotation.JsonValue;
 import org.springframework.util.StringUtils;
 
 public enum DBType {
@@ -19,12 +21,26 @@ public enum DBType {
         this.defaultDriver = defaultDriver;
     }
 
+    @JsonValue
     public String getValue() {
         return this.value;
     }
 
     public String getDefaultDriver() {
         return this.defaultDriver;
+    }
+
+    @JsonCreator
+    public static DBType fromJson(String value) {
+        return parse(value);
+    }
+
+    /**
+     * Engines supported for customer BYOD tenant databases (GA).
+     * Oracle / MSSQL / DB2 remain in the enum but are rejected at provision time.
+     */
+    public boolean isByodSupported() {
+        return this == MYSQL || this == POSTGRES_SQL || this == MARIA_DB;
     }
 
     public static DBType parse(final String s) throws IllegalArgumentException {

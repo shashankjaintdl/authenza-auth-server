@@ -72,6 +72,7 @@ public class SessionRecordingService {
         // Using a 24-hour window avoids matching ancient stale rows while still
         // coalescing repeated logins during a normal work session.
         try {
+            // No SQL LIMIT — take first row in Java for MySQL/Postgres/MariaDB portability.
             String existingSql = """
                     SELECT id, session_token
                     FROM   user_session
@@ -81,7 +82,6 @@ public class SessionRecordingService {
                       AND  revoked    = ?
                       AND  expires_at > ?
                     ORDER  BY last_active_at DESC
-                    LIMIT  1
                     """;
 
             var rows = jdbcTemplate.query(existingSql,

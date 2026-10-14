@@ -46,6 +46,20 @@ app:
     authentication-methods: client_secret_basic
     require-consent: false
     require-proof-key: false
+  # Public SPA client for Tenant Portal (Auth Code + PKCE). Matches portal env clientId: oidc-client.
+  oidc-portal-client:
+    enabled: true
+    client-id: oidc-client
+    client-name: "Tenant Portal OIDC Client"
+    tenant-id: GLOBAL
+    settings-tenant-id: GLOBAL
+    scopes: openid,profile,offline_access,authenza:tenant:admin
+    redirect-uris: http://localhost:4200/login/callback,http://127.0.0.1:4200/login/callback
+    post-logout-redirect-uris: http://localhost:4200/,http://127.0.0.1:4200/
+    grant-types: authorization_code,refresh_token
+    authentication-methods: none
+    require-consent: false
+    require-proof-key: true
   brute-force:
     # Lock account after this many consecutive failed login attempts
     max-attempts: 5

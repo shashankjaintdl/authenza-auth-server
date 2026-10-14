@@ -1,0 +1,61 @@
+plugins {
+    id 'org.springframework.boot'
+    id 'io.spring.dependency-management'
+    id 'java'
+}
+
+// Since auth-e2e-tests is a test-only project, we do not want to package it as an executable jar
+bootJar {
+    enabled = false
+}
+jar {
+    enabled = true
+}
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    // Spring Boot Test brings in the exact matching JUnit 5 version automatically
+    testImplementation 'org.springframework.boot:spring-boot-starter-test'
+
+    // Playwright Java SDK
+    testImplementation 'com.microsoft.playwright:playwright:1.42.0'
+}
+
+test {
+    useJUnitPlatform()
+    testLogging {
+        events "passed", "skipped", "failed"
+    }
+    // Auto-generate custom HTML dashboard after each test run
+    finalizedBy 'generateE2EReport'
+}
+
+// ── Custom E2E Dashboard Report Generator ──────────────────────────────────
+task generateE2EReport {
+    group = 'verification'
+    description = 'Generates the custom dark-themed E2E HTML dashboard from JUnit XML results'
+
+    dependsOn test
+
+    doLast {
+        def groovyScript = file("${projectDir}/generate-report.groovy")
+        if (!groovyScript.exists()) {
+            logger.warn("generate-report.groovy not found — skipping dashboard generation")
+            return
+        }
+
+        // Invoke the Groovy script using the Groovy shell embedded in Gradle
+        def binding = new Binding()
+        binding.setVariable("args", [projectDir.absolutePath])
+        def shell = new GroovyShell(binding)
+        shell.evaluate(groovyScript)
+
+        def dashboardFile = file("${buildDir}/reports/tests/dashboard/dashboard.html")
+        if (dashboardFile.exists()) {
+            logger.lifecycle("\n🚀 E2E Dashboard → file://${dashboardFile.absolutePath}\n")
+        }
+    }
+}

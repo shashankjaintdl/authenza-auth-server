@@ -109,7 +109,7 @@
 | WebAuthn bridge flow (`auth-server-core` → OIDC completion via bridge token) | ✅ Done |
 | **Full OIDC flow integration (passkey assertion → auth code grant without password)** | ⬜ Not Started *(TODO)* |
 
-### Sprint 10 — Session & Login Hardening 🔄
+### Sprint 10 — Session & Login Hardening ✅ *(recent)*
 
 | Task | Status |
 |------|--------|
@@ -170,6 +170,7 @@
 | Role-gate `PUT /api/v1/settings/mfa-policy` to `TENANT_ADMIN` | ⬜ Not Started |
 | Angular Route Guard (`admin.guard`) for dashboard/users/settings | ⬜ Not Started |
 | Auth Server client access control (block non-admin token issuance) | ⬜ Not Started |
+| Authentication → Database read-only page (hosted vs BYOD status) | ⬜ Not Started |
 
 ### Sprint 14 — Tenant Branding & Feature Toggles ⬜
 
@@ -206,8 +207,12 @@
 
 | Task | Status |
 |------|--------|
-| Production DB separation (`system-admin` isolated DB) | ⬜ Not Started |
+| Rename platform tenant `system-admin` → `platform` (before prod customers) | ⬜ Not Started |
+| Production DB separation (`platform` isolated DB) | ⬜ Not Started |
 | Liquibase `initialization/` vs `migration/` split | ⬜ Not Started |
+| Tenant settings page (safe edit + deactivate/activate APIs) | 🔄 In Progress |
+| Async tenant provision job + real Liquibase progress (status/SSE) | ⬜ Not Started *(backlog — after create p95 >10–15s)* |
+| Database Connections (Auth0-style multi-store + per-app enable) | ⬜ Not Started |
 | Federated Identity / Identity Brokering (Google, GitHub, Entra ID SSO) | ⬜ Not Started |
 | Tenant Admin Dashboard APIs (all IAM routes ready) | ✅ Done *(UserController, TenantSettingsController)* |
 | Unified Audit Logging Framework | ⬜ Not Started |
@@ -236,6 +241,7 @@
 | Task | Status |
 |------|--------|
 | `docker-compose.yml` — "Authenza In A Box" local dev setup | ⬜ Not Started |
+| First-run platform setup wizard (Keycloak-style super-admin, once) | ⬜ Not Started |
 | Asynchronous Event Webhooks (`USER_REGISTERED`, `PASSWORD_CHANGED`) | ⬜ Not Started |
 | Synchronous Logic Webhooks (pre-login `ALLOW`/`DENY` hooks) | ⬜ Not Started |
 | Custom Claims Providers (HTTP hook during token minting) | ⬜ Not Started |
@@ -279,6 +285,7 @@
 | Task | Status |
 |------|--------|
 | Unified Multi-Session Management (Google-style account switcher) | ⬜ Not Started |
+| Silent Cross-Tenant SSO (`AUTO_LOGIN` via `G_SESSIONID` root cookie) | ⬜ Not Started |
 | Global Identity Mapping Registry (master DB) | ⬜ Not Started |
 | Cross-Tenant Account Discovery (privacy-preserving) | ⬜ Not Started |
 | Global Logout (invalidate all sessions across tenants) | ⬜ Not Started |

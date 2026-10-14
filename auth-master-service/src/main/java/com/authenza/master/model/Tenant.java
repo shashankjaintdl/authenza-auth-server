@@ -78,6 +78,12 @@ public class Tenant {
         this.driverClassName = driverClassName;
     }
 
+    /** Jackson / API field {@code active}. */
+    public String getActive() {
+        return active;
+    }
+
+    /** Legacy accessor kept for existing callers. */
     public String isActive() {
         return active;
     }
