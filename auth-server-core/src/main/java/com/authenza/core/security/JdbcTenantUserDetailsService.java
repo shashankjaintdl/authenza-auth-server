@@ -60,12 +60,14 @@ public class JdbcTenantUserDetailsService implements UserDetailsService {
     // ── SQL: Step 1 — Resolve centralized credentials + validate tenant membership ──
     // Matches the user's email against global_accounts and confirms they have
     // an active tenant_memberships row for the current tenant.
+    // NOTE: No LIMIT clause — the JOIN on (email, tenant_id) uniqueness guarantees
+    //       at most one row. Dropping LIMIT makes this ANSI-compatible across
+    //       MySQL and PostgreSQL without any dialect branching.
     private static final String GLOBAL_ACCOUNT_MEMBERSHIP_QUERY =
             "SELECT ga.id AS global_id, ga.email, ga.password_hash, ga.status AS global_status " +
                     "FROM global_accounts ga " +
                     "INNER JOIN tenant_memberships tm ON ga.id = tm.account_id " +
-                    "WHERE ga.email = ? AND tm.tenant_id = ? " +
-                    "LIMIT 1";
+                    "WHERE ga.email = ? AND tm.tenant_id = ?";
 
     // ── SQL: Step 2a — Load tenant RBAC + per-account state for a global user ──
     // Password is intentionally excluded here — it comes from global_accounts.
@@ -201,15 +203,16 @@ public class JdbcTenantUserDetailsService implements UserDetailsService {
                 || "PENDING_VERIFICATION".equalsIgnoreCase(effectiveStatus);
         boolean accountNonLocked = !"LOCKED".equalsIgnoreCase(effectiveStatus);
 
-        return User.builder()
-                .username(username)
-                .password(globalAccount.passwordHash)
-                .authorities(new ArrayList<>(authorities))
-                .disabled(!enabled)
-                .accountLocked(!accountNonLocked)
-                .accountExpired(false)
-                .credentialsExpired(false)
-                .build();
+        return new TenantUserDetails(
+                tenantId,
+                username,
+                globalAccount.passwordHash,
+                enabled,
+                true,
+                true,
+                accountNonLocked,
+                new ArrayList<>(authorities)
+        );
     }
 
     /**
@@ -255,8 +258,10 @@ public class JdbcTenantUserDetailsService implements UserDetailsService {
         // until those records are migrated to a formal tenant_membership row.
         String resolvedPassword = base.password;
         if ("[GLOBAL_ACCOUNT]".equals(resolvedPassword)) {
+            // No SQL LIMIT — email has a UNIQUE constraint on global_accounts.
+            // Java-level first-result read is cross-engine compatible.
             List<String> globalPwd = masterJdbcTemplate.query(
-                    "SELECT password_hash FROM global_accounts WHERE email = ? LIMIT 1",
+                    "SELECT password_hash FROM global_accounts WHERE email = ?",
                     (rs, i) -> rs.getString("password_hash"),
                     username);
             if (globalPwd.isEmpty()) {
@@ -274,15 +279,16 @@ public class JdbcTenantUserDetailsService implements UserDetailsService {
                 || "PENDING_VERIFICATION".equalsIgnoreCase(base.status);
         boolean accountNonLocked = !"LOCKED".equalsIgnoreCase(base.status);
 
-        return User.builder()
-                .username(base.username)
-                .password(resolvedPassword)
-                .authorities(new ArrayList<>(authorities))
-                .disabled(!enabled)
-                .accountLocked(!accountNonLocked)
-                .accountExpired(false)
-                .credentialsExpired(false)
-                .build();
+        return new TenantUserDetails(
+                tenantId,
+                base.username,
+                resolvedPassword,
+                enabled,
+                true,
+                true,
+                accountNonLocked,
+                new ArrayList<>(authorities)
+        );
     }
 
     /**
@@ -341,9 +347,10 @@ public class JdbcTenantUserDetailsService implements UserDetailsService {
         // An orphan secret (mfa_secret IS NOT NULL but mfa_enabled = false) is from an
         // abandoned setup and must NOT block login — it will be cleaned up on next
         // successful non-MFA login via clearOrphanMfaSecret().
+        // No SQL LIMIT — unique constraint on preferred_username/email guarantees at most 1 row.
         List<Boolean> result = jdbcTemplate.query(
                 "SELECT mfa_enabled AS required " +
-                        "FROM application_user WHERE preferred_username = ? OR email = ? LIMIT 1",
+                        "FROM application_user WHERE preferred_username = ? OR email = ?",
                 (rs, rowNum) -> rs.getBoolean("required"),
                 username, username);
         boolean userMfa = !result.isEmpty() && Boolean.TRUE.equals(result.get(0));
@@ -380,9 +387,11 @@ public class JdbcTenantUserDetailsService implements UserDetailsService {
      * @return {@code true} if the user has a confirmed, active TOTP enrollment
      */
     public boolean isMfaFullyEnrolled(String username) {
+        // No SQL LIMIT — unique constraint guarantees at most one row.
+        // Use rs.getBoolean() which maps TINYINT(1) on MySQL and BOOLEAN on Postgres uniformly.
         List<Boolean> result = jdbcTemplate.query(
-                "SELECT (mfa_enabled = true AND mfa_secret IS NOT NULL) AS enrolled " +
-                        "FROM application_user WHERE preferred_username = ? OR email = ? LIMIT 1",
+                "SELECT (mfa_enabled AND mfa_secret IS NOT NULL) AS enrolled " +
+                        "FROM application_user WHERE preferred_username = ? OR email = ?",
                 (rs, rowNum) -> rs.getBoolean("enrolled"),
                 username, username);
         return !result.isEmpty() && Boolean.TRUE.equals(result.get(0));
@@ -396,8 +405,11 @@ public class JdbcTenantUserDetailsService implements UserDetailsService {
      * since password-change enforcement is a tenant-scoped policy.
      */
     public boolean isPasswordChangeRequired(String username) {
+        // No LIMIT in SQL — query returns 0 or 1 row due to UNIQUE constraint on
+        // preferred_username/email. Reading only the first result in Java is
+        // cross-engine compatible (MySQL, PostgreSQL, MariaDB).
         List<Boolean> result = jdbcTemplate.query(
-                "SELECT requires_password_change FROM application_user WHERE preferred_username = ? OR email = ? LIMIT 1",
+                "SELECT requires_password_change FROM application_user WHERE preferred_username = ? OR email = ?",
                 (rs, rowNum) -> rs.getBoolean("requires_password_change"),
                 username, username);
         return !result.isEmpty() && Boolean.TRUE.equals(result.get(0));
@@ -470,8 +482,10 @@ public class JdbcTenantUserDetailsService implements UserDetailsService {
      * @return the AES-encrypted secret string, or {@code null} if not set
      */
     public String loadMfaSecret(String username) {
+        // No SQL LIMIT — unique constraint guarantees at most one row.
+        // Java-level first-result read is cross-engine compatible.
         List<String> result = jdbcTemplate.query(
-                "SELECT mfa_secret FROM application_user WHERE preferred_username = ? OR email = ? LIMIT 1",
+                "SELECT mfa_secret FROM application_user WHERE preferred_username = ? OR email = ?",
                 (rs, rowNum) -> rs.getString("mfa_secret"),
                 username, username);
         return result.isEmpty() ? null : result.get(0);
@@ -492,8 +506,10 @@ public class JdbcTenantUserDetailsService implements UserDetailsService {
      * @return the user's local {@code application_user.id}, or {@code null} if not found
      */
     public Long loadUserId(String username) {
+        // No SQL LIMIT — unique constraint guarantees at most one row.
+        // Java-level first-result read is cross-engine compatible.
         List<Long> result = jdbcTemplate.query(
-                "SELECT id FROM application_user WHERE preferred_username = ? OR email = ? LIMIT 1",
+                "SELECT id FROM application_user WHERE preferred_username = ? OR email = ?",
                 (rs, rowNum) -> rs.getLong("id"),
                 username, username);
         return result.isEmpty() ? null : result.get(0);

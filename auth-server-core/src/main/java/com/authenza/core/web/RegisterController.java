@@ -41,7 +41,10 @@ public class RegisterController {
      * Renders the registration form.
      */
     @GetMapping("/{tenantId}/register")
-    public String showRegistrationForm(@PathVariable String tenantId, Model model, jakarta.servlet.http.HttpServletRequest request) {
+    public String showRegistrationForm(@PathVariable String tenantId,
+                                       @RequestParam(name = "tx", required = false) String tx,
+                                       Model model,
+                                       jakarta.servlet.http.HttpServletRequest request) {
         // Force CSRF token and Session creation early to avoid "Cannot create a session after the response has been committed"
         CsrfToken csrfToken =
                 (CsrfToken) request.getAttribute(CsrfToken.class.getName());
@@ -50,6 +53,7 @@ public class RegisterController {
         }
 
         model.addAttribute("tenantId", tenantId);
+        model.addAttribute("tx", tx != null && !tx.isBlank() ? tx : null);
         model.addAttribute("form", new RegistrationForm());
         return "register";
     }
@@ -61,6 +65,7 @@ public class RegisterController {
      */
     @PostMapping("/{tenantId}/register")
     public String handleRegistration(@PathVariable String tenantId,
+                                     @RequestParam(name = "tx", required = false) String tx,
                                      @ModelAttribute("form") RegistrationForm form,
                                      Model model,
                                      HttpServletRequest request) {
@@ -72,6 +77,7 @@ public class RegisterController {
         }
 
         model.addAttribute("tenantId", tenantId);
+        model.addAttribute("tx", tx != null && !tx.isBlank() ? tx : null);
 
         // 1. Validate password confirmation locally (never sent to IAM)
         if (form.getPassword() == null || !form.getPassword().equals(form.getConfirmPassword())) {

@@ -1,6 +1,7 @@
 package com.authenza.core.security;
 
 import com.authenza.adapter.context.TenantContextHolder;
+import com.authenza.adapter.context.TenantUriUtils;
 import com.authenza.adapter.routing.TenantRoutingDataSource;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
@@ -64,7 +65,7 @@ public class MultiTenantSecurityFilter extends OncePerRequestFilter {
             return;
         }
 
-        String tenantId = resolveTenantId(uri);
+        String tenantId = TenantUriUtils.resolveTenantFromUri(uri);
 
         if (tenantId != null) {
 
@@ -74,6 +75,16 @@ public class MultiTenantSecurityFilter extends OncePerRequestFilter {
                         "Tenant '" + tenantId + "' does not exist or has not been provisioned.",
                         StandardCharsets.UTF_8);
                 response.sendRedirect("/error/invalid-tenant?message=" + message);
+                return;
+            }
+
+            // Validate that this tenant is currently active
+            if (!routingDataSource.isTenantActive(tenantId)) {
+                String message = URLEncoder.encode(
+                        "The workspace '" + tenantId + "' is currently suspended or inactive. Please contact your organization administrator or support to restore access.",
+                        StandardCharsets.UTF_8);
+                response.sendRedirect("/error/tenant-suspended?tenantId=" + URLEncoder.encode(tenantId, StandardCharsets.UTF_8)
+                        + "&message=" + message);
                 return;
             }
 
@@ -107,16 +118,5 @@ public class MultiTenantSecurityFilter extends OncePerRequestFilter {
             TenantContextHolder.clear();
             AuthorizationServerContextHolder.resetContext();
         }
-    }
-
-    private String resolveTenantId(String uri) {
-        if (uri == null || uri.equals("/"))
-            return null;
-        String[] parts = uri.split("/");
-        for (String part : parts) {
-            if (!part.isEmpty())
-                return part;
-        }
-        return null;
     }
 }

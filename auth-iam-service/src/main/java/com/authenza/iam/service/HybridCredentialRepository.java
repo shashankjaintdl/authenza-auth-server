@@ -143,10 +143,11 @@ class HybridCredentialRepository implements CredentialRepository {
         try {
             long id = Long.parseLong(userHandle.getHex(), 16);
 
-            // Try master DB first only if global passkeys are enabled for this tenant
+            // Try master DB first only if global passkeys are enabled for this tenant.
+            // No SQL LIMIT — id is the PRIMARY KEY, so at most one row is returned.
             if (tenantSettingsService.isGlobalWebAuthnEnabled()) {
                 List<String> globalEmails = masterJdbcTemplate.query(
-                        "SELECT email FROM global_accounts WHERE id = ? LIMIT 1",
+                        "SELECT email FROM global_accounts WHERE id = ?",
                         (rs, rowNum) -> rs.getString("email"),
                         id);
                 if (!globalEmails.isEmpty()) {
@@ -241,8 +242,11 @@ class HybridCredentialRepository implements CredentialRepository {
      */
     Long resolveGlobalAccountId(String email) {
         try {
+            // No SQL LIMIT — email has a UNIQUE constraint on global_accounts,
+            // so at most one row is returned. Java-level first-result read is
+            // cross-engine compatible (MySQL, PostgreSQL, MariaDB).
             List<Long> ids = masterJdbcTemplate.query(
-                    "SELECT id FROM global_accounts WHERE email = ? LIMIT 1",
+                    "SELECT id FROM global_accounts WHERE email = ?",
                     (rs, rowNum) -> rs.getLong("id"),
                     email);
             return ids.isEmpty() ? null : ids.get(0);

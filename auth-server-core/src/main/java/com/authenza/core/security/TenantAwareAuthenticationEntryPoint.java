@@ -1,6 +1,7 @@
 package com.authenza.core.security;
 
 import com.authenza.adapter.context.TenantContextHolder;
+import com.authenza.adapter.context.TenantUriUtils;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.slf4j.Logger;
@@ -44,7 +45,7 @@ public final class TenantAwareAuthenticationEntryPoint extends LoginUrlAuthentic
 
         // 2. Fallback: extract from the original request URI
         if (tenantId == null || tenantId.isBlank()) {
-            tenantId = resolveTenantFromUri(request.getRequestURI());
+            tenantId = TenantUriUtils.resolveTenantFromUri(request.getRequestURI());
         }
 
         if (tenantId != null && !tenantId.isBlank()) {
@@ -80,14 +81,5 @@ public final class TenantAwareAuthenticationEntryPoint extends LoginUrlAuthentic
     private static boolean isOAuthAuthorizeRequest(HttpServletRequest request) {
         String uri = request.getRequestURI();
         return uri != null && uri.contains("/oauth2/authorize");
-    }
-
-    private String resolveTenantFromUri(String uri) {
-        if (uri == null || uri.equals("/")) return null;
-        String[] parts = uri.split("/");
-        for (String part : parts) {
-            if (!part.isEmpty()) return part;
-        }
-        return null;
     }
 }

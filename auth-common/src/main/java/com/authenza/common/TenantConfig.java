@@ -5,6 +5,10 @@ public record TenantConfig(
         String jdbcUrl,
         String username,
         String password,
-        String driverClassName
-) {}
-
+        String driverClassName,
+        String active
+) {
+    public TenantConfig(String tenantId, String jdbcUrl, String username, String password, String driverClassName) {
+        this(tenantId, jdbcUrl, username, password, driverClassName, "ACTIVE");
+    }
+}

@@ -1,6 +1,7 @@
 package com.authenza.core.security;
 
 import com.authenza.adapter.context.TenantContextHolder;
+import com.authenza.adapter.context.TenantUriUtils;
 import com.authenza.core.service.SessionRecordingService;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
@@ -86,7 +87,7 @@ public class MfaAuthenticationFilter extends OncePerRequestFilter {
                                     FilterChain filterChain)
             throws ServletException, IOException {
 
-        String tenantId = resolveTenantFromUri(request.getRequestURI());
+        String tenantId = TenantUriUtils.resolveTenantFromUri(request.getRequestURI());
         String mfaToken = request.getParameter("mfaToken");
 
         // ── 1. Validate token presence ─────────────────────────────────────────
@@ -204,18 +205,5 @@ public class MfaAuthenticationFilter extends OncePerRequestFilter {
         // Priority 3: Tenant root fallback
         response.sendRedirect("/" + tenantId + "/");
 
-    }
-
-    // ─────────────────────────────────────────────────────────────────────────
-    // Helpers
-    // ─────────────────────────────────────────────────────────────────────────────
-
-    private static String resolveTenantFromUri(String uri) {
-        if (uri == null || uri.equals("/")) return null;
-        String[] parts = uri.split("/");
-        for (String part : parts) {
-            if (!part.isEmpty()) return part;
-        }
-        return null;
     }
 }
