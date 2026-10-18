@@ -53,5 +53,8 @@ jobs:
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           publish_dir: ./_site
-          force_orphan: true
+          # Keep history on gh-pages; never touches main / feature branches
+          force_orphan: false
           enable_jekyll: false
+          # Only replace published site files — does not delete repo source
+          keep_files: false
