@@ -38,6 +38,15 @@ Authenza utilizes a strict multi-tenant architecture where **every tenant receiv
 - **Security**: BCrypt, WebAuthn/FIDO2, JWT (Nimbus), PKCE.
 - **Frontend (Tenant Portal)**: Angular 17, Tailwind CSS, OIDC-Client.
 
+## 📚 Tutorial (book-style)
+
+New engineers: start with the indexed tutorial under [`tutorial/README.md`](tutorial/README.md) — table of contents, chapters with prev/next links, and a [glossary of terms with examples](tutorial/00-glossary.md).
+
+- **GitHub Pages:** https://shashankjaintdl.github.io/authenza-auth-server/tutorial/  
+- **Workflow:** [`.github/workflows/deploy-tutorial-pages.yml`](.github/workflows/deploy-tutorial-pages.yml)
+
+---
+
 ## 🚀 Getting Started
 
 1. **Spin up Infrastructure:** Use the provided `docker-compose.yml` to start MySQL and Redis.

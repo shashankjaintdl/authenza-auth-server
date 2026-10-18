@@ -17,6 +17,11 @@ bin/
 !**/src/main/**/bin/
 !**/src/test/**/bin/
 *.md
+# Whitelist documentation trees so tutorial / PRDs / design can be pushed to GitHub
+!README.md
+!docs/**/*.md
+!tutorial/**/*.md
+!planning/**/*.md
 *.log
 
 ### IntelliJ IDEA ###

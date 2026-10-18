@@ -1,0 +1,71 @@
+name: Deploy tutorial (GitHub Pages)
+
+on:
+  push:
+    branches:
+      - main
+      - feature/authenza-10
+    paths:
+      - 'tutorial/**'
+      - 'docs/**'
+      - 'planning/**'
+      - '.github/workflows/deploy-tutorial-pages.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages-tutorial
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Assemble static site
+        run: |
+          set -euo pipefail
+          mkdir -p _site/tutorial _site/docs _site/planning
+          # Tutorial book (Docsify)
+          cp -R tutorial/. _site/tutorial/
+          # Product / feature docs linked from the book
+          if [ -d docs ]; then cp -R docs/. _site/docs/; fi
+          if [ -d planning ]; then cp -R planning/. _site/planning/; fi
+          # Landing redirect → tutorial
+          cat > _site/index.html <<'EOF'
+          <!DOCTYPE html>
+          <html lang="en">
+          <head>
+            <meta charset="UTF-8" />
+            <title>Authenza Docs</title>
+            <meta http-equiv="refresh" content="0; url=tutorial/" />
+            <link rel="canonical" href="tutorial/" />
+          </head>
+          <body>
+            <p><a href="tutorial/">Open Authenza Tutorial</a></p>
+          </body>
+          </html>
+          EOF
+          touch _site/.nojekyll
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

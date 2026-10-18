@@ -1,0 +1,29 @@
+- [Book index](README.md)
+- **Front matter**
+  - [Preface](00-preface.md)
+  - [Glossary (terms + examples)](00-glossary.md)
+- **Part I — Foundations**
+  - [Part opener](part-1-foundations/README.md)
+  - [1. What is Authenza?](part-1-foundations/01-what-is-authenza.md)
+  - [2. Architecture](part-1-foundations/02-architecture-at-a-glance.md)
+  - [3. Module map](part-1-foundations/03-module-map.md)
+- **Part II — Getting started**
+  - [Part opener](part-2-getting-started/README.md)
+  - [4. Prerequisites](part-2-getting-started/04-prerequisites.md)
+  - [5. Boot order lab](part-2-getting-started/05-boot-order-lab.md)
+  - [6. First tenant & login](part-2-getting-started/06-first-tenant-and-login.md)
+- **Part III — Security core**
+  - [Part opener](part-3-security-core/README.md)
+  - [7. Login & brute-force](part-3-security-core/07-login-and-brute-force.md)
+  - [8. MFA (TOTP)](part-3-security-core/08-mfa-totp.md)
+  - [9. Sessions & devices](part-3-security-core/09-sessions-and-devices.md)
+  - [10. OIDC for the portal](part-3-security-core/10-oidc-for-the-portal.md)
+- **Part IV — Adaptive Auth**
+  - [Part opener](part-4-adaptive-auth/README.md)
+  - [11. Adaptive concepts](part-4-adaptive-auth/11-adaptive-concepts.md)
+  - [12. Code walkthrough](part-4-adaptive-auth/12-code-walkthrough.md)
+  - [13. Portal & ops](part-4-adaptive-auth/13-portal-and-ops.md)
+- **Part V — Going further**
+  - [Part opener](part-5-going-further/README.md)
+  - [14. Where to change what](part-5-going-further/14-where-to-change-what.md)
+  - [15. Docs reading path](part-5-going-further/15-docs-reading-path.md)
