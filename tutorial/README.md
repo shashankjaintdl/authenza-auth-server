@@ -10,10 +10,19 @@
 
 Welcome. This tutorial is organized like a **book**: read the parts in order the first time; later jump via this index.
 
-**Live site (GitHub Pages):** after the deploy workflow runs —  
+**Live site (GitHub Pages):**  
 `https://shashankjaintdl.github.io/authenza-auth-server/tutorial/`  
 
 **Source on GitHub:** [`tutorial/`](https://github.com/shashankjaintdl/authenza-auth-server/tree/feature/authenza-10/tutorial)
+
+**Local preview (required — do not open `index.html` as a file):**
+
+```bash
+npx --yes serve tutorial
+# then open http://localhost:3000
+```
+
+Opening `tutorial/index.html` via `file://` shows **404 - Not found** because the browser blocks loading `.md` files.
 
 ---
 

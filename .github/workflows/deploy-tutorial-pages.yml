@@ -13,16 +13,14 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
-  pages: write
-  id-token: write
+  contents: write
 
 concurrency:
   group: pages-tutorial
   cancel-in-progress: true
 
 jobs:
-  build:
+  deploy:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -32,12 +30,9 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p _site/tutorial _site/docs _site/planning
-          # Tutorial book (Docsify)
           cp -R tutorial/. _site/tutorial/
-          # Product / feature docs linked from the book
           if [ -d docs ]; then cp -R docs/. _site/docs/; fi
           if [ -d planning ]; then cp -R planning/. _site/planning/; fi
-          # Landing redirect → tutorial
           cat > _site/index.html <<'EOF'
           <!DOCTYPE html>
           <html lang="en">
@@ -45,7 +40,6 @@ jobs:
             <meta charset="UTF-8" />
             <title>Authenza Docs</title>
             <meta http-equiv="refresh" content="0; url=tutorial/" />
-            <link rel="canonical" href="tutorial/" />
           </head>
           <body>
             <p><a href="tutorial/">Open Authenza Tutorial</a></p>
@@ -54,18 +48,10 @@ jobs:
           EOF
           touch _site/.nojekyll
 
-      - name: Upload Pages artifact
-        uses: actions/upload-pages-artifact@v3
+      - name: Publish to gh-pages
+        uses: peaceiris/actions-gh-pages@v4
         with:
-          path: _site
-
-  deploy:
-    needs: build
-    runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-    steps:
-      - name: Deploy to GitHub Pages
-        id: deployment
-        uses: actions/deploy-pages@v4
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./_site
+          force_orphan: true
+          enable_jekyll: false
