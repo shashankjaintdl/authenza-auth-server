@@ -7,7 +7,7 @@
 | Status source of truth | [`planning/ROADMAP.md`](../planning/ROADMAP.md) |
 | Architecture companion | [`docs/ARCHITECTURE.md`](ARCHITECTURE.md) |
 | Feature PRD index | [`docs/prd/README.md`](prd/README.md) |
-| Adaptive design | [`planning/ADAPTIVE_RISK_BASED_AUTH_DESIGN.md`](../planning/ADAPTIVE_RISK_BASED_AUTH_DESIGN.md) |
+| Adaptive design | [`planning/designs/ADAPTIVE_RISK_BASED_AUTH_DESIGN.md`](../planning/designs/ADAPTIVE_RISK_BASED_AUTH_DESIGN.md) |
 | Audience | Product, engineering, GTM / sales engineering |
 | Last aligned | From `planning/ROADMAP.md` (Phases 1–9 + India GTM) |
 

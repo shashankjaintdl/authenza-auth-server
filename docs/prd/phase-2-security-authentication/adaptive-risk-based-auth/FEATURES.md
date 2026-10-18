@@ -5,7 +5,7 @@
 | Scope | **Phase A** as shipped in code |
 | Parent PRD | [PRD.md](PRD.md) |
 | Diagrams | [PHASE-A-DIAGRAMS.md](PHASE-A-DIAGRAMS.md) |
-| Design | [`planning/ADAPTIVE_RISK_BASED_AUTH_DESIGN.md`](../../../../planning/ADAPTIVE_RISK_BASED_AUTH_DESIGN.md) |
+| Design | [`planning/designs/ADAPTIVE_RISK_BASED_AUTH_DESIGN.md`](../../../../planning/designs/ADAPTIVE_RISK_BASED_AUTH_DESIGN.md) |
 | Package | `com.authenza.core.risk` (+ `*.signal`) · shared enums/constants in `auth-common` |
 
 This document defines **each implemented term**: type, ownership, algorithm, storage, and callers. Prefer this over the design doc when code and design disagree — code is SoT for Phase A.
@@ -555,4 +555,4 @@ LoginRiskGate
 
 - [PRD.md](PRD.md) — goals / acceptance  
 - [PHASE-A-DIAGRAMS.md](PHASE-A-DIAGRAMS.md) — architecture / flow / sequence  
-- [Design](../../../../planning/ADAPTIVE_RISK_BASED_AUTH_DESIGN.md) — broader phases B–D+  
+- [Design](../../../../planning/designs/ADAPTIVE_RISK_BASED_AUTH_DESIGN.md) — broader phases B–D+  

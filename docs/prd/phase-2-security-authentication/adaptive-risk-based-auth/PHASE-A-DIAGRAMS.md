@@ -6,7 +6,7 @@
 | Status | Shipped |
 | Parent PRD | [Adaptive / Risk-Based Auth PRD](PRD.md) |
 | Feature explanation | [FEATURES.md](FEATURES.md) — detailed behavior of each capability |
-| Design | [`planning/ADAPTIVE_RISK_BASED_AUTH_DESIGN.md`](../../../../planning/ADAPTIVE_RISK_BASED_AUTH_DESIGN.md) §14 Phase A |
+| Design | [`planning/designs/ADAPTIVE_RISK_BASED_AUTH_DESIGN.md`](../../../../planning/designs/ADAPTIVE_RISK_BASED_AUTH_DESIGN.md) §14 Phase A |
 | Architecture | [`docs/ARCHITECTURE.md`](../../../ARCHITECTURE.md) §7 |
 
 > **Read first:** [FEATURES.md](FEATURES.md) explains signals, decisions, trusted devices, step-up rules, email, and settings in product language. This file is the visual companion (architecture / flow / sequence).

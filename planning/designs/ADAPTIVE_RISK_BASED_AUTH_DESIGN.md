@@ -3,7 +3,7 @@
 | Field | Value |
 |-------|--------|
 | Status | Phase A implemented (MVP) |
-| Roadmap | [`planning/ROADMAP.md`](ROADMAP.md) → Phase 2 → Adaptive / Risk-Based Authentication |
+| Roadmap | [`planning/ROADMAP.md`](../ROADMAP.md) → Phase 2 → Adaptive / Risk-Based Authentication |
 | Owner | Authenza Platform |
 | Scope | Multi-tenant login risk scoring + progressive challenges + security alerts |
 | Out of scope (v1) | Full fraud ML platform, third-party risk vendors as hard deps, device attestation beyond WebAuthn, continuous evaluation, SIEM case management |
@@ -305,8 +305,8 @@ Structured log (no PII beyond hashed user id): `tenantId`, `decision`, `score`, 
 4. New-device email.
 5. Portal: enable toggle + devices list/revoke.
 
-**Feature explanation:** [`docs/prd/.../adaptive-risk-based-auth/FEATURES.md`](../docs/prd/phase-2-security-authentication/adaptive-risk-based-auth/FEATURES.md)  
-**Diagrams (architecture / flow / sequence):** [`docs/prd/.../adaptive-risk-based-auth/PHASE-A-DIAGRAMS.md`](../docs/prd/phase-2-security-authentication/adaptive-risk-based-auth/PHASE-A-DIAGRAMS.md)
+**Feature explanation:** [`docs/prd/.../adaptive-risk-based-auth/FEATURES.md`](../../docs/prd/phase-2-security-authentication/adaptive-risk-based-auth/FEATURES.md)  
+**Diagrams (architecture / flow / sequence):** [`docs/prd/.../adaptive-risk-based-auth/PHASE-A-DIAGRAMS.md`](../../docs/prd/phase-2-security-authentication/adaptive-risk-based-auth/PHASE-A-DIAGRAMS.md)
 
 ### Phase B — Geo / travel
 
@@ -414,7 +414,7 @@ These are **intentionally out of MVP**. See **Phase D+** for the enterprise path
 
 ## 19. References
 
-- [`planning/ROADMAP.md`](ROADMAP.md) — Adaptive / Risk-Based Authentication (Phase 2, out of current scope)
+- [`planning/ROADMAP.md`](../ROADMAP.md) — Adaptive / Risk-Based Authentication (Phase 2, out of current scope)
 - `SessionRecordingService` — IP / UA / device capture
 - `AuthPendingStateStore` — multi-step auth tokens
 - `BruteForceProtectionService` — failure counters

@@ -5,7 +5,7 @@
 | Status | Living document |
 | Scope | Backend multi-module auth platform + Tenant Portal integration points |
 | Tracking | [`planning/ROADMAP.md`](../planning/ROADMAP.md) |
-| Related | [`docs/PRD.md`](PRD.md), [`docs/prd/`](prd/README.md), [`README.md`](../README.md), [`Current Architecture walkthrough.md`](../Current%20Architecture%20walkthrough.md) |
+| Related | [`docs/PRD.md`](PRD.md), [`docs/prd/`](prd/README.md), [`README.md`](../README.md), [`Current Architecture walkthrough.md`](../architecture/Current%20Architecture%20walkthrough.md) |
 
 This document describes **how Authenza is built today**, which capabilities are **completed**, and how the major pieces fit together. It is the architecture companion to the roadmap (status/ordering) and design docs (feature-level plans).
 
@@ -227,7 +227,7 @@ Still open for “full console”: roles UI, audit viewer, OAuth client CRUD UI,
 
 ## 7. Adaptive / Risk-Based Authentication (Phase A) — completed
 
-**Design:** [`planning/ADAPTIVE_RISK_BASED_AUTH_DESIGN.md`](../planning/ADAPTIVE_RISK_BASED_AUTH_DESIGN.md)
+**Design:** [`planning/designs/ADAPTIVE_RISK_BASED_AUTH_DESIGN.md`](../planning/designs/ADAPTIVE_RISK_BASED_AUTH_DESIGN.md)
 
 ### 7.1 Purpose
 
@@ -339,11 +339,11 @@ These are deferred; the current architecture leaves extension points:
 | Doc | Use when |
 |-----|----------|
 | [`planning/ROADMAP.md`](../planning/ROADMAP.md) | Status, ordering, what to build next |
-| [`planning/ADAPTIVE_RISK_BASED_AUTH_DESIGN.md`](../planning/ADAPTIVE_RISK_BASED_AUTH_DESIGN.md) | Adaptive detail + Phase D+ vision |
-| [`CROSS_TENANT_SESSION_BLEED.md`](../CROSS_TENANT_SESSION_BLEED.md) | Cross-tenant session threat & fix |
-| [`WEBAUTHN_IMPLEMENTATION.md`](../WEBAUTHN_IMPLEMENTATION.md) | Passkey implementation notes |
-| [`FRONTEND_ARCHITECTURE.md`](../FRONTEND_ARCHITECTURE.md) | Portal structure (if present at repo root) |
-| [`Current Architecture walkthrough.md`](../Current%20Architecture%20walkthrough.md) | Sequence / flow diagrams |
+| [`planning/designs/ADAPTIVE_RISK_BASED_AUTH_DESIGN.md`](../planning/designs/ADAPTIVE_RISK_BASED_AUTH_DESIGN.md) | Adaptive detail + Phase D+ vision |
+| [`CROSS_TENANT_SESSION_BLEED.md`](../guides/CROSS_TENANT_SESSION_BLEED.md) | Cross-tenant session threat & fix |
+| [`WEBAUTHN_IMPLEMENTATION.md`](../guides/WEBAUTHN_IMPLEMENTATION.md) | Passkey implementation notes |
+| [`FRONTEND_ARCHITECTURE.md`](../architecture/FRONTEND_ARCHITECTURE.md) | Portal structure |
+| [`Current Architecture walkthrough.md`](../architecture/Current%20Architecture%20walkthrough.md) | Sequence / flow diagrams |
 
 ---
 

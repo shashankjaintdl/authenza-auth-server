@@ -20,7 +20,7 @@ Phase A is **shipped**: after password success, optional risk scoring can ALLOW,
 
 - [`FEATURES.md`](../../docs/prd/phase-2-security-authentication/adaptive-risk-based-auth/FEATURES.md)  
 - [`PHASE-A-DIAGRAMS.md`](../../docs/prd/phase-2-security-authentication/adaptive-risk-based-auth/PHASE-A-DIAGRAMS.md)  
-- [`ADAPTIVE_RISK_BASED_AUTH_DESIGN.md`](../../planning/ADAPTIVE_RISK_BASED_AUTH_DESIGN.md)  
+- [`ADAPTIVE_RISK_BASED_AUTH_DESIGN.md`](../../planning/designs/ADAPTIVE_RISK_BASED_AUTH_DESIGN.md)  
 
 ---
 

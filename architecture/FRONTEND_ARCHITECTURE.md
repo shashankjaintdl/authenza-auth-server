@@ -1,6 +1,6 @@
 # Authenza Frontend Architecture
 
-Based on the [ROADMAP.md](./ROADMAP.md), the Authenza platform requires **2 Angular projects** to cover all user personas and roadmap phases.
+Based on the [ROADMAP.md](../planning/ROADMAP.md), the Authenza platform requires **2 Angular projects** to cover all user personas and roadmap phases.
 
 ---
 
@@ -88,4 +88,4 @@ The Super Admin portal and the Tenant portal have **completely different backend
 
 ---
 
-*This document maps the [ROADMAP.md](./ROADMAP.md) phases to the frontend architecture.*
+*This document maps the [ROADMAP.md](../planning/ROADMAP.md) phases to the frontend architecture.*

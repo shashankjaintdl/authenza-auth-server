@@ -28,7 +28,7 @@
 | Product PRD | [`docs/PRD.md`](../../docs/PRD.md) | What the product must do |
 | Feature PRDs | [`docs/prd/`](../../docs/prd/README.md) | Phase / sub-phase scope |
 | Adaptive feature pack | [`docs/prd/.../adaptive-risk-based-auth/`](../../docs/prd/phase-2-security-authentication/adaptive-risk-based-auth/PRD.md) | PRD + FEATURES + diagrams |
-| Design | [`planning/ADAPTIVE_RISK_BASED_AUTH_DESIGN.md`](../../planning/ADAPTIVE_RISK_BASED_AUTH_DESIGN.md) | Engineering design + generics-later |
+| Design | [`planning/designs/ADAPTIVE_RISK_BASED_AUTH_DESIGN.md`](../../planning/designs/ADAPTIVE_RISK_BASED_AUTH_DESIGN.md) | Engineering design + generics-later |
 | Roadmap | [`planning/ROADMAP.md`](../../planning/ROADMAP.md) | Shipped vs next vs later |
 | Runbook-ish | [`README.md`](../../README.md) | Ports, boot order, BYOD |
 

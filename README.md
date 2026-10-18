@@ -47,6 +47,19 @@ New engineers: start with the indexed tutorial under [`tutorial/README.md`](tuto
 
 ---
 
+
+## 📂 Documentation map
+
+| Folder | Purpose |
+|--------|---------|
+| [`tutorial/`](tutorial/README.md) | Engineer tutorial book |
+| [`docs/`](docs/PRD.md) | Product PRD + architecture |
+| [`planning/`](planning/README.md) | Roadmap, designs, plans |
+| [`architecture/`](architecture/README.md) | Architecture notes |
+| [`guides/`](guides/README.md) | How-to / feature guides |
+| [`reference/`](reference/README.md) | Engineering reference notes |
+| [`flows/`](flows/README.md) | Controller flow notes |
+
 ## 🚀 Getting Started
 
 1. **Spin up Infrastructure:** Use the provided `docker-compose.yml` to start MySQL and Redis.
@@ -251,10 +264,10 @@ Oracle / MSSQL / IBM DB2 are rejected with `400 UNSUPPORTED_ENGINE`.
 
 Design & implementation checklist:
 
-- [docs/byod_and_portal_tenant_context_design.md](docs/byod_and_portal_tenant_context_design.md)
-- [docs/byod_and_portal_tenant_context_implementation.md](docs/byod_and_portal_tenant_context_implementation.md)
+- [planning/designs/byod_and_portal_tenant_context_design.md](planning/designs/byod_and_portal_tenant_context_design.md)
+- [planning/designs/byod_and_portal_tenant_context_implementation.md](planning/designs/byod_and_portal_tenant_context_implementation.md)
 
 ---
 
-*For full architecture details see [ROADMAP.md](ROADMAP.md) · For sprint progress see [SPRINTS.md](SPRINTS.md)*
+*For full architecture details see [planning/ROADMAP.md](planning/ROADMAP.md) · For sprint progress see [planning/SPRINTS.md](planning/SPRINTS.md)*
 
