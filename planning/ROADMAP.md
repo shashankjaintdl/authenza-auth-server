@@ -126,7 +126,7 @@ Elevate platform security by protecting endpoints and validating identities.
 - ✅ **Tenant-Level Rate Limiting:** *Completed*
   - Protect infrastructure from noisy-neighbor DDoS attacks by throttling API requests per `tenant_id` (e.g., max 10,000 auth attempts per hour).
 - ✅ **Strict Cross-Tenant Session Isolation & Configurable Switch Policy:** *Completed through REQUIRE_PASSWORD path*
-  - *Reference:* See [CROSS_TENANT_SESSION_BLEED.md](../CROSS_TENANT_SESSION_BLEED.md), [consolidated_tenant_switching.md](../consolidated_tenant_switching.md) for full architectural details.
+  - *Reference:* See [CROSS_TENANT_SESSION_BLEED.md](../guides/CROSS_TENANT_SESSION_BLEED.md), [consolidated_tenant_switching.md](plans/consolidated_tenant_switching.md) for full architectural details.
   - ✅ **Phase 1: Database Migration** *Completed*
     - Added `tenant_switch_policy` key to `tenant_settings` via Liquibase V0.0.11 changeset.
     - Default value seeded as `REQUIRE_PASSWORD` (Secure by Default — Zero Trust principle).
@@ -147,7 +147,7 @@ Elevate platform security by protecting endpoints and validating identities.
   - Detect anomalous login attempts (e.g., impossible travel, unknown devices, or new IP addresses).
   - Automatically challenge the user with progressive MFA or send a "New Device Detected" security alert email.
   - ✅ **Phase A:** settings flags, `NEW_DEVICE` / `NEW_IP` / `RECENT_FAILURES`, trusted-device cookie + table, step-up via MFA pending flow, new-device email, portal toggle + revoke.
-  - **Design:** [`planning/ADAPTIVE_RISK_BASED_AUTH_DESIGN.md`](ADAPTIVE_RISK_BASED_AUTH_DESIGN.md) — build Phases A–C first.
+  - **Design:** [`planning/designs/ADAPTIVE_RISK_BASED_AUTH_DESIGN.md`](designs/ADAPTIVE_RISK_BASED_AUTH_DESIGN.md) — build Phases A–C first.
   - **Future / Enterprise** *(after Adaptive A–C; one line each — do not design in detail until promoted)*:
     - Continuous evaluation during a session
     - UEBA or ML scoring

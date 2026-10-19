@@ -57,5 +57,5 @@ Password-only login is insufficient for B2B SaaS. Buyers expect lockout, MFA, de
 
 ## 6. Related
 
-- Design (Adaptive): [`planning/ADAPTIVE_RISK_BASED_AUTH_DESIGN.md`](../../../planning/ADAPTIVE_RISK_BASED_AUTH_DESIGN.md)
-- Cross-tenant: [`CROSS_TENANT_SESSION_BLEED.md`](../../../CROSS_TENANT_SESSION_BLEED.md)
+- Design (Adaptive): [`planning/designs/ADAPTIVE_RISK_BASED_AUTH_DESIGN.md`](../../../planning/designs/ADAPTIVE_RISK_BASED_AUTH_DESIGN.md)
+- Cross-tenant: [`CROSS_TENANT_SESSION_BLEED.md`](../../../guides/CROSS_TENANT_SESSION_BLEED.md)

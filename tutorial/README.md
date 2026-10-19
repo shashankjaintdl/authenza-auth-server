@@ -138,7 +138,7 @@ Opening `tutorial/index.html` via `file://` shows **404 - Not found** because th
 | Product PRD | [`docs/PRD.md`](../docs/PRD.md) |
 | Feature PRDs | [`docs/prd/README.md`](../docs/prd/README.md) |
 | Architecture | [`docs/ARCHITECTURE.md`](../docs/ARCHITECTURE.md) |
-| Adaptive design | [`planning/ADAPTIVE_RISK_BASED_AUTH_DESIGN.md`](../planning/ADAPTIVE_RISK_BASED_AUTH_DESIGN.md) |
+| Adaptive design | [`planning/designs/ADAPTIVE_RISK_BASED_AUTH_DESIGN.md`](../planning/designs/ADAPTIVE_RISK_BASED_AUTH_DESIGN.md) |
 | Project README | [`README.md`](../README.md) |
 
 ---
