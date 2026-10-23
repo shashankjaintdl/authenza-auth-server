@@ -231,6 +231,7 @@ These are the **highest-ROI features for Indian customer acquisition**.
 
 - 🚀 **Social Login — Google & GitHub (`oauth2Login()`):** *(1–2 weeks) — NEXT*
   - Implement OAuth2 social login as an **Identity Broker**: Authenza is the OIDC server for tenant apps; Google/GitHub are upstream IdPs.
+  - **Design:** [`planning/designs/SOCIAL_LOGIN_IDENTITY_BROKER_DESIGN.md`](designs/SOCIAL_LOGIN_IDENTITY_BROKER_DESIGN.md) — Google MVP, linking algorithm, Adaptive/MFA insertion, sequence diagrams.
   - **Multi-tenant routing logic (critical):** On `tenant-a…` + “Login with Google”:
     - Email in `global_accounts` → load `tenant_memberships`, issue tenant-scoped token
     - Else → create `global_accounts`, assign to active tenant, proceed
@@ -266,7 +267,15 @@ Enable complex B2B scenarios and tenant-specific configuration. Split into **now
   - **Not** multi-connection CRUD (Phase 5). BYOD already answers “where does the DB live?”; this page only **displays** it.
 
 ### Phase 4B — Branding, hierarchy & advanced config ⏳ *Later*
-- ⏳ **Tenant Environment Tagging (Dev/Prod)** + production safety rails + `[DEV]` email prefixes
+- ⏳ **Tenant Environment Tagging (Dev / QA / Staging / Prod)** *Later — not a GTM blocker:*
+  - **Problem today:** No `environment` on the tenant model. Customers who need sandbox vs prod create **separate tenants** (fine for isolation) but lack a first-class stage signal and prod safety rails.
+  - **Model:** Add enum on master `tenants` (e.g. `DEVELOPMENT` | `QA` | `STAGING` | `PRODUCTION`). Default for new sandboxes can be `DEVELOPMENT`; paid/default workspaces `PRODUCTION`.
+  - **Ship in slices (do not block on full promotion):**
+    1. **Tag only** — field + portal badge / filter; one tenant still = one DB.
+    2. **Safety rails** — `[DEV]` / non-prod email prefixes; confirm dialogs for destructive ops on `PRODUCTION`; optional stricter defaults on prod.
+    3. **Out of scope until demanded** — clone-tenant / promote-config between stages (separate product).
+  - **Trigger to pull forward:** paying/pilot asks for sandbox vs prod labeling, or support confusion between envs.
+  - *Related:* Phase 7 production readiness checklist can gate “toggle to PRODUCTION” later.
 - ⏳ **Master Service Network Isolation** (VPC) before M2M hardening
 - ⏳ **Enterprise Hierarchy (Organizations / Sub-departments)** — after PreAuthorize is solid
 - ⏳ **Dynamic Client Management System** — APIs for tenant self-serve OAuth2 clients + secret rotation

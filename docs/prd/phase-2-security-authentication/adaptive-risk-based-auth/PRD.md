@@ -11,6 +11,7 @@
 | Design (engineering) | [`planning/designs/ADAPTIVE_RISK_BASED_AUTH_DESIGN.md`](../../../../planning/designs/ADAPTIVE_RISK_BASED_AUTH_DESIGN.md) |
 | Phase A diagrams | [`PHASE-A-DIAGRAMS.md`](PHASE-A-DIAGRAMS.md) |
 | Feature explanation | [`FEATURES.md`](FEATURES.md) |
+| Manual tests (Phase A) | [`MANUAL-TEST-SCENARIOS.md`](MANUAL-TEST-SCENARIOS.md) |
 
 ---
 
@@ -74,6 +75,7 @@ GeoIP, continuous mid-session evaluation, ML scores, SIEM product, forcing enrol
 
 - Parent: [Phase 2](../PRD.md)
 - Feature explanation (detailed): [FEATURES.md](FEATURES.md)
+- Manual test scenarios (Phase A): [MANUAL-TEST-SCENARIOS.md](MANUAL-TEST-SCENARIOS.md)
 - Design detail: [ADAPTIVE_RISK_BASED_AUTH_DESIGN.md](../../../../planning/designs/ADAPTIVE_RISK_BASED_AUTH_DESIGN.md)
 - Phase A architecture / flow / sequence: [PHASE-A-DIAGRAMS.md](PHASE-A-DIAGRAMS.md)
 - Architecture: [ARCHITECTURE.md](../../../ARCHITECTURE.md) §7

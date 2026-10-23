@@ -15,7 +15,7 @@ Growing B2B customers need white-label, org structure, self-serve OAuth clients,
 
 ## 2. Requirements (backlog)
 
-- Tenant environment tagging (Dev/Prod) + safety rails  
+- Tenant environment tagging (Dev / QA / Staging / Prod) + safety rails — see `planning/ROADMAP.md` Phase 4B  
 - Master service network isolation  
 - Enterprise hierarchy (orgs / sub-departments)  
 - Dynamic OAuth client management + secret rotation  
