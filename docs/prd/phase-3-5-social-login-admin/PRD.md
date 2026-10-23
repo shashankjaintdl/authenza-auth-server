@@ -24,7 +24,7 @@ Indian SaaS users expect “Login with Google.” Non-technical buyers evaluate 
 
 | Child | Status |
 |-------|--------|
-| [Social Login (Google / GitHub)](social-login/PRD.md) | Next |
+| [Social Login (Google / GitHub)](social-login/PRD.md) | Next — [design](../../../planning/designs/SOCIAL_LOGIN_IDENTITY_BROKER_DESIGN.md) |
 | [Tenant Admin Console](admin-console/PRD.md) | Partial (foundation shipped) |
 
 ## 4. Success

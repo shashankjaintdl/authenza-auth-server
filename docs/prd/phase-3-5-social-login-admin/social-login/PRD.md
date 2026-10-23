@@ -7,6 +7,7 @@
 | Parent | [Phase 3.5 PRD](../PRD.md) |
 | Product parent | [`docs/PRD.md`](../../../PRD.md) |
 | Roadmap | Phase 3.5 → Social Login |
+| Design | [`planning/designs/SOCIAL_LOGIN_IDENTITY_BROKER_DESIGN.md`](../../../../planning/designs/SOCIAL_LOGIN_IDENTITY_BROKER_DESIGN.md) |
 
 ---
 
@@ -43,3 +44,4 @@ Replacing Authenza as the app’s IdP; full enterprise IdP catalog UI (Phase 5).
 
 - Parent: [Phase 3.5](../PRD.md)
 - Sibling: [Admin Console](../admin-console/PRD.md)
+- Design (architecture, linking algorithm, flow & sequence): [SOCIAL_LOGIN_IDENTITY_BROKER_DESIGN.md](../../../../planning/designs/SOCIAL_LOGIN_IDENTITY_BROKER_DESIGN.md)

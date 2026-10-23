@@ -176,7 +176,7 @@
 
 | Task | Status |
 |------|--------|
-| Tenant Environment tagging (DEV / STAGING / PROD enum) | ⬜ Not Started |
+| Tenant Environment tagging (DEV / QA / STAGING / PROD enum) — Phase 4B | ⬜ Not Started |
 | Production Safety Rails in portal (confirmation modals for PROD) | ⬜ Not Started |
 | `[DEV]` prefix on system emails for non-production tenants | ⬜ Not Started |
 | Master Service Network Isolation (VPC level) | ⬜ Not Started |
