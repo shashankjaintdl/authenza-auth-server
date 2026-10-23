@@ -78,13 +78,12 @@ public class Tenant {
         this.driverClassName = driverClassName;
     }
 
-    /** Jackson / API field {@code active}. */
+    /**
+     * Workspace status ({@code ACTIVE} / {@code INACTIVE}).
+     * Must be a normal {@code getActive()} accessor — a String {@code isActive()} is not
+     * serialized by Jackson, which previously omitted this field from tenant list APIs.
+     */
     public String getActive() {
-        return active;
-    }
-
-    /** Legacy accessor kept for existing callers. */
-    public String isActive() {
         return active;
     }
 

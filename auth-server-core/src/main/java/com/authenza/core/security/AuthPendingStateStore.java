@@ -111,25 +111,40 @@ public class AuthPendingStateStore {
     /**
      * Payload stored in Redis for a pending multi-step authentication.
      *
-     * @param username the user's login email/username
-     * @param tenantId the active tenant at the time of initial password authentication
-     * @param userId   the database ID of the user
-     * @param oauthTx  the signed OAuth2 transaction token ({@code tx} parameter), if the login
-     *                 was initiated from an {@code /oauth2/authorize} redirect. May be
-     *                 {@code null} for direct logins. Used to replay the authorize request
-     *                 after MFA or forced password change completes.
+     * @param username         the user's login email/username
+     * @param tenantId         the active tenant at the time of initial password authentication
+     * @param userId           the database ID of the user
+     * @param oauthTx          the signed OAuth2 transaction token ({@code tx} parameter), if the login
+     *                         was initiated from an {@code /oauth2/authorize} redirect. May be
+     *                         {@code null} for direct logins. Used to replay the authorize request
+     *                         after MFA or forced password change completes.
+     * @param notifyNewDevice  when true, send a new-device security email after MFA/step-up succeeds
      */
-    public record PendingState(String username, String tenantId, Long userId, String oauthTx) {
+    public record PendingState(
+            String username,
+            String tenantId,
+            Long userId,
+            String oauthTx,
+            boolean notifyNewDevice) {
+
+        /** Backward-compatible constructor for callers that do not set notify flags. */
+        public PendingState(String username, String tenantId, Long userId, String oauthTx) {
+            this(username, tenantId, userId, oauthTx, false);
+        }
+
+        /**
+         * Jackson entrypoint — tolerates Redis payloads written before {@code notifyNewDevice}
+         * existed (missing field → false).
+         */
         @JsonCreator
-        public PendingState(
+        public static PendingState fromJson(
                 @JsonProperty("username") String username,
                 @JsonProperty("tenantId") String tenantId,
-                @JsonProperty("userId")   Long   userId,
-                @JsonProperty("oauthTx") String oauthTx) {
-            this.username = username;
-            this.tenantId = tenantId;
-            this.userId   = userId;
-            this.oauthTx  = oauthTx;
+                @JsonProperty("userId") Long userId,
+                @JsonProperty("oauthTx") String oauthTx,
+                @JsonProperty("notifyNewDevice") Boolean notifyNewDevice) {
+            return new PendingState(
+                    username, tenantId, userId, oauthTx, Boolean.TRUE.equals(notifyNewDevice));
         }
     }
 }

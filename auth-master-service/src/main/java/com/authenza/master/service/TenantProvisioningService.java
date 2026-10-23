@@ -441,7 +441,7 @@ public class TenantProvisioningService {
         if ("system-admin".equalsIgnoreCase(tenantId)) {
             throw new IllegalArgumentException("The system-admin tenant cannot be deactivated");
         }
-        if (TenantStaus.INACTIVE.name().equalsIgnoreCase(tenant.isActive())) {
+        if (TenantStaus.INACTIVE.name().equalsIgnoreCase(tenant.getActive())) {
             return toSettingsResponse(tenant);
         }
         tenant.setActive(TenantStaus.INACTIVE.name());
@@ -456,7 +456,7 @@ public class TenantProvisioningService {
     @Transactional
     public TenantSettingsResponse activateTenant(String tenantId, String ownerId) {
         Tenant tenant = requireOwnedTenant(tenantId, ownerId);
-        if (TenantStaus.ACTIVE.name().equalsIgnoreCase(tenant.isActive())) {
+        if (TenantStaus.ACTIVE.name().equalsIgnoreCase(tenant.getActive())) {
             return toSettingsResponse(tenant);
         }
         tenant.setActive(TenantStaus.ACTIVE.name());
@@ -467,7 +467,7 @@ public class TenantProvisioningService {
     @Transactional
     public TenantSettingsResponse setDefaultTenant(String tenantId, String ownerId) {
         Tenant tenant = requireOwnedTenant(tenantId, ownerId);
-        if (!TenantStaus.ACTIVE.name().equalsIgnoreCase(tenant.isActive())) {
+        if (!TenantStaus.ACTIVE.name().equalsIgnoreCase(tenant.getActive())) {
             throw new IllegalArgumentException("Only ACTIVE tenants can be set as default");
         }
         clearDefaultForOwner(ownerId, tenantId);
@@ -502,7 +502,7 @@ public class TenantProvisioningService {
     private void promoteAnotherDefault(String ownerId, String excludedTenantId) {
         repository.findByOwnerId(ownerId).stream()
                 .filter(t -> !excludedTenantId.equals(t.getTenantId()))
-                .filter(t -> TenantStaus.ACTIVE.name().equalsIgnoreCase(t.isActive()))
+                .filter(t -> TenantStaus.ACTIVE.name().equalsIgnoreCase(t.getActive()))
                 .findFirst()
                 .ifPresent(candidate -> {
                     candidate.setDefault(true);
@@ -516,7 +516,7 @@ public class TenantProvisioningService {
         return new TenantSettingsResponse(
                 tenant.getTenantId(),
                 tenant.getOwnerId(),
-                tenant.isActive(),
+                tenant.getActive(),
                 tenant.getAccountType(),
                 tenant.getOrgName(),
                 tenant.getEmployeeRange(),

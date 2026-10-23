@@ -2,6 +2,7 @@ package com.authenza.core.security;
 
 import com.authenza.adapter.context.TenantContextHolder;
 import com.authenza.adapter.context.TenantUriUtils;
+import com.authenza.core.risk.LoginRiskGate;
 import com.authenza.core.service.SessionRecordingService;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
@@ -57,6 +58,7 @@ public class MfaAuthenticationFilter extends OncePerRequestFilter {
     private final SessionRecordingService sessionRecordingService;
     private final AuthPendingStateStore authPendingStateStore;
     private final OAuthTransactionTokenService oauthTransactionTokenService;
+    private final LoginRiskGate loginRiskGate;
     private final HttpSessionSecurityContextRepository securityContextRepository =
             new HttpSessionSecurityContextRepository();
 
@@ -65,13 +67,15 @@ public class MfaAuthenticationFilter extends OncePerRequestFilter {
                                    BruteForceProtectionService bruteForceProtectionService,
                                    SessionRecordingService sessionRecordingService,
                                    AuthPendingStateStore authPendingStateStore,
-                                   OAuthTransactionTokenService oauthTransactionTokenService) {
+                                   OAuthTransactionTokenService oauthTransactionTokenService,
+                                   LoginRiskGate loginRiskGate) {
         this.userDetailsService           = userDetailsService;
         this.totpService                  = totpService;
         this.bruteForceProtectionService  = bruteForceProtectionService;
         this.sessionRecordingService      = sessionRecordingService;
         this.authPendingStateStore        = authPendingStateStore;
         this.oauthTransactionTokenService = oauthTransactionTokenService;
+        this.loginRiskGate                = loginRiskGate;
     }
 
     @Override
@@ -154,7 +158,7 @@ public class MfaAuthenticationFilter extends OncePerRequestFilter {
             String newMfaToken = authPendingStateStore.savePendingState(
                     AuthPendingStateStore.TYPE_MFA,
                     new AuthPendingStateStore.PendingState(username, tenantId, pendingState.userId(),
-                            pendingState.oauthTx()));
+                            pendingState.oauthTx(), pendingState.notifyNewDevice()));
             response.sendRedirect("/" + tenantId + "/mfa-verify?mfaToken=" + newMfaToken + "&error");
             return;
         }
@@ -172,6 +176,9 @@ public class MfaAuthenticationFilter extends OncePerRequestFilter {
         securityContextRepository.saveContext(securityContext, request, response);
 
         log.info("[MFA] Authentication complete for user '{}' in tenant '{}'", username, tenantId);
+
+        loginRiskGate.onLoginFullyEstablished(
+                tenantId, pendingState.userId(), pendingState.notifyNewDevice(), request, response);
 
         // Record session for Active Devices tracking (MFA-completed login path)
         sessionRecordingService.recordSession(pendingState.userId(), request);

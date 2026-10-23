@@ -21,7 +21,8 @@ public class RedisConfig {
                                             @Qualifier("listenerAdapter") MessageListenerAdapter listenerAdapter,
                                             @Qualifier("emailVerificationAdapter") MessageListenerAdapter emailVerificationAdapter,
                                             @Qualifier("passwordResetAdapter") MessageListenerAdapter passwordResetAdapter,
-                                            @Qualifier("adminInviteAdapter") MessageListenerAdapter adminInviteAdapter) {
+                                            @Qualifier("adminInviteAdapter") MessageListenerAdapter adminInviteAdapter,
+                                            @Qualifier("securityAlertAdapter") MessageListenerAdapter securityAlertAdapter) {
 
         RedisMessageListenerContainer container = new RedisMessageListenerContainer();
         container.setConnectionFactory(connectionFactory);
@@ -29,6 +30,7 @@ public class RedisConfig {
         container.addMessageListener(emailVerificationAdapter, new ChannelTopic(RedisChannels.NOTIFICATION_EMAIL_VERIFICATION));
         container.addMessageListener(passwordResetAdapter, new ChannelTopic(RedisChannels.NOTIFICATION_PASSWORD_RESET));
         container.addMessageListener(adminInviteAdapter, new ChannelTopic(RedisChannels.NOTIFICATION_ADMIN_INVITE));
+        container.addMessageListener(securityAlertAdapter, new ChannelTopic(RedisChannels.NOTIFICATION_SECURITY_ALERT));
         return container;
     }
 
@@ -56,6 +58,13 @@ public class RedisConfig {
     @Bean
     MessageListenerAdapter adminInviteAdapter(NotificationEventListener receiver) {
         MessageListenerAdapter adapter = new MessageListenerAdapter(receiver, "handleAdminInvite");
+        adapter.setSerializer(new StringRedisSerializer());
+        return adapter;
+    }
+
+    @Bean
+    MessageListenerAdapter securityAlertAdapter(NotificationEventListener receiver) {
+        MessageListenerAdapter adapter = new MessageListenerAdapter(receiver, "handleSecurityAlert");
         adapter.setSerializer(new StringRedisSerializer());
         return adapter;
     }

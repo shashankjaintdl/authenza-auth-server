@@ -5,4 +5,6 @@
         xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
     http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
 
+    <!-- Reserved — Adaptive Auth changesets live in V0.0.12/ddl.xml -->
+
 </databaseChangeLog>

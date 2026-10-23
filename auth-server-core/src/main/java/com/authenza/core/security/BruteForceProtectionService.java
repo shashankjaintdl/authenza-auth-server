@@ -126,6 +126,28 @@ public class BruteForceProtectionService {
     }
 
     /**
+     * Returns the current Redis failed-attempt count for adaptive risk scoring.
+     * Does not mutate state — call before {@link #resetFailedAttempts} on success.
+     *
+     * @return attempt count in the current window, or {@code 0} if none / Redis miss
+     */
+    public int getFailedAttemptCount(String username, String tenantId) {
+        if (username == null || tenantId == null) {
+            return 0;
+        }
+        try {
+            String value = redisTemplate.opsForValue().get(buildKey(tenantId, username));
+            if (value == null || value.isBlank()) {
+                return 0;
+            }
+            return Integer.parseInt(value);
+        } catch (Exception e) {
+            log.debug("[BruteForce] Failed to read attempt count for tenant={} user={}", tenantId, username);
+            return 0;
+        }
+    }
+
+    /**
      * Resets the failed-attempt counter for the given user on successful login.
      * Also clears any stale lock in the DB (in case they were unlocked by TTL
      * expiry).

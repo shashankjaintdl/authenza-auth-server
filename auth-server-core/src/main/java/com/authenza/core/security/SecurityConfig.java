@@ -2,6 +2,7 @@ package com.authenza.core.security;
 
 import com.authenza.adapter.context.TenantContextHolder;
 import com.authenza.adapter.context.TenantUriUtils;
+import com.authenza.core.risk.LoginRiskGate;
 import com.authenza.core.service.SessionRecordingService;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -47,19 +48,22 @@ public class SecurityConfig {
     private final SessionRecordingService sessionRecordingService;
     private final AuthPendingStateStore authPendingStateStore;
     private final OAuthTransactionTokenService oauthTransactionTokenService;
+    private final LoginRiskGate loginRiskGate;
 
     public SecurityConfig(BruteForceProtectionService bruteForceProtectionService,
             JdbcTenantUserDetailsService userDetailsService,
             MfaAuthenticationFilter mfaAuthenticationFilter,
             SessionRecordingService sessionRecordingService,
             AuthPendingStateStore authPendingStateStore,
-            OAuthTransactionTokenService oauthTransactionTokenService) {
+            OAuthTransactionTokenService oauthTransactionTokenService,
+            LoginRiskGate loginRiskGate) {
         this.bruteForceProtectionService    = bruteForceProtectionService;
         this.userDetailsService             = userDetailsService;
         this.mfaAuthenticationFilter        = mfaAuthenticationFilter;
         this.sessionRecordingService        = sessionRecordingService;
         this.authPendingStateStore          = authPendingStateStore;
         this.oauthTransactionTokenService   = oauthTransactionTokenService;
+        this.loginRiskGate                  = loginRiskGate;
     }
 
     /**
@@ -259,6 +263,15 @@ public class SecurityConfig {
                     return;
                 }
 
+                Long userId = userDetailsService.loadUserId(username);
+
+                // ── Adaptive risk gate (after force-pwd, before policy MFA) ──
+                LoginRiskGate.GateOutcome riskOutcome =
+                        loginRiskGate.evaluateAfterCredentials(tenantId, username, userId, request, response);
+                if (riskOutcome.halted()) {
+                    return;
+                }
+
                 // ── MFA gate: if MFA is enabled for this user, do NOT complete auth yet ──
                 // Store the pending state in session and redirect to the TOTP challenge page.
                 // The SecurityContext is NOT set here — MfaAuthenticationFilter will do it
@@ -271,11 +284,10 @@ public class SecurityConfig {
                     if (mfaSession != null) {
                         mfaSession.removeAttribute(HttpSessionSecurityContextRepository.SPRING_SECURITY_CONTEXT_KEY);
                     }
-                    Long userId = userDetailsService.loadUserId(username);
                     String mfaToken = authPendingStateStore.savePendingState(
                             AuthPendingStateStore.TYPE_MFA,
                             new AuthPendingStateStore.PendingState(username, tenantId, userId,
-                                    request.getParameter("tx")));
+                                    request.getParameter("tx"), riskOutcome.notifyNewDevice()));
 
                     // Routing decision: only send to /mfa-verify if the user has
                     // FULLY enrolled (mfa_enabled=true AND secret confirmed).
@@ -295,8 +307,10 @@ public class SecurityConfig {
                 // (mfa_enabled=false but secret still present — no longer needed.)
                 userDetailsService.clearOrphanMfaSecret(username);
 
+                loginRiskGate.onLoginFullyEstablished(
+                        tenantId, userId, riskOutcome.notifyNewDevice(), request, response);
+
                 // Record the session for Active Devices tracking
-                Long userId = userDetailsService.loadUserId(username);
                 sessionRecordingService.recordSession(userId, request);
 
                 // ── Priority 1: Session SavedRequest (normal short-lived login) ────────────

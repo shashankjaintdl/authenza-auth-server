@@ -468,4 +468,55 @@
                 onDelete="CASCADE"/>
     </changeSet>
 
+    <!-- V0.0.13 — Adaptive Auth trusted devices -->
+    <changeSet id="init-create-user_trusted_device" author="authenza">
+        <preConditions onFail="MARK_RAN">
+            <not>
+                <tableExists tableName="user_trusted_device"/>
+            </not>
+        </preConditions>
+        <createTable tableName="user_trusted_device">
+            <column name="id" type="BIGINT" autoIncrement="true">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="user_id" type="BIGINT">
+                <constraints nullable="false"/>
+            </column>
+            <column name="device_fingerprint" type="VARCHAR(128)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="device_name" type="VARCHAR(200)"/>
+            <column name="last_ip" type="VARCHAR(45)"/>
+            <column name="last_country" type="VARCHAR(2)"/>
+            <column name="created_at" type="DATETIME">
+                <constraints nullable="false"/>
+            </column>
+            <column name="last_seen_at" type="DATETIME">
+                <constraints nullable="false"/>
+            </column>
+            <column name="expires_at" type="DATETIME">
+                <constraints nullable="false"/>
+            </column>
+            <column name="revoked" type="BOOLEAN" defaultValueBoolean="false">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+        <createIndex tableName="user_trusted_device" indexName="idx_trusted_device_user_fp">
+            <column name="user_id"/>
+            <column name="device_fingerprint"/>
+        </createIndex>
+        <createIndex tableName="user_trusted_device" indexName="idx_trusted_device_user_active">
+            <column name="user_id"/>
+            <column name="revoked"/>
+            <column name="expires_at"/>
+        </createIndex>
+        <addForeignKeyConstraint
+                baseTableName="user_trusted_device"
+                baseColumnNames="user_id"
+                referencedTableName="application_user"
+                referencedColumnNames="id"
+                constraintName="fk_trusted_device_user"
+                onDelete="CASCADE"/>
+    </changeSet>
+
 </databaseChangeLog>
