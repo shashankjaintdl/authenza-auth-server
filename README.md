@@ -38,6 +38,28 @@ Authenza utilizes a strict multi-tenant architecture where **every tenant receiv
 - **Security**: BCrypt, WebAuthn/FIDO2, JWT (Nimbus), PKCE.
 - **Frontend (Tenant Portal)**: Angular 17, Tailwind CSS, OIDC-Client.
 
+## 📚 Tutorial (book-style)
+
+New engineers: start with the indexed tutorial under [`tutorial/README.md`](tutorial/README.md) — table of contents, chapters with prev/next links, and a [glossary of terms with examples](tutorial/00-glossary.md).
+
+- **GitHub Pages:** https://shashankjaintdl.github.io/authenza-auth-server/tutorial/  
+- **Workflow:** [`.github/workflows/deploy-tutorial-pages.yml`](.github/workflows/deploy-tutorial-pages.yml)
+
+---
+
+
+## 📂 Documentation map
+
+| Folder | Purpose |
+|--------|---------|
+| [`tutorial/`](tutorial/README.md) | Engineer tutorial book |
+| [`docs/`](docs/PRD.md) | Product PRD + architecture |
+| [`planning/`](planning/README.md) | Roadmap, designs, plans |
+| [`architecture/`](architecture/README.md) | Architecture notes |
+| [`guides/`](guides/README.md) | How-to / feature guides |
+| [`reference/`](reference/README.md) | Engineering reference notes |
+| [`flows/`](flows/README.md) | Controller flow notes |
+
 ## 🚀 Getting Started
 
 1. **Spin up Infrastructure:** Use the provided `docker-compose.yml` to start MySQL and Redis.
@@ -212,5 +234,40 @@ Each service has its own `application.yaml` under `src/main/resources/`. Key pro
 
 ---
 
-*For full architecture details see [ROADMAP.md](ROADMAP.md) · For sprint progress see [SPRINTS.md](SPRINTS.md)*
+## 🗄️ BYOD Tenant Databases
+
+Customers can bring their own database for a tenant. Supported engines (GA):
+
+| `dbType` | Example JDBC URL |
+|----------|------------------|
+| `MYSQL` | `jdbc:mysql://db.example.com:3306/acme_auth` |
+| `POSTGRES` | `jdbc:postgresql://db.example.com:5432/acme_auth` |
+| `MARIADB` | `jdbc:mariadb://db.example.com:3306/acme_auth` |
+
+**Hosted default (unchanged):** omit `jdbcUrl` on `POST /api/v1/admin/tenant` and Authenza provisions a MySQL database on the platform host.
+
+**Preflight (non-mutating):**
+
+```http
+POST /api/v1/admin/tenant/validate-db
+Content-Type: application/json
+
+{
+  "dbType": "POSTGRES",
+  "jdbcUrl": "jdbc:postgresql://db.example.com:5432/acme_auth",
+  "username": "acme_user",
+  "password": "***"
+}
+```
+
+Oracle / MSSQL / IBM DB2 are rejected with `400 UNSUPPORTED_ENGINE`.
+
+Design & implementation checklist:
+
+- [planning/designs/byod_and_portal_tenant_context_design.md](planning/designs/byod_and_portal_tenant_context_design.md)
+- [planning/designs/byod_and_portal_tenant_context_implementation.md](planning/designs/byod_and_portal_tenant_context_implementation.md)
+
+---
+
+*For full architecture details see [planning/ROADMAP.md](planning/ROADMAP.md) · For sprint progress see [planning/SPRINTS.md](planning/SPRINTS.md)*
 

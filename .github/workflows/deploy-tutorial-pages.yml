@@ -1,0 +1,60 @@
+name: Deploy tutorial (GitHub Pages)
+
+on:
+  push:
+    branches:
+      - main
+      - feature/authenza-10
+    paths:
+      - 'tutorial/**'
+      - 'docs/**'
+      - 'planning/**'
+      - '.github/workflows/deploy-tutorial-pages.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: pages-tutorial
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Assemble static site
+        run: |
+          set -euo pipefail
+          mkdir -p _site/tutorial _site/docs _site/planning
+          cp -R tutorial/. _site/tutorial/
+          if [ -d docs ]; then cp -R docs/. _site/docs/; fi
+          if [ -d planning ]; then cp -R planning/. _site/planning/; fi
+          cat > _site/index.html <<'EOF'
+          <!DOCTYPE html>
+          <html lang="en">
+          <head>
+            <meta charset="UTF-8" />
+            <title>Authenza Docs</title>
+            <meta http-equiv="refresh" content="0; url=tutorial/" />
+          </head>
+          <body>
+            <p><a href="tutorial/">Open Authenza Tutorial</a></p>
+          </body>
+          </html>
+          EOF
+          touch _site/.nojekyll
+
+      - name: Publish to gh-pages
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./_site
+          # Keep history on gh-pages; never touches main / feature branches
+          force_orphan: false
+          enable_jekyll: false
+          # Only replace published site files — does not delete repo source
+          keep_files: false

@@ -16,6 +16,19 @@ build/
 bin/
 !**/src/main/**/bin/
 !**/src/test/**/bin/
+*.md
+# Whitelist documentation trees so docs can be pushed to GitHub
+!README.md
+!HELP.md
+!ROADMAP.md
+!docs/**/*.md
+!tutorial/**/*.md
+!planning/**/*.md
+!architecture/**/*.md
+!guides/**/*.md
+!reference/**/*.md
+!flows/**/*.md
+*.log
 
 ### IntelliJ IDEA ###
 .idea

@@ -12,4 +12,148 @@
         </preConditions>
         <dropTable tableName="oauth2_registered_client"/>
     </changeSet>
+
+    <!--
+        Adaptive / Risk-Based Authentication — Phase A
+        - user_trusted_device + adaptive tenant_settings seeds (disabled by default)
+    -->
+    <changeSet id="V0.0.13-create-user_trusted_device" author="authenza">
+        <preConditions onFail="MARK_RAN">
+            <not>
+                <tableExists tableName="user_trusted_device"/>
+            </not>
+        </preConditions>
+        <createTable tableName="user_trusted_device">
+            <column name="id" type="BIGINT" autoIncrement="true">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="user_id" type="BIGINT">
+                <constraints nullable="false"/>
+            </column>
+            <column name="device_fingerprint" type="VARCHAR(128)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="device_name" type="VARCHAR(200)">
+                <constraints nullable="true"/>
+            </column>
+            <column name="last_ip" type="VARCHAR(45)">
+                <constraints nullable="true"/>
+            </column>
+            <column name="last_country" type="VARCHAR(2)">
+                <constraints nullable="true"/>
+            </column>
+            <column name="created_at" type="DATETIME">
+                <constraints nullable="false"/>
+            </column>
+            <column name="last_seen_at" type="DATETIME">
+                <constraints nullable="false"/>
+            </column>
+            <column name="expires_at" type="DATETIME">
+                <constraints nullable="false"/>
+            </column>
+            <column name="revoked" type="BOOLEAN" defaultValueBoolean="false">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+        <createIndex tableName="user_trusted_device" indexName="idx_trusted_device_user_fp">
+            <column name="user_id"/>
+            <column name="device_fingerprint"/>
+        </createIndex>
+        <createIndex tableName="user_trusted_device" indexName="idx_trusted_device_user_active">
+            <column name="user_id"/>
+            <column name="revoked"/>
+            <column name="expires_at"/>
+        </createIndex>
+        <addForeignKeyConstraint
+                baseTableName="user_trusted_device"
+                baseColumnNames="user_id"
+                referencedTableName="application_user"
+                referencedColumnNames="id"
+                constraintName="fk_trusted_device_user"
+                onDelete="CASCADE"/>
+    </changeSet>
+
+    <changeSet id="V0.0.13-seed-adaptive_auth_enabled" author="authenza">
+        <preConditions onFail="MARK_RAN">
+            <sqlCheck expectedResult="0">
+                SELECT COUNT(*) FROM tenant_settings WHERE setting_key = 'adaptive_auth_enabled'
+            </sqlCheck>
+        </preConditions>
+        <insert tableName="tenant_settings">
+            <column name="setting_key" value="adaptive_auth_enabled"/>
+            <column name="setting_value" value="false"/>
+        </insert>
+    </changeSet>
+
+    <changeSet id="V0.0.13-seed-adaptive_score_step_up" author="authenza">
+        <preConditions onFail="MARK_RAN">
+            <sqlCheck expectedResult="0">
+                SELECT COUNT(*) FROM tenant_settings WHERE setting_key = 'adaptive_score_step_up'
+            </sqlCheck>
+        </preConditions>
+        <insert tableName="tenant_settings">
+            <column name="setting_key" value="adaptive_score_step_up"/>
+            <column name="setting_value" value="40"/>
+        </insert>
+    </changeSet>
+
+    <changeSet id="V0.0.13-seed-adaptive_score_block" author="authenza">
+        <preConditions onFail="MARK_RAN">
+            <sqlCheck expectedResult="0">
+                SELECT COUNT(*) FROM tenant_settings WHERE setting_key = 'adaptive_score_block'
+            </sqlCheck>
+        </preConditions>
+        <insert tableName="tenant_settings">
+            <column name="setting_key" value="adaptive_score_block"/>
+            <column name="setting_value" value="80"/>
+        </insert>
+    </changeSet>
+
+    <changeSet id="V0.0.13-seed-adaptive_notify_new_device" author="authenza">
+        <preConditions onFail="MARK_RAN">
+            <sqlCheck expectedResult="0">
+                SELECT COUNT(*) FROM tenant_settings WHERE setting_key = 'adaptive_notify_new_device'
+            </sqlCheck>
+        </preConditions>
+        <insert tableName="tenant_settings">
+            <column name="setting_key" value="adaptive_notify_new_device"/>
+            <column name="setting_value" value="true"/>
+        </insert>
+    </changeSet>
+
+    <changeSet id="V0.0.13-seed-adaptive_fail_mode" author="authenza">
+        <preConditions onFail="MARK_RAN">
+            <sqlCheck expectedResult="0">
+                SELECT COUNT(*) FROM tenant_settings WHERE setting_key = 'adaptive_fail_mode'
+            </sqlCheck>
+        </preConditions>
+        <insert tableName="tenant_settings">
+            <column name="setting_key" value="adaptive_fail_mode"/>
+            <column name="setting_value" value="OPEN"/>
+        </insert>
+    </changeSet>
+
+    <changeSet id="V0.0.13-seed-adaptive_trust_device_days" author="authenza">
+        <preConditions onFail="MARK_RAN">
+            <sqlCheck expectedResult="0">
+                SELECT COUNT(*) FROM tenant_settings WHERE setting_key = 'adaptive_trust_device_days'
+            </sqlCheck>
+        </preConditions>
+        <insert tableName="tenant_settings">
+            <column name="setting_key" value="adaptive_trust_device_days"/>
+            <column name="setting_value" value="90"/>
+        </insert>
+    </changeSet>
+
+    <changeSet id="V0.0.13-seed-adaptive_new_ip_lookback_days" author="authenza">
+        <preConditions onFail="MARK_RAN">
+            <sqlCheck expectedResult="0">
+                SELECT COUNT(*) FROM tenant_settings WHERE setting_key = 'adaptive_new_ip_lookback_days'
+            </sqlCheck>
+        </preConditions>
+        <insert tableName="tenant_settings">
+            <column name="setting_key" value="adaptive_new_ip_lookback_days"/>
+            <column name="setting_value" value="30"/>
+        </insert>
+    </changeSet>
 </databaseChangeLog>

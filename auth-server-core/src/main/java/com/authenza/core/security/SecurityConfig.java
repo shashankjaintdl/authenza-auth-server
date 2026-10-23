@@ -1,6 +1,8 @@
 package com.authenza.core.security;
 
 import com.authenza.adapter.context.TenantContextHolder;
+import com.authenza.adapter.context.TenantUriUtils;
+import com.authenza.core.risk.LoginRiskGate;
 import com.authenza.core.service.SessionRecordingService;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -14,6 +16,7 @@ import org.springframework.security.config.Customizer;
 import org.springframework.core.annotation.Order;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
+import org.springframework.security.config.annotation.web.configurers.AuthorizeHttpRequestsConfigurer;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.AuthenticationException;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -31,8 +34,6 @@ import org.springframework.security.web.savedrequest.SavedRequest;
 import org.springframework.security.web.session.DisableEncodeUrlFilter;
 
 import java.io.IOException;
-import java.net.URLEncoder;
-import java.nio.charset.StandardCharsets;
 import java.util.Optional;
 
 @Configuration
@@ -47,19 +48,22 @@ public class SecurityConfig {
     private final SessionRecordingService sessionRecordingService;
     private final AuthPendingStateStore authPendingStateStore;
     private final OAuthTransactionTokenService oauthTransactionTokenService;
+    private final LoginRiskGate loginRiskGate;
 
     public SecurityConfig(BruteForceProtectionService bruteForceProtectionService,
             JdbcTenantUserDetailsService userDetailsService,
             MfaAuthenticationFilter mfaAuthenticationFilter,
             SessionRecordingService sessionRecordingService,
             AuthPendingStateStore authPendingStateStore,
-            OAuthTransactionTokenService oauthTransactionTokenService) {
+            OAuthTransactionTokenService oauthTransactionTokenService,
+            LoginRiskGate loginRiskGate) {
         this.bruteForceProtectionService    = bruteForceProtectionService;
         this.userDetailsService             = userDetailsService;
         this.mfaAuthenticationFilter        = mfaAuthenticationFilter;
         this.sessionRecordingService        = sessionRecordingService;
         this.authPendingStateStore          = authPendingStateStore;
         this.oauthTransactionTokenService   = oauthTransactionTokenService;
+        this.loginRiskGate                  = loginRiskGate;
     }
 
     /**
@@ -76,6 +80,37 @@ public class SecurityConfig {
     }
 
     @Bean
+    public TenantAwareAccessDeniedHandler tenantAwareAccessDeniedHandler() {
+        return new TenantAwareAccessDeniedHandler();
+    }
+
+    private void configureAuthorization(
+            AuthorizeHttpRequestsConfigurer<HttpSecurity>.AuthorizationManagerRequestMatcherRegistry authorize) {
+        authorize
+                // Allow the root URL, login page, and error pages without authentication
+                .requestMatchers("/").permitAll()
+                // Tenant root — handles post-login redirect when OAuth2 session expired
+                .requestMatchers("/{tenantId}/").permitAll()
+                .requestMatchers("/{tenantId}/login").permitAll()
+                .requestMatchers("/{tenantId}/register").permitAll()
+                .requestMatchers("/{tenantId}/verify-email").permitAll()
+                .requestMatchers("/{tenantId}/forgot-password").permitAll()
+                .requestMatchers("/{tenantId}/reset-password").permitAll()
+                // MFA challenge and setup pages — session-gated by their controllers
+                .requestMatchers("/{tenantId}/mfa-verify").permitAll()
+                .requestMatchers("/{tenantId}/mfa-setup").permitAll()
+                .requestMatchers("/{tenantId}/force-password-change").permitAll()
+                // WebAuthn bridge — receives the HMAC-signed token from the login page
+                // after a successful passkey assertion in auth-iam-service.
+                // Authentication proof is the bridge token itself, not a session.
+                .requestMatchers("/{tenantId}/webauthn/bridge").permitAll()
+                .requestMatchers("/{tenantId}/api/**").permitAll()
+                .requestMatchers("/error/**").permitAll()
+                .requestMatchers("/images/**", "/css/**", "/js/**", "/favicon.ico").permitAll()
+                .anyRequest().authenticated();
+    }
+
+    @Bean
     @Order(2)
     public SecurityFilterChain defaultSecurityFilterChain(HttpSecurity http,
             MultiTenantSecurityFilter tenantSecurityFilter)
@@ -87,53 +122,14 @@ public class SecurityConfig {
                 .addFilterBefore(tenantSecurityFilter, DisableEncodeUrlFilter.class)
                 // Enable CORS — delegates to the CorsConfigurationSource bean
                 .cors(Customizer.withDefaults())
-                .authorizeHttpRequests((authorize) ->
-                        authorize
-                                // Allow the root URL, login page, and error pages without authentication
-                                .requestMatchers("/").permitAll()
-                                // Tenant root — handles post-login redirect when OAuth2 session expired
-                                .requestMatchers("/{tenantId}/").permitAll()
-                                .requestMatchers("/{tenantId}/login").permitAll()
-                                .requestMatchers("/{tenantId}/register").permitAll()
-                                .requestMatchers("/{tenantId}/verify-email").permitAll()
-                                .requestMatchers("/{tenantId}/forgot-password").permitAll()
-                                .requestMatchers("/{tenantId}/reset-password").permitAll()
-                                // MFA challenge and setup pages — session-gated by their controllers
-                                .requestMatchers("/{tenantId}/mfa-verify").permitAll()
-                                .requestMatchers("/{tenantId}/mfa-setup").permitAll()
-                                .requestMatchers("/{tenantId}/force-password-change").permitAll()
-                                // WebAuthn bridge — receives the HMAC-signed token from the login page
-                                // after a successful passkey assertion in auth-iam-service.
-                                // Authentication proof is the bridge token itself, not a session.
-                                .requestMatchers("/{tenantId}/webauthn/bridge").permitAll()
-                                .requestMatchers("/{tenantId}/api/**").permitAll()
-                                .requestMatchers("/error/**").permitAll()
-                                .requestMatchers("/images/**", "/css/**", "/js/**", "/favicon.ico").permitAll()
-                                .anyRequest().authenticated()
-                )
+                .authorizeHttpRequests(this::configureAuthorization)
                 // Use a custom entry point that resolves {tenantId} dynamically.
                 // Also set a global accessDeniedHandler so ANY 403 (including ones
                 // from Spring Boot's own ErrorController path) sends the user back
                 // to the login page instead of showing the Whitelabel error page.
                 .exceptionHandling(exceptions -> exceptions
                         .authenticationEntryPoint(tenantAwareAuthenticationEntryPoint())
-                        .accessDeniedHandler((request, response, accessDeniedException) -> {
-                                String tenantId = TenantContextHolder.getTenantId();
-                                if (tenantId == null || tenantId.isBlank()) {
-                                    tenantId = resolveTenantFromUri(request.getRequestURI());
-                                }
-                                String base = (tenantId != null && !tenantId.isBlank())
-                                        ? "/" + tenantId + "/login?session_expired"
-                                        : "/login?session_expired";
-                                // Preserve the tx token from the POST body so the OAuth2 context
-                                // survives the CSRF rejection redirect and is present when the user
-                                // re-submits their credentials on the reloaded login page.
-                                String tx = request.getParameter("tx");
-                                String txParam = (tx != null && !tx.isBlank())
-                                        ? "&tx=" + URLEncoder.encode(tx, StandardCharsets.UTF_8)
-                                        : "";
-                                response.sendRedirect(base + txParam);
-                        })
+                        .accessDeniedHandler(tenantAwareAccessDeniedHandler())
                 )
                 // Form login handles the redirect to the login page from the
                 // authorization server filter chain
@@ -245,7 +241,7 @@ public class SecurityConfig {
                 // Resolve tenant for brute-force counter reset
                 String tenantId = TenantContextHolder.getTenantId();
                 if (tenantId == null || tenantId.isBlank()) {
-                    tenantId = resolveTenantFromUri(request.getRequestURI());
+                    tenantId = TenantUriUtils.resolveTenantFromUri(request.getRequestURI());
                 }
 
                 String username = authentication.getName();
@@ -267,6 +263,15 @@ public class SecurityConfig {
                     return;
                 }
 
+                Long userId = userDetailsService.loadUserId(username);
+
+                // ── Adaptive risk gate (after force-pwd, before policy MFA) ──
+                LoginRiskGate.GateOutcome riskOutcome =
+                        loginRiskGate.evaluateAfterCredentials(tenantId, username, userId, request, response);
+                if (riskOutcome.halted()) {
+                    return;
+                }
+
                 // ── MFA gate: if MFA is enabled for this user, do NOT complete auth yet ──
                 // Store the pending state in session and redirect to the TOTP challenge page.
                 // The SecurityContext is NOT set here — MfaAuthenticationFilter will do it
@@ -279,11 +284,10 @@ public class SecurityConfig {
                     if (mfaSession != null) {
                         mfaSession.removeAttribute(HttpSessionSecurityContextRepository.SPRING_SECURITY_CONTEXT_KEY);
                     }
-                    Long userId = userDetailsService.loadUserId(username);
                     String mfaToken = authPendingStateStore.savePendingState(
                             AuthPendingStateStore.TYPE_MFA,
                             new AuthPendingStateStore.PendingState(username, tenantId, userId,
-                                    request.getParameter("tx")));
+                                    request.getParameter("tx"), riskOutcome.notifyNewDevice()));
 
                     // Routing decision: only send to /mfa-verify if the user has
                     // FULLY enrolled (mfa_enabled=true AND secret confirmed).
@@ -303,8 +307,10 @@ public class SecurityConfig {
                 // (mfa_enabled=false but secret still present — no longer needed.)
                 userDetailsService.clearOrphanMfaSecret(username);
 
+                loginRiskGate.onLoginFullyEstablished(
+                        tenantId, userId, riskOutcome.notifyNewDevice(), request, response);
+
                 // Record the session for Active Devices tracking
-                Long userId = userDetailsService.loadUserId(username);
                 sessionRecordingService.recordSession(userId, request);
 
                 // ── Priority 1: Session SavedRequest (normal short-lived login) ────────────
@@ -369,7 +375,7 @@ public class SecurityConfig {
 
                 if (tenantId == null || tenantId.isBlank()) {
                     // Fallback: parse from request URI
-                    tenantId = resolveTenantFromUri(request.getRequestURI());
+                    tenantId = TenantUriUtils.resolveTenantFromUri(request.getRequestURI());
                 }
 
                 if (tenantId == null || tenantId.isBlank()) {
@@ -391,17 +397,6 @@ public class SecurityConfig {
                 }
             }
         };
-    }
-
-    private static String resolveTenantFromUri(String uri) {
-        if (uri == null || uri.equals("/"))
-            return null;
-        String[] parts = uri.split("/");
-        for (String part : parts) {
-            if (!part.isEmpty())
-                return part;
-        }
-        return null;
     }
 
     @Bean

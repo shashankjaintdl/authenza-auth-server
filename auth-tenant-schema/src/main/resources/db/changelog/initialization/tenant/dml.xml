@@ -435,4 +435,83 @@
         </insert>
     </changeSet>
 
+    <!-- V0.0.13 — Adaptive Auth settings (disabled by default) -->
+    <changeSet id="init-seed-adaptive_auth_enabled" author="authenza">
+        <preConditions onFail="MARK_RAN">
+            <sqlCheck expectedResult="0">
+                SELECT COUNT(*) FROM tenant_settings WHERE setting_key = 'adaptive_auth_enabled'
+            </sqlCheck>
+        </preConditions>
+        <insert tableName="tenant_settings">
+            <column name="setting_key" value="adaptive_auth_enabled"/>
+            <column name="setting_value" value="false"/>
+        </insert>
+    </changeSet>
+    <changeSet id="init-seed-adaptive_score_step_up" author="authenza">
+        <preConditions onFail="MARK_RAN">
+            <sqlCheck expectedResult="0">
+                SELECT COUNT(*) FROM tenant_settings WHERE setting_key = 'adaptive_score_step_up'
+            </sqlCheck>
+        </preConditions>
+        <insert tableName="tenant_settings">
+            <column name="setting_key" value="adaptive_score_step_up"/>
+            <column name="setting_value" value="40"/>
+        </insert>
+    </changeSet>
+    <changeSet id="init-seed-adaptive_score_block" author="authenza">
+        <preConditions onFail="MARK_RAN">
+            <sqlCheck expectedResult="0">
+                SELECT COUNT(*) FROM tenant_settings WHERE setting_key = 'adaptive_score_block'
+            </sqlCheck>
+        </preConditions>
+        <insert tableName="tenant_settings">
+            <column name="setting_key" value="adaptive_score_block"/>
+            <column name="setting_value" value="80"/>
+        </insert>
+    </changeSet>
+    <changeSet id="init-seed-adaptive_notify_new_device" author="authenza">
+        <preConditions onFail="MARK_RAN">
+            <sqlCheck expectedResult="0">
+                SELECT COUNT(*) FROM tenant_settings WHERE setting_key = 'adaptive_notify_new_device'
+            </sqlCheck>
+        </preConditions>
+        <insert tableName="tenant_settings">
+            <column name="setting_key" value="adaptive_notify_new_device"/>
+            <column name="setting_value" value="true"/>
+        </insert>
+    </changeSet>
+    <changeSet id="init-seed-adaptive_fail_mode" author="authenza">
+        <preConditions onFail="MARK_RAN">
+            <sqlCheck expectedResult="0">
+                SELECT COUNT(*) FROM tenant_settings WHERE setting_key = 'adaptive_fail_mode'
+            </sqlCheck>
+        </preConditions>
+        <insert tableName="tenant_settings">
+            <column name="setting_key" value="adaptive_fail_mode"/>
+            <column name="setting_value" value="OPEN"/>
+        </insert>
+    </changeSet>
+    <changeSet id="init-seed-adaptive_trust_device_days" author="authenza">
+        <preConditions onFail="MARK_RAN">
+            <sqlCheck expectedResult="0">
+                SELECT COUNT(*) FROM tenant_settings WHERE setting_key = 'adaptive_trust_device_days'
+            </sqlCheck>
+        </preConditions>
+        <insert tableName="tenant_settings">
+            <column name="setting_key" value="adaptive_trust_device_days"/>
+            <column name="setting_value" value="90"/>
+        </insert>
+    </changeSet>
+    <changeSet id="init-seed-adaptive_new_ip_lookback_days" author="authenza">
+        <preConditions onFail="MARK_RAN">
+            <sqlCheck expectedResult="0">
+                SELECT COUNT(*) FROM tenant_settings WHERE setting_key = 'adaptive_new_ip_lookback_days'
+            </sqlCheck>
+        </preConditions>
+        <insert tableName="tenant_settings">
+            <column name="setting_key" value="adaptive_new_ip_lookback_days"/>
+            <column name="setting_value" value="30"/>
+        </insert>
+    </changeSet>
+
 </databaseChangeLog>

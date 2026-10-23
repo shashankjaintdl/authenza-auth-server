@@ -14,6 +14,7 @@ dependencies {
     // JDBC drivers — required for offline dialect-correct SQL generation
     liquibaseRuntime 'com.mysql:mysql-connector-j:8.0.33'
     liquibaseRuntime 'org.postgresql:postgresql:42.7.3'
+    liquibaseRuntime 'org.mariadb.jdbc:mariadb-java-client:3.3.3'
     liquibaseRuntime 'com.microsoft.sqlserver:mssql-jdbc:12.6.1.jre11'
     // Note: Oracle ojdbc11 must be downloaded separately from Oracle Maven or manually
     // liquibaseRuntime 'com.oracle.database.jdbc:ojdbc11:23.4.0.24.05'
@@ -33,6 +34,7 @@ import org.gradle.api.tasks.JavaExec
  * ─────────────────     ─────────────────
  *   MySQL               offline:mysql
  *   PostgreSQL          offline:postgresql
+ *   MariaDB             offline:mysql  (Liquibase has no offline:mariadb; MySQL dialect is used)
  *   Oracle              offline:oracle
  *   MSSQL               offline:mssql
  *
@@ -41,7 +43,7 @@ import org.gradle.api.tasks.JavaExec
  */
 tasks.register('generateSqlReports') {
     group = 'liquibase'
-    description = 'Generates dialect-specific SQL mirroring the XML folder structure for MySQL, PostgreSQL, Oracle, and MSSQL'
+    description = 'Generates dialect-specific SQL mirroring the XML folder structure for MySQL, PostgreSQL, MariaDB, Oracle, and MSSQL'
 
     def changelogDir = project.file('src/main/resources/db/changelog')
     def resourcesDir = project.file('src/main/resources')
@@ -52,6 +54,8 @@ tasks.register('generateSqlReports') {
     def databases = [
         'mysql'     : 'offline:mysql',
         'postgresql': 'offline:postgresql',
+        // MariaDB offline token unavailable — MySQL dialect is the supported proxy.
+        'mariadb'   : 'offline:mysql',
         'oracle'    : 'offline:oracle',
         'mssql'     : 'offline:mssql'
     ]

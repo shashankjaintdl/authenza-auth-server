@@ -4,6 +4,7 @@ import com.authenza.common.dto.NotificationRequest;
 import com.authenza.common.events.AdminInviteEvent;
 import com.authenza.common.events.EmailVerificationEvent;
 import com.authenza.common.events.PasswordResetEvent;
+import com.authenza.common.events.SecurityAlertEvent;
 import com.authenza.notification.service.NotificationService;
 import com.authenza.adapter.context.TenantContextHolder;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -97,6 +98,34 @@ public class NotificationEventListener {
 
         } catch (Exception e) {
             log.error("Failed to process password reset event", e);
+        } finally {
+            TenantContextHolder.clear();
+        }
+    }
+
+    /**
+     * Handles adaptive-auth security alerts (e.g. new device) from auth-server-core.
+     */
+    public void handleSecurityAlert(String message) {
+        try {
+            log.info("Received security alert event: {}", message);
+            SecurityAlertEvent event = objectMapper.readValue(message, SecurityAlertEvent.class);
+            TenantContextHolder.setTenantId(event.tenantId());
+
+            java.util.Map<String, Object> variables = new java.util.HashMap<>();
+            variables.put("name", event.recipientName());
+            variables.put("device_name", event.deviceName() != null ? event.deviceName() : "Unknown device");
+            variables.put("ip_address", event.ipAddress() != null ? event.ipAddress() : "Unknown");
+            variables.put("alert_kind", event.alertKind() != null ? event.alertKind() : "SECURITY");
+
+            NotificationRequest request = new NotificationRequest();
+            request.setTenantId(event.tenantId());
+            request.setContextType(com.authenza.common.enums.NotificationType.SECURITY_ALERT);
+            request.setTargetEmail(event.recipientEmail());
+            request.setTemplateVariables(variables);
+            notificationService.sendNotification(request);
+        } catch (Exception e) {
+            log.error("Failed to process security alert event", e);
         } finally {
             TenantContextHolder.clear();
         }

@@ -1,8 +1,13 @@
 package com.authenza.master.service;
 
-import com.authenza.common.events.TenantProvisionedEvent;
+import com.authenza.common.dto.TenantDatabaseValidationRequest;
 import com.authenza.common.dto.TenantRequest;
+import com.authenza.common.dto.TenantSettingsResponse;
+import com.authenza.common.dto.TenantSettingsUpdateRequest;
+import com.authenza.common.enums.DBType;
 import com.authenza.common.enums.TenantStaus;
+import com.authenza.common.events.TenantProvisionedEvent;
+import com.authenza.common.exception.TenantDatabaseValidationException;
 import com.authenza.master.model.GlobalAccount;
 import com.authenza.master.model.Tenant;
 import com.authenza.master.repository.GlobalAccountRepository;
@@ -21,6 +26,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.datasource.DriverManagerDataSource;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.StringUtils;
 
 import javax.sql.DataSource;
 import java.sql.Connection;
@@ -35,6 +41,7 @@ public class TenantProvisioningService {
     private final TenantEventPublisher tenantEventPublisher;
     private final GlobalAccountService globalAccountService;
     private final GlobalAccountRepository globalAccountRepository;
+    private final TenantDatabasePreflightService preflightService;
 
     @Autowired
     private ResourceLoader resourceLoader;
@@ -54,15 +61,17 @@ public class TenantProvisioningService {
     public TenantProvisioningService(MasterTenantRepository repository,
             TenantEventPublisher tenantEventPublisher,
             GlobalAccountService globalAccountService,
-            GlobalAccountRepository globalAccountRepository) {
+            GlobalAccountRepository globalAccountRepository,
+            TenantDatabasePreflightService preflightService) {
         this.repository = repository;
         this.tenantEventPublisher = tenantEventPublisher;
         this.globalAccountService = globalAccountService;
         this.globalAccountRepository = globalAccountRepository;
+        this.preflightService = preflightService;
     }
 
     @Transactional
-    public void onboardNewTenant(TenantRequest originalRequest) {
+    public String onboardNewTenant(TenantRequest originalRequest) {
         TenantRequest request = originalRequest;
         if (request.tenantId() == null || request.tenantId().isBlank()) {
             String generatedTenantId = "dev_" + java.util.UUID.randomUUID().toString().replace("-", "").substring(0, 12).toLowerCase();
@@ -100,16 +109,21 @@ public class TenantProvisioningService {
         String resolvedUsername = finalRequest.username();
         String resolvedPassword = finalRequest.password();
         String resolvedDriver = finalRequest.driver();
-        String resolvedDbType = finalRequest.dbType() != null ? finalRequest.dbType().getValue() : com.authenza.common.enums.DBType.MYSQL.getValue();
+        DBType resolvedDbTypeEnum = finalRequest.dbType() != null
+                ? finalRequest.dbType()
+                : DBType.MYSQL;
+        String resolvedDbType = resolvedDbTypeEnum.getValue();
+        boolean byod = StringUtils.hasText(resolvedJdbcUrl);
 
-        if (resolvedJdbcUrl == null || resolvedJdbcUrl.isBlank()) {
+        if (!byod) {
             log.info("No DB credentials provided for tenant '{}'. Falling back to default platform database provisioning.", finalRequest.tenantId());
             resolvedUsername = masterDbUsername;
             resolvedPassword = masterDbPassword;
             resolvedDriver = masterDbDriver;
-            resolvedDbType = com.authenza.common.enums.DBType.MYSQL.getValue();
-            
-            // Extract base url from master database. 
+            resolvedDbTypeEnum = DBType.MYSQL;
+            resolvedDbType = resolvedDbTypeEnum.getValue();
+
+            // Extract base url from master database.
             // e.g. from jdbc:mysql://localhost:3306/auth-master?createDatabaseIfNotExist=true
             // to   jdbc:mysql://localhost:3306/my_new_tenant?createDatabaseIfNotExist=true
             int lastSlash = masterDbUrl.lastIndexOf("/");
@@ -117,6 +131,29 @@ public class TenantProvisioningService {
             int qMark = masterDbUrl.indexOf("?", lastSlash);
             String options = qMark != -1 ? masterDbUrl.substring(qMark) : "";
             resolvedJdbcUrl = base + "/" + finalRequest.tenantId() + options;
+        } else {
+            if (!resolvedDbTypeEnum.isByodSupported()) {
+                throw new TenantDatabaseValidationException(
+                        "UNSUPPORTED_ENGINE",
+                        "BYOD currently supports MYSQL, POSTGRES, and MARIADB only. Requested: "
+                                + resolvedDbTypeEnum.getValue());
+            }
+            // Fail before master row + Liquibase when customer DB is unreachable.
+            preflightService.assertValid(new TenantDatabaseValidationRequest(
+                    resolvedDbTypeEnum,
+                    resolvedJdbcUrl,
+                    resolvedUsername,
+                    resolvedPassword,
+                    resolvedDriver));
+        }
+
+        // Auto-resolve driver class if not supplied by the caller.
+        // This allows tenants to register with just a jdbcUrl + dbType without
+        // knowing the internal JDBC driver class name.
+        if (resolvedDriver == null || resolvedDriver.isBlank()) {
+            resolvedDriver = resolvedDbTypeEnum.getDefaultDriver();
+            log.info("Driver not specified for tenant '{}'. Auto-resolved to '{}' for engine '{}'.",
+                    finalRequest.tenantId(), resolvedDriver, resolvedDbType);
         }
 
         // 1. Create the Tenant Domain Object
@@ -144,13 +181,21 @@ public class TenantProvisioningService {
         }
 
         // 2. Save metadata to Master Registry
-        repository.save(tenant);
+        Tenant saved = repository.save(tenant);
 
         // 3. Build a temporary DataSource for the new tenant's DB
         DriverManagerDataSource tenantDs = buildTenantDataSource(finalRequest, resolvedJdbcUrl, resolvedUsername, resolvedPassword, resolvedDriver);
 
         // 4. Run Liquibase Schema Migration against the Tenant's Database
-        runLiquibaseMigration(finalRequest, tenantDs);
+        try {
+            runLiquibaseMigration(finalRequest, tenantDs);
+        } catch (RuntimeException migrationFailure) {
+            // Do not leave an ACTIVE master row pointing at a broken schema.
+            log.error("Liquibase failed for tenant '{}'. Marking master row INACTIVE.", finalRequest.tenantId());
+            saved.setActive(TenantStaus.INACTIVE.name());
+            repository.save(saved);
+            throw migrationFailure;
+        }
 
         // 5. Strategy 3 — Global Identity auto-provisioning:
         //    If an ownerId (email) is provided and a global account exists,
@@ -180,6 +225,7 @@ public class TenantProvisioningService {
                 resolvedDriver));
 
         log.info("Successfully provisioned database for tenant: {}", finalRequest.tenantId());
+        return finalRequest.tenantId();
     }
 
     public Iterable<Tenant> getTenantsByOwner(String ownerId) {
@@ -254,15 +300,17 @@ public class TenantProvisioningService {
             String fullName = trim(account.getGivenName()) + " " + trim(account.getFamilyName());
 
             // Insert shadow user — password uses sentinel value [GLOBAL_ACCOUNT]
+            // ANSI CURRENT_TIMESTAMP is used (vs MySQL-only NOW()) for cross-engine compatibility.
             jdbc.update("""
                 INSERT INTO application_user
                     (preferred_username, email, given_name, family_name, name,
                      password, status, email_verified, mfa_enabled,
                      phone_number_verified, failed_login_attempts, created_at)
-                VALUES (?, ?, ?, ?, ?, '[GLOBAL_ACCOUNT]', 'ACTIVE', true, false, false, 0, NOW())
+                VALUES (?, ?, ?, ?, ?, '[GLOBAL_ACCOUNT]', 'ACTIVE', ?, ?, ?, 0, CURRENT_TIMESTAMP)
                 """,
                 email, email,
-                account.getGivenName(), account.getFamilyName(), fullName.trim()
+                account.getGivenName(), account.getFamilyName(), fullName.trim(),
+                Boolean.TRUE, Boolean.FALSE, Boolean.FALSE
             );
 
             // Get the newly created user's ID
@@ -328,5 +376,152 @@ public class TenantProvisioningService {
             tenant.setLastAccessedAt(Instant.now());
             repository.save(tenant);
         });
+    }
+
+    public TenantSettingsResponse getTenantSettings(String tenantId, String ownerId) {
+        Tenant tenant = requireOwnedTenant(tenantId, ownerId);
+        return toSettingsResponse(tenant);
+    }
+
+    @Transactional
+    public TenantSettingsResponse updateTenantSettings(String tenantId, TenantSettingsUpdateRequest request) {
+        if (request == null || !StringUtils.hasText(request.ownerId())) {
+            throw new IllegalArgumentException("ownerId is required");
+        }
+        Tenant tenant = requireOwnedTenant(tenantId, request.ownerId());
+
+        String accountType = StringUtils.hasText(request.accountType())
+                ? request.accountType().trim().toUpperCase()
+                : tenant.getAccountType();
+        if (accountType == null) {
+            accountType = "PERSONAL";
+        }
+        if (!"PERSONAL".equals(accountType) && !"COMPANY".equals(accountType)) {
+            throw new IllegalArgumentException("accountType must be PERSONAL or COMPANY");
+        }
+
+        if ("COMPANY".equals(accountType)) {
+            String orgName = request.orgName() != null ? request.orgName().trim() : tenant.getOrgName();
+            if (!StringUtils.hasText(orgName)) {
+                throw new IllegalArgumentException("orgName is required for COMPANY accounts");
+            }
+            tenant.setAccountType("COMPANY");
+            tenant.setOrgName(orgName);
+            if (request.employeeRange() != null) {
+                tenant.setEmployeeRange(request.employeeRange().trim());
+            } else if (!StringUtils.hasText(tenant.getEmployeeRange())) {
+                tenant.setEmployeeRange("1-49");
+            }
+        } else {
+            tenant.setAccountType("PERSONAL");
+            tenant.setOrgName(null);
+            tenant.setEmployeeRange(null);
+        }
+
+        if (Boolean.TRUE.equals(request.isDefault())) {
+            clearDefaultForOwner(request.ownerId(), tenantId);
+            tenant.setDefault(true);
+        } else if (Boolean.FALSE.equals(request.isDefault())) {
+            // Keep at least one default when possible — only clear if another default exists.
+            if (tenant.isDefault()) {
+                boolean otherDefault = repository.findByOwnerId(request.ownerId()).stream()
+                        .anyMatch(t -> t.isDefault() && !tenantId.equals(t.getTenantId()));
+                if (otherDefault) {
+                    tenant.setDefault(false);
+                }
+            }
+        }
+
+        return toSettingsResponse(repository.save(tenant));
+    }
+
+    @Transactional
+    public TenantSettingsResponse deactivateTenant(String tenantId, String ownerId) {
+        Tenant tenant = requireOwnedTenant(tenantId, ownerId);
+        if ("system-admin".equalsIgnoreCase(tenantId)) {
+            throw new IllegalArgumentException("The system-admin tenant cannot be deactivated");
+        }
+        if (TenantStaus.INACTIVE.name().equalsIgnoreCase(tenant.getActive())) {
+            return toSettingsResponse(tenant);
+        }
+        tenant.setActive(TenantStaus.INACTIVE.name());
+        if (tenant.isDefault()) {
+            tenant.setDefault(false);
+            promoteAnotherDefault(ownerId, tenantId);
+        }
+        log.info("Tenant '{}' deactivated by owner '{}'", tenantId, ownerId);
+        return toSettingsResponse(repository.save(tenant));
+    }
+
+    @Transactional
+    public TenantSettingsResponse activateTenant(String tenantId, String ownerId) {
+        Tenant tenant = requireOwnedTenant(tenantId, ownerId);
+        if (TenantStaus.ACTIVE.name().equalsIgnoreCase(tenant.getActive())) {
+            return toSettingsResponse(tenant);
+        }
+        tenant.setActive(TenantStaus.ACTIVE.name());
+        log.info("Tenant '{}' reactivated by owner '{}'", tenantId, ownerId);
+        return toSettingsResponse(repository.save(tenant));
+    }
+
+    @Transactional
+    public TenantSettingsResponse setDefaultTenant(String tenantId, String ownerId) {
+        Tenant tenant = requireOwnedTenant(tenantId, ownerId);
+        if (!TenantStaus.ACTIVE.name().equalsIgnoreCase(tenant.getActive())) {
+            throw new IllegalArgumentException("Only ACTIVE tenants can be set as default");
+        }
+        clearDefaultForOwner(ownerId, tenantId);
+        tenant.setDefault(true);
+        return toSettingsResponse(repository.save(tenant));
+    }
+
+    private Tenant requireOwnedTenant(String tenantId, String ownerId) {
+        if (!StringUtils.hasText(tenantId)) {
+            throw new IllegalArgumentException("tenantId is required");
+        }
+        if (!StringUtils.hasText(ownerId)) {
+            throw new IllegalArgumentException("ownerId is required");
+        }
+        Tenant tenant = repository.findByTenantId(tenantId)
+                .orElseThrow(() -> new IllegalArgumentException("Tenant not found: " + tenantId));
+        if (tenant.getOwnerId() == null || !ownerId.equalsIgnoreCase(tenant.getOwnerId())) {
+            throw new IllegalArgumentException("You do not own tenant: " + tenantId);
+        }
+        return tenant;
+    }
+
+    private void clearDefaultForOwner(String ownerId, String exceptTenantId) {
+        for (Tenant other : repository.findByOwnerId(ownerId)) {
+            if (other.isDefault() && !exceptTenantId.equals(other.getTenantId())) {
+                other.setDefault(false);
+                repository.save(other);
+            }
+        }
+    }
+
+    private void promoteAnotherDefault(String ownerId, String excludedTenantId) {
+        repository.findByOwnerId(ownerId).stream()
+                .filter(t -> !excludedTenantId.equals(t.getTenantId()))
+                .filter(t -> TenantStaus.ACTIVE.name().equalsIgnoreCase(t.getActive()))
+                .findFirst()
+                .ifPresent(candidate -> {
+                    candidate.setDefault(true);
+                    repository.save(candidate);
+                    log.info("Promoted '{}' as default after deactivating '{}'",
+                            candidate.getTenantId(), excludedTenantId);
+                });
+    }
+
+    private TenantSettingsResponse toSettingsResponse(Tenant tenant) {
+        return new TenantSettingsResponse(
+                tenant.getTenantId(),
+                tenant.getOwnerId(),
+                tenant.getActive(),
+                tenant.getAccountType(),
+                tenant.getOrgName(),
+                tenant.getEmployeeRange(),
+                tenant.isDefault(),
+                tenant.getDbType(),
+                tenant.getLastAccessedAt());
     }
 }

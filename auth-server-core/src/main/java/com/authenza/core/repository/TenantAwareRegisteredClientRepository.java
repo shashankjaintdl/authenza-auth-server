@@ -14,6 +14,7 @@ import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.jackson2.SecurityJackson2Modules;
 import org.springframework.security.oauth2.core.AuthorizationGrantType;
 import org.springframework.security.oauth2.core.ClientAuthenticationMethod;
+import org.springframework.security.oauth2.server.authorization.OAuth2TokenType;
 import org.springframework.security.oauth2.server.authorization.client.RegisteredClient;
 import org.springframework.security.oauth2.server.authorization.client.RegisteredClientRepository;
 import org.springframework.security.oauth2.server.authorization.jackson2.OAuth2AuthorizationServerJackson2Module;
@@ -27,6 +28,8 @@ import java.sql.SQLException;
 import java.util.*;
 import java.util.stream.Collectors;
 
+import static org.springframework.security.oauth2.server.authorization.oidc.OidcClientMetadataClaimNames.*;
+
 /**
  * A tenant-aware implementation of Spring Security's
  * {@link RegisteredClientRepository}.
@@ -38,6 +41,18 @@ import java.util.stream.Collectors;
  * </p>
  */
 public final class TenantAwareRegisteredClientRepository implements RegisteredClientRepository {
+
+    private final static String CLIENT_AUTH_METHODS = "client_authentication_methods";
+    private final static String AUTHORIZATION_GRANT_TYPE = "authorization_grant_types";
+    private final static String SCOPES = "scopes";
+    private final static String CLIENT_SETTINGS = "client_settings";
+    private final static String TOKEN_SETTINGS = "token_settings";
+    private final static String TENANT_ID = "tenant_id";
+    private final static String ID = "id";
+
+    private final static String TABLE_NAME = "oauth2_registered_client";
+
+    private final static String FIND_CLIENT_BY_ID_AND_TENANT_ID = "SELECT * FROM "+ TABLE_NAME+" WHERE client_id = :clientId AND tenant_id IN (:tenantIds)";
 
     private final NamedParameterJdbcOperations jdbcOperations;
     private final ObjectMapper objectMapper = new ObjectMapper();
@@ -117,13 +132,13 @@ public final class TenantAwareRegisteredClientRepository implements RegisteredCl
         String tenantId = TenantContextHolder.getTenantId();
 
         // Exact equivalent query logic to: findByClientIdAndTenantIdIn
-        String sql = "SELECT * FROM oauth2_registered_client WHERE client_id = :clientId AND tenant_id IN (:tenantIds)";
+        // String sql = "SELECT * FROM oauth2_registered_client WHERE client_id = :clientId AND tenant_id IN (:tenantIds)";
         MapSqlParameterSource params = new MapSqlParameterSource()
                 .addValue("clientId", clientId)
                 .addValue("tenantIds", List.of("GLOBAL", tenantId));
 
         try {
-            TenantRegisteredClient client = this.jdbcOperations.queryForObject(sql, params, new TenantRegisteredClientRowMapper());
+            TenantRegisteredClient client = this.jdbcOperations.queryForObject(FIND_CLIENT_BY_ID_AND_TENANT_ID, params, new TenantRegisteredClientRowMapper());
             if (client == null) {
                 return null;
             }
@@ -168,7 +183,7 @@ public final class TenantAwareRegisteredClientRepository implements RegisteredCl
         Set<String> authorizationGrantTypes = StringUtils.commaDelimitedListToSet(client.getAuthorizationGrantTypes())
                 .stream().map(String::trim).filter(s -> !s.isEmpty())
                 .collect(Collectors.toCollection(HashSet::new));
-        authorizationGrantTypes.add("refresh_token");
+        authorizationGrantTypes.add(OAuth2TokenType.REFRESH_TOKEN.getValue());
         Set<String> redirectUris = StringUtils.commaDelimitedListToSet(client.getRedirectUris());
         Set<String> postLogoutRedirectUris = StringUtils.commaDelimitedListToSet(client.getPostLogoutRedirectUris());
 
@@ -268,20 +283,20 @@ public final class TenantAwareRegisteredClientRepository implements RegisteredCl
         @Override
         public TenantRegisteredClient mapRow(ResultSet rs, int rowNum) throws SQLException {
             TenantRegisteredClient client = new TenantRegisteredClient();
-            client.setId(rs.getString("id"));
-            client.setClientId(rs.getString("client_id"));
-            client.setClientIdIssuedAt(rs.getTimestamp("client_id_issued_at") != null ? rs.getTimestamp("client_id_issued_at").toInstant() : null);
-            client.setClientSecret(rs.getString("client_secret"));
-            client.setClientSecretExpiresAt(rs.getTimestamp("client_secret_expires_at") != null ? rs.getTimestamp("client_secret_expires_at").toInstant() : null);
-            client.setClientName(rs.getString("client_name"));
-            client.setClientAuthenticationMethods(rs.getString("client_authentication_methods"));
-            client.setAuthorizationGrantTypes(rs.getString("authorization_grant_types"));
-            client.setRedirectUris(rs.getString("redirect_uris"));
-            client.setPostLogoutRedirectUris(rs.getString("post_logout_redirect_uris"));
-            client.setScopes(rs.getString("scopes"));
-            client.setClientSettings(rs.getString("client_settings"));
-            client.setTokenSettings(rs.getString("token_settings"));
-            client.setTenantId(rs.getString("tenant_id"));
+            client.setId(rs.getString(ID));
+            client.setClientId(rs.getString(CLIENT_ID));
+            client.setClientIdIssuedAt(rs.getTimestamp(CLIENT_ID_ISSUED_AT) != null ? rs.getTimestamp(CLIENT_ID_ISSUED_AT).toInstant() : null);
+            client.setClientSecret(rs.getString(CLIENT_SECRET));
+            client.setClientSecretExpiresAt(rs.getTimestamp(CLIENT_SECRET_EXPIRES_AT) != null ? rs.getTimestamp(CLIENT_SECRET_EXPIRES_AT).toInstant() : null);
+            client.setClientName(rs.getString(CLIENT_NAME));
+            client.setClientAuthenticationMethods(rs.getString(CLIENT_AUTH_METHODS));
+            client.setAuthorizationGrantTypes(rs.getString(AUTHORIZATION_GRANT_TYPE));
+            client.setRedirectUris(rs.getString(REDIRECT_URIS));
+            client.setPostLogoutRedirectUris(rs.getString(POST_LOGOUT_REDIRECT_URIS));
+            client.setScopes(rs.getString(SCOPES));
+            client.setClientSettings(rs.getString(CLIENT_SETTINGS));
+            client.setTokenSettings(rs.getString(TOKEN_SETTINGS));
+            client.setTenantId(rs.getString(TENANT_ID));
             return client;
         }
     }

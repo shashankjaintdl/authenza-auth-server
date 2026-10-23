@@ -2,6 +2,7 @@ package com.authenza.core.service;
 
 import com.authenza.adapter.context.TenantContextHolder;
 import com.authenza.adapter.cache.TenantSettingsCache;
+import com.authenza.core.util.ClientRequestUtils;
 import jakarta.servlet.http.HttpServletRequest;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -63,32 +64,33 @@ public class SessionRecordingService {
             return null;
         }
 
-        String ipAddress   = resolveIpAddress(request);
-        String userAgent   = request.getHeader("User-Agent");
-        String deviceName  = parseDeviceName(userAgent);
+        String ipAddress   = ClientRequestUtils.resolveIpAddress(request);
+        String userAgent   = ClientRequestUtils.resolveUserAgent(request);
+        String deviceName  = ClientRequestUtils.parseDeviceName(userAgent);
 
         // ── Check for an existing active session from the same device ──────────────
         // "Same device" = same user + IP + user-agent, created within the last 24 h.
         // Using a 24-hour window avoids matching ancient stale rows while still
         // coalescing repeated logins during a normal work session.
         try {
+            // No SQL LIMIT — take first row in Java for MySQL/Postgres/MariaDB portability.
             String existingSql = """
                     SELECT id, session_token
                     FROM   user_session
                     WHERE  user_id    = ?
                       AND  ip_address = ?
                       AND  user_agent = ?
-                      AND  revoked    = false
+                      AND  revoked    = ?
                       AND  expires_at > ?
                     ORDER  BY last_active_at DESC
-                    LIMIT  1
                     """;
 
             var rows = jdbcTemplate.query(existingSql,
                     (rs, rowNum) -> new long[]{rs.getLong("id")},
                     userId,
-                    truncate(ipAddress, 100),
-                    truncate(userAgent, 500),
+                    ClientRequestUtils.truncate(ipAddress, 100),
+                    ClientRequestUtils.truncate(userAgent, 500),
+                    Boolean.FALSE,                        // cross-engine boolean parameter
                     java.sql.Timestamp.from(Instant.now()));
 
             if (!rows.isEmpty()) {
@@ -137,9 +139,9 @@ public class SessionRecordingService {
                     "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
                     userId,
                     sessionToken,
-                    truncate(ipAddress, 100),
-                    truncate(userAgent, 500),
-                    truncate(deviceName, 200),
+                    ClientRequestUtils.truncate(ipAddress, 100),
+                    ClientRequestUtils.truncate(userAgent, 500),
+                    ClientRequestUtils.truncate(deviceName, 200),
                     java.sql.Timestamp.from(Instant.now()),
                     java.sql.Timestamp.from(Instant.now()),
                     java.sql.Timestamp.from(expiresAt),
@@ -154,78 +156,5 @@ public class SessionRecordingService {
         }
 
         return sessionToken;
-    }
-
-    // ─────────────────────────────────────────────────────────────────────────
-    // Private helpers
-    // ─────────────────────────────────────────────────────────────────────────
-
-    /**
-     * Returns the real client IP, respecting the {@code X-Forwarded-For} header
-     * set by reverse proxies (nginx, AWS ALB, Cloudflare, etc.).
-     */
-    private static String resolveIpAddress(HttpServletRequest request) {
-        String xff = request.getHeader("X-Forwarded-For");
-        if (xff != null && !xff.isBlank()) {
-            // X-Forwarded-For may be a comma-separated list; the first entry is the real
-            // client
-            return xff.split(",")[0].trim();
-        }
-        return request.getRemoteAddr();
-    }
-
-    /**
-     * Produces a human-readable device label from the raw {@code User-Agent}
-     * string.
-     * Examples: "Chrome on macOS", "Firefox on Windows", "Safari on iOS".
-     */
-    static String parseDeviceName(String userAgent) {
-        if (userAgent == null || userAgent.isBlank()) {
-            return "Unknown Device";
-        }
-
-        // ── Browser detection (order matters — Chrome UA contains "Safari") ──
-        String browser;
-        if (userAgent.contains("Edg/"))
-            browser = "Edge";
-        else if (userAgent.contains("OPR/") ||
-                userAgent.contains("Opera"))
-            browser = "Opera";
-        else if (userAgent.contains("Chrome"))
-            browser = "Chrome";
-        else if (userAgent.contains("Firefox"))
-            browser = "Firefox";
-        else if (userAgent.contains("Safari"))
-            browser = "Safari";
-        else if (userAgent.contains("curl"))
-            browser = "curl";
-        else if (userAgent.contains("PostmanRuntime"))
-            browser = "Postman";
-        else
-            browser = "Browser";
-
-        // ── OS detection ──────────────────────────────────────────────────────
-        String os;
-        if (userAgent.contains("iPhone") ||
-                userAgent.contains("iPad"))
-            os = "iOS";
-        else if (userAgent.contains("Android"))
-            os = "Android";
-        else if (userAgent.contains("Windows"))
-            os = "Windows";
-        else if (userAgent.contains("Mac OS X"))
-            os = "macOS";
-        else if (userAgent.contains("Linux"))
-            os = "Linux";
-        else
-            os = "Unknown OS";
-
-        return browser + " on " + os;
-    }
-
-    private static String truncate(String value, int maxLength) {
-        if (value == null)
-            return null;
-        return value.length() > maxLength ? value.substring(0, maxLength) : value;
     }
 }

@@ -395,7 +395,7 @@
                         <br/><br/>
                         Please click the link in the email to verify your address before signing in.
                     </p>
-                    <a th:href="@{'/' + ${tenantId} + '/login'}" class="btn-submit" style="display:inline-block; text-decoration:none; text-align:center;">Proceed to Sign In</a>
+                    <a th:href="${tx != null} ? @{'/' + ${tenantId} + '/login'(tx=${tx})} : @{'/' + ${tenantId} + '/login'}" class="btn-submit" style="display:inline-block; text-decoration:none; text-align:center;">Proceed to Sign In</a>
                 </div>
 
                 <!-- ─── Registration Form ─── -->
@@ -409,7 +409,7 @@
                         An error occurred during registration.
                     </div>
 
-                    <form th:action="@{'/' + ${tenantId} + '/register'}" method="post" id="registerForm">
+                    <form th:action="${tx != null} ? @{'/' + ${tenantId} + '/register'(tx=${tx})} : @{'/' + ${tenantId} + '/register'}" method="post" id="registerForm">
                         <div class="name-row">
                             <div class="form-group">
                                 <label for="firstName">First Name</label>
@@ -468,7 +468,7 @@
 
                     <p class="signin-link" th:unless="${param.success}">
                         Already have an account? 
-                        <a th:href="@{'/' + ${tenantId} + '/login'}">Sign in</a>
+                        <a th:href="${tx != null} ? @{'/' + ${tenantId} + '/login'(tx=${tx})} : @{'/' + ${tenantId} + '/login'}">Sign in</a>
                     </p>
                 </div>
                 

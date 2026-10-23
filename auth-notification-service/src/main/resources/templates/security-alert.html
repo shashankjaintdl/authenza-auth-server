@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8"/>
+    <title>Security Alert</title>
+</head>
+<body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; color: #1a1a1a; line-height: 1.5;">
+<div style="max-width: 560px; margin: 0 auto; padding: 24px;">
+    <h2 style="margin: 0 0 12px;">New sign-in detected</h2>
+    <p th:text="'Hi ' + ${name} + ','">Hi,</p>
+    <p>We noticed a sign-in to your account from a device we have not seen before.</p>
+    <table style="width: 100%; border-collapse: collapse; margin: 16px 0;">
+        <tr>
+            <td style="padding: 8px 0; color: #666;">Device</td>
+            <td style="padding: 8px 0;" th:text="${device_name}">Chrome on macOS</td>
+        </tr>
+        <tr>
+            <td style="padding: 8px 0; color: #666;">Approximate IP</td>
+            <td style="padding: 8px 0;" th:text="${ip_address}">0.0.0.0</td>
+        </tr>
+    </table>
+    <p>If this was you, no action is needed. If you did not sign in, secure your account immediately by changing your password and reviewing active sessions.</p>
+    <p style="color: #666; font-size: 12px; margin-top: 24px;">
+        This is an automated security notice from <span th:text="${brand_company_name}">Authenza</span>.
+        Contact <span th:text="${brand_support_email}">support@authenza.local</span> if you need help.
+    </p>
+</div>
+</body>
+</html>
